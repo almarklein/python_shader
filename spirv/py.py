@@ -215,7 +215,7 @@ class PyBytecode2Bytecode:
     def _op_store_fast(self):
         i = self._next()
         name = self._co.co_varnames[i]
-        ob self._stack.pop()  # noqa - ob not used
+        ob = self._stack.pop()  # noqa - ob not used
         self.emit(bc.CO_STORE, name)
 
     def _op_load_method(self):  # new in Python 3.7
@@ -268,6 +268,7 @@ class PyBytecode2Bytecode:
     def _op_call_function(self):
         nargs = self._next()
         args = self._stack[-nargs:]
+        args  # todo: not used?
         self._stack[-nargs:] = []
         func = self._stack.pop()
         assert isinstance(func, str)
