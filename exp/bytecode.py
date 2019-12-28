@@ -4,7 +4,7 @@ import dis
 def foo(a: int, x):
     b = a + 1
     print(b)
-    a = vec3(1, 2, 3)
+    a = vec3(1, 2, 3)  # noqa
     return b * 3
 
 

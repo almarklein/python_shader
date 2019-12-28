@@ -180,7 +180,7 @@ class BaseSpirVGenerator:
             global_OpVariable_s
         )
 
-    ## Utility for compiler
+    # %% Utility for compiler
 
     def to_text(self):
         """ Generate a textual (dis-assembly-like) representation.
@@ -257,7 +257,7 @@ class BaseSpirVGenerator:
 
         return f.getvalue()
 
-    ## Utils for subclasses
+    # %% Utils for subclasses
 
     def gen_instruction(self, section_name, opcode, *words):
         self._sections[section_name].append((opcode, *words))
@@ -328,7 +328,7 @@ class BaseSpirVGenerator:
         """
         assert isinstance(the_type, type), f"create_id requires a type, not {the_type}"
         assert issubclass(the_type, _types.SpirVType), f"not a spirv type: {the_type}"
-        assert not the_type.is_abstract, f"not a concrete spirv type: {thetype}"
+        assert not the_type.is_abstract, f"not a concrete spirv type: {the_type}"
 
         # Already know this type?
         if the_type.__name__ in self._type_name_to_id:

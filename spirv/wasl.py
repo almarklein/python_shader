@@ -84,7 +84,6 @@ class Wasl2Bytecode:
         getattr(self, method_name)(node)
 
     def visit_Procedure(self, node):
-        name = node.name
         for param in node.params:
             if param.mode == "input":
                 self.emit(bc.CO_INPUT, (param.name, param.location, param.type))

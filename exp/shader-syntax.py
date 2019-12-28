@@ -20,6 +20,8 @@ layout(binding = 0, offset = 4) uniform atomic_uint three;
 
 """
 
+# flake8: noqa
+
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%% types %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 

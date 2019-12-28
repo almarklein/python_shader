@@ -2,7 +2,7 @@
 Compile a shader written in Python to SpirV, and show the SpirV disassembly.
 """
 
-from spirv.py import python2spirv
+from spirv import python2spirv, i32, vec2, vec3, vec4
 
 
 @python2spirv

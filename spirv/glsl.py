@@ -31,6 +31,7 @@ def glsl2spirv(glsl_code, shader_type):
             ["glslangvalidator", "-V", filename1, "-o", filename2],
             stderr=subprocess.STDOUT,
         )
+        stdout  # noqa - not used
     except subprocess.CalledProcessError as err:
         e = "Could not compile glsl to Spir-V:\n" + err.output.decode()
         raise Exception(e)

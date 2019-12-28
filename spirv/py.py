@@ -20,9 +20,9 @@ def python2spirv(func, shader_type=None):
 
     if not shader_type:
         # Try to auto-detect
-        if "vert" in func.__name__ and not "frag" in func.__name__:
+        if "vert" in func.__name__ and "frag" not in func.__name__:
             shader_type = "vertex"
-        elif "frag" in func.__name__ and not "vert" in func.__name__:
+        elif "frag" in func.__name__ and "vert" not in func.__name__:
             shader_type = "fragment"
 
     converter = PyBytecode2Bytecode()
@@ -47,7 +47,7 @@ class PyBytecode2Bytecode:
 
     def convert(self, py_func):
         self._py_func = py_func
-        self._co = co = self._py_func.__code__
+        self._co = self._py_func.__code__
 
         self._opcodes = []
         self._convert()
@@ -197,8 +197,9 @@ class PyBytecode2Bytecode:
         i = self._next()
         name = self._co.co_names[i]
         ob = self._stack.pop()
-        value = self._stack.pop()
+        value = self._stack.pop()  # noqa
         # assert isinstance(value, IdInt)
+        # todo: value not used?
 
         if ob == "input":
             raise AttributeError("Cannot assign to input.")
@@ -214,7 +215,7 @@ class PyBytecode2Bytecode:
     def _op_store_fast(self):
         i = self._next()
         name = self._co.co_varnames[i]
-        ob = self._stack.pop()
+        ob self._stack.pop()  # noqa - ob not used
         self.emit(bc.CO_STORE, name)
 
     def _op_load_method(self):  # new in Python 3.7
@@ -277,7 +278,7 @@ class PyBytecode2Bytecode:
     def _op_binary_subscr(self):
         self._next()  # because always 1 arg even if dummy
         index = self._stack.pop()
-        ob = self._stack.pop()
+        ob = self._stack.pop()  # noqa - ob not ised
         if isinstance(index, tuple):
             self.emit(bc.CO_INDEX, len(index))
         else:

@@ -29,7 +29,7 @@ def glsl2spirv(glsl):
         return stdout.decode()
 
 
-## Naked function
+# %% Naked function
 
 print(
     glsl2spirv(
@@ -44,7 +44,7 @@ void main()
 )
 
 
-## One in, one out
+# %% One in, one out
 
 print(
     glsl2spirv(
@@ -65,7 +65,7 @@ void main()
 )
 
 
-## Builtin out vars
+# %% Builtin out vars
 
 print(
     glsl2spirv(
@@ -81,7 +81,7 @@ void main()
 )
 
 
-## Uniforms
+# %% Uniforms
 
 print(
     glsl2spirv(
@@ -102,7 +102,7 @@ void main()
 )
 
 
-## Constant
+# %% Constant
 
 print(
     glsl2spirv(
@@ -119,7 +119,7 @@ void main()
 )
 
 
-## Vector composite
+# %% Vector composite
 
 print(
     glsl2spirv(
