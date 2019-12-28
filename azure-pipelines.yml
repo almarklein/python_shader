@@ -89,3 +89,4 @@ jobs:
       mergeTestResults: true
       failTaskOnFailedTests: true
       testRunTitle: Test $(vmImage) (packaged)
+
