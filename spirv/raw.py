@@ -6,7 +6,7 @@ from ._module import SpirVModule
 def bytes2spirv(bytes):
     """ Return a SpirVModule object, given the raw bytes of a SpirV module.
     """
-    return SpirVModule(bytes, bytes, "raw")
+    return SpirVModule(bytes, bytes, "from bytes")
 
 
 def file2spirv(f):
