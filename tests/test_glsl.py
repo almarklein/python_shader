@@ -22,9 +22,9 @@ void main() {
 }
 """.lstrip()
 
+
 def test_api():
     assert callable(spirv.glsl.glsl2spirv)
-
 
 
 def test_run():
@@ -47,4 +47,3 @@ def test_fails():
 
     with raises(Exception):  # code must actually glsl
         spirv.glsl.glsl2spirv("not valid glsls", "vert")
-

@@ -2,7 +2,6 @@ from spirv import python2spirv, i32, vec2, vec3, vec4
 
 
 def test_shader01():
-
     def vertex_shader(input, output):
         input.define("index", "VertexId", i32)
         output.define("pos", "Position", vec4)
@@ -17,4 +16,3 @@ def test_shader01():
     m = python2spirv(vertex_shader)
     assert m.input is vertex_shader
     assert isinstance(m.to_bytes(), bytes)
-

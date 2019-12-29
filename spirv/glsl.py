@@ -28,8 +28,8 @@ def glsl2spirv(glsl_code, shader_type):
 
     try:
         stdout = subprocess.check_output(
-           ["glslangvalidator", "-V", filename1, "-o", filename2],
-           stderr=subprocess.STDOUT,
+            ["glslangvalidator", "-V", filename1, "-o", filename2],
+            stderr=subprocess.STDOUT,
         )
         stdout  # noqa - not used
     except subprocess.CalledProcessError as err:
