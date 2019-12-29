@@ -29,8 +29,12 @@ jobs:
       script: |
         python -m pip install -U pip setuptools wheel
         pip install black flake8 pytest flit
+        mkdir vulkandsk
+        cd vulkansdk
         wget -O vulkansdk.zip https://github.com/almarklein/spirv-py/releases/download/v0.2.1/vulkansdk-linux-x86_64-1.1.130.0-lite.zip
         unzip vulkansdk.zip
+        export PATH=$(pwd):$PATH
+        cd ..
   - task: Bash@3
     displayName: Lint (black)
     inputs:
