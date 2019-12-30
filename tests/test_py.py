@@ -3,6 +3,7 @@ from spirv import python2spirv, i32, vec2, vec3, vec4
 
 def test_shader01():
     return  # todo: broken
+
     def vertex_shader(input, output):
         input.define("index", "VertexId", i32)
         output.define("pos", "Position", vec4)

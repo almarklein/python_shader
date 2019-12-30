@@ -29,8 +29,7 @@ def glsl2spirv(glsl_code, shader_type):
     # Note: -O means optimize, use -O0 to disable optimization
     try:
         stdout = subprocess.check_output(
-            ["glslc", "-O", "-o", filename2, filename1],
-            stderr=subprocess.STDOUT,
+            ["glslc", "-O", "-o", filename2, filename1], stderr=subprocess.STDOUT
         )
         stdout  # noqa - not used
     except subprocess.CalledProcessError as err:
