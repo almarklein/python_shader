@@ -3,7 +3,7 @@ import re
 from setuptools import find_packages, setup
 
 
-NAME = "python_shader"
+NAME = "python-shader"
 SUMMARY = "Write modern GPU shaders in Python!"
 
 with open(f"{NAME}/__init__.py") as fh:

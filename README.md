@@ -27,7 +27,7 @@ into account" when it becomes a thing.
 ## Installation
 
 ```
-pip install python_shader
+pip install python-shader
 ```
 
 
@@ -36,6 +36,8 @@ pip install python_shader
 Decorate a function to turn it into a `ShaderModule` object:
 
 ```
+import python_shader
+
 @python_shader.python2shader
 def vertex_shader(input, output):
     input.define("index", "VertexId", i32)
