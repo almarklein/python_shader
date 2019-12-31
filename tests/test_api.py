@@ -35,5 +35,6 @@ def test_spirv_constants():
     assert cc.AccessQualifier_ReadWrite
     assert cc.WordCountShift
     assert isinstance(repr(cc.Version), str)
-    assert isinstance(int(cc.Version), int)
-    assert str(int(cc.Version)) == str(cc.Version)
+    assert int(cc.Version) == cc.Version
+    # assert str(int(cc.Version)) == str(cc.Version)  # not on Python 3.8 :)
+
