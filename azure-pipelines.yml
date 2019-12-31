@@ -2,7 +2,7 @@ trigger:
 - master
 
 variables:
-  NAME: spirv
+  NAME: python_shader
 
 jobs:
 - job: Build
@@ -77,7 +77,7 @@ jobs:
       targetType: inline
       script: |
         flit install
-        rm -rf ./spirv ./build ./egg-info
+        rm -rf ./python_shader ./build ./egg-info
         pytest --disable-warnings --junit-xml=results-packaged.xml || true
 
         # Fail the task if results-packaged.xml was not created
