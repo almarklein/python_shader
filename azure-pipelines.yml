@@ -48,15 +48,14 @@ jobs:
       targetType: inline
       script: |
         python -m pip install -U pip
-        pip install pytest
+        pip install -q -U pytest pytest-cov
   - task: Bash@3
     displayName: Install more development requirements
     condition: eq(variables['PYTHON_SHADER_TEST_FULL'], 'true')
     inputs:
       targetType: inline
       script: |
-        python -m pip install -U pip
-        pip install black flake8 pytest
+        pip install -q -U black flake8
         wget -qO - http://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo apt-key add -
         sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-1.1.130-xenial.list http://packages.lunarg.com/vulkan/1.1.130/lunarg-vulkan-1.1.130-xenial.list
         sudo apt update
