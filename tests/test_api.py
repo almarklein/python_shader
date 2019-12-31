@@ -37,4 +37,3 @@ def test_spirv_constants():
     assert isinstance(repr(cc.Version), str)
     assert int(cc.Version) == cc.Version
     # assert str(int(cc.Version)) == str(cc.Version)  # not on Python 3.8 :)
-
