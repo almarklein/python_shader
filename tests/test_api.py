@@ -1,33 +1,33 @@
 import spirv
-import spirv.glsl
-
-from pytest import raises
 
 
 def test_api():
     assert isinstance(spirv.__version__, str)
-    assert isinstance(spirv.SpirVModule, type)
+    assert isinstance(spirv.ShaderModule, type)
 
-    assert callable(spirv.python2spirv)
+    assert callable(spirv.python2shader)
     for name in "f32 i32 vec2 vec3 vec4 ivec2 ivec3 ivec4".split():
         assert hasattr(spirv, name)
     for name in "mat2 mat3 mat4".split():
         assert hasattr(spirv, name)
 
 
-def test_spirv_module_class():
+def test_shader_module_class():
 
-    SpirVModule = spirv.SpirVModule
-    m = SpirVModule(42, b"aa", "stub")
+    # Create shader module object
+    ShaderModule = spirv.ShaderModule
+    entrypoint = ("CO_ENTRYPOINT", ("main", "vertex", []))
+    m = ShaderModule(42, [entrypoint], "stub")
+
+    # Validate some stuff
     assert m.input == 42
-    assert m.to_bytes() == b"aa"
+    assert m.to_bytecode()[0] is entrypoint
     assert "stub" in repr(m)
+    assert m.description in repr(m)
 
-    # This module is not valid at all
-    with raises(Exception):
-        m.validate()
-    with raises(Exception):
-        m.disassble()
+    # Generate spirv
+    bb = m.to_spirv()
+    assert isinstance(bb, bytes)
 
 
 def test_spirv_constants():

@@ -46,58 +46,21 @@ class BaseSpirVGenerator:
     instructions.
     """
 
-    def generate(self, input, execution_model):
-        """ Generate the Spir-V code. After this, to_bytes() can be used to
+    def convert(self, input):
+        """ Generate the Spir-V code. After this, dump() can be used to
         produce the binary blob that represents the Spir-V module.
         """
-
-        # todo: somehow derive execution_model from the function itself
-        execution_model = execution_model or ""
-        if execution_model.lower() in ("vert", "vertex"):
-            execution_model = cc.ExecutionModel_Vertex
-        elif execution_model.lower() in ("frag", "fragment"):
-            execution_model = cc.ExecutionModel_Fragment
-        else:
-            raise ValueError(f"Unknown execution model: {execution_model}")
 
         # Start clean
         self._init()
 
-        # Define memory model (1 instruction)
-        self.gen_instruction(
-            "memory_model",
-            cc.OpMemoryModel,
-            cc.AddressingModel_Logical,
-            cc.MemoryModel_Simple,
-        )
-
-        # Define entry points
-        # Note that we must add the ids of all used OpVariables that this entrypoint uses.
-        self._entry_point_id = self.create_id("main")
-        self.gen_instruction(
-            "entry_points",
-            cc.OpEntryPoint,
-            execution_model,
-            self._entry_point_id,
-            "main",
-        )
-
-        # Define execution modes for each entry point
-        if execution_model == cc.ExecutionModel_Fragment:
-            self.gen_instruction(
-                "execution_modes",
-                cc.OpExecutionMode,
-                self._entry_point_id,
-                cc.ExecutionMode_OriginLowerLeft,
-            )
-
         # Do the thing!
-        self._generate(input)
+        self._convert(input)
 
         # Wrap up
-        self._post_generate()
+        self._post_convert()
 
-    def _generate(self, input):
+    def _convert(self, input):
         """ Subclasses should implement this.
         """
         raise NotImplementedError()
@@ -142,10 +105,18 @@ class BaseSpirVGenerator:
             # d. Function end, using OpFunctionEnd.
         }
 
-    def _post_generate(self):
+    def _post_convert(self):
         """ After most of the generation has been done, we set the required capabilities
         and massage the order of instructions a bit.
         """
+
+        # Define memory model (1 instruction)
+        self.gen_instruction(
+            "memory_model",
+            cc.OpMemoryModel,
+            cc.AddressingModel_Logical,
+            cc.MemoryModel_Simple,
+        )
 
         # Define capabilities. Therea area lot more, and we probably should detect
         # todo: detect capabilities from SpirV stuff being used
@@ -223,7 +194,7 @@ class BaseSpirVGenerator:
 
         return "\n".join(lines)
 
-    def to_bytes(self):
+    def dump(self):
         """ Generated a bytes object representing the Spir-V module.
         """
         f = io.BytesIO()

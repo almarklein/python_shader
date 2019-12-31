@@ -6,8 +6,7 @@ to support WSL than roll our own shading language. This was fun though :)
 
 from textx import metamodel_from_str
 
-from ._module import SpirVModule
-from ._generator_bc import Bytecode2SpirVGenerator
+from ._module import ShaderModule
 from . import _generator_bc as bc
 
 
@@ -39,15 +38,15 @@ IdentifierIndexed: name=ID '[' index=Expression ']';
 meta_model = metamodel_from_str(grammar, classes=[])
 
 
-def wasl2spirv(code, shader_type=None):
-    """ Compile WASL code to SpirV and return as a SpirVModule object.
+def wasl2shader(code, shader_type=None):
+    """ Compile WASL code to a ShaderModule object.
 
     WASL is our own defined domain specific language (DSL) to write shaders.
     It is highly experimental. The code is parsed using textx, the resulting
-    AST is converted to bytecode, from which the SpirV is generated.
+    AST is converted to bytecode, from which binary SpirV can be generated.
     """
     if not isinstance(code, str):
-        raise TypeError("wasl2spirv expects a string.")
+        raise TypeError("wasl2shader expects a string.")
 
     ast = meta_model.model_from_str(code)
 
@@ -55,13 +54,7 @@ def wasl2spirv(code, shader_type=None):
     converter.convert(ast)
     bytecode = converter.dump()
 
-    generator = Bytecode2SpirVGenerator()
-    generator.generate(bytecode, shader_type)
-    bb = generator.to_bytes()
-
-    m = SpirVModule(code, bb, "compiled from WASL")
-    m.gen = generator
-    return m
+    return ShaderModule(code, bytecode, "shader from WASL")
 
 
 class Wasl2Bytecode:

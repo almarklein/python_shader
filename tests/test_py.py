@@ -1,4 +1,5 @@
-from spirv import python2spirv, i32, vec2, vec3, vec4
+import spirv
+from spirv import i32, vec2, vec3, vec4
 
 
 def test_shader01():
@@ -15,6 +16,6 @@ def test_shader01():
         output.pos = vec4(p, 0.0, 1.0)
         output.color = vec3(p, 0.5)
 
-    m = python2spirv(vertex_shader)
+    m = spirv.python2shader(vertex_shader)
     assert m.input is vertex_shader
-    assert isinstance(m.to_bytes(), bytes)
+    assert isinstance(m.to_spirv(), bytes)

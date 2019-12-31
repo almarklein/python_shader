@@ -8,19 +8,10 @@ from ._generator_base import IdInt, BaseSpirVGenerator
 from . import _spirv_constants as cc
 from . import _types
 
-
-CO_INPUT = "CO_INPUT"
-CO_OUTPUT = "CO_OUTPUT"
-CO_UNIFORM = "CO_UNIFORM"
-CO_ASSIGN = "CO_ASSIGN"
-CO_LOAD_CONSTANT = "CO_LOAD_CONSTANT"
-CO_LOAD = "CO_LOAD"
-CO_BINARY_OP = "CO_BINARY_OP"
-CO_STORE = "CO_STORE"
-CO_CALL = "CO_CALL"
-CO_INDEX = "CO_INDEX"
-CO_POP_TOP = "CO_POP_TOP"
-CO_BUILD_ARRAY = "CO_BUILD_ARRAY"
+# todo: build in some checks
+# - expect no func or entrypoint inside a func definition
+# - expect other opcodes only inside a func definition
+# - expect input/output/uniform at the very start (or inside an entrypoint?)
 
 
 class Bytecode2SpirVGenerator(BaseSpirVGenerator):
@@ -34,28 +25,13 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
     class relatively simple. In other words, it separates concerns very well.
     """
 
-    def _generate(self, bytecode):
+    def _convert(self, bytecode):
 
         self._stack = []
         self._input = {}
         self._output = {}
         self._uniform = {}
         self._aliases = {}
-
-        # Declare funcion
-        return_type_id = self.get_type_id(_types.void)
-        func_type_id = self.create_id("func_declaration")
-        self.gen_instruction(
-            "types", cc.OpTypeFunction, func_type_id, return_type_id
-        )  # 0 args
-
-        # Start function definition
-        func_id = self._entry_point_id
-        func_control = 0  # can specify whether it should inline, etc.
-        self.gen_func_instruction(
-            cc.OpFunction, return_type_id, func_id, func_control, func_type_id
-        )
-        self.gen_func_instruction(cc.OpLabel, self.create_id("label"))
 
         # Parse
         for opcode, arg in bytecode:
@@ -67,12 +43,67 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
             else:
                 method(arg)
 
-        # End function definition
-        self.gen_func_instruction(cc.OpReturn)
-        self.gen_func_instruction(cc.OpFunctionEnd)
-
     def _op_pop_top(self, arg):
         self._stack.pop()
+
+    def _op_func(self, args):
+        # Start function definition
+        raise NotImplementedError()
+
+    def _op_entrypoint(self, args):
+        # Special function definition that acts as an entrypoint
+        name, execution_model, execution_modes = args
+
+        # Get execution_model flag
+        modelmap = {
+            "compute": cc.ExecutionModel_Kernel,  # see also ExecutionModel_GLCompute
+            "vertex": cc.ExecutionModel_Vertex,
+            "fragment": cc.ExecutionModel_Fragment,
+            "geometry": cc.ExecutionModel_Geometry,
+        }
+        execution_model_flag = modelmap.get(execution_model.lower(), None)
+        if execution_model_flag is None:
+            raise ValueError(f"Unknown execution model: {execution_model}")
+
+        # Define entry points
+        # Note that we must add the ids of all used OpVariables that this entrypoint uses.
+        entry_point_id = self.create_id(name)
+        self.gen_instruction(
+            "entry_points", cc.OpEntryPoint, execution_model_flag, entry_point_id, name
+        )
+
+        # Define execution modes for each entry point
+        modes = set(execution_modes)
+        if execution_model_flag == cc.ExecutionModel_Fragment:
+            if "OriginLowerLeft" not in modes and "OriginUpperLeft" not in modes:
+                modes.add("OriginLowerLeft")
+        for mode in modes:
+            self.gen_instruction(
+                "execution_modes",
+                cc.OpExecutionMode,
+                entry_point_id,
+                getattr(cc, "ExecutionMode_" + mode),
+            )
+
+        # Declare funcion
+        return_type_id = self.get_type_id(_types.void)
+        func_type_id = self.create_id("func_declaration")
+        self.gen_instruction(
+            "types", cc.OpTypeFunction, func_type_id, return_type_id
+        )  # 0 args
+
+        # Start function definition
+        func_id = entry_point_id
+        func_control = 0  # can specify whether it should inline, etc.
+        self.gen_func_instruction(
+            cc.OpFunction, return_type_id, func_id, func_control, func_type_id
+        )
+        self.gen_func_instruction(cc.OpLabel, self.create_id("label"))
+
+    def _op_func_end(self, arg):
+        # End function or entrypoint
+        self.gen_func_instruction(cc.OpReturn)
+        self.gen_func_instruction(cc.OpFunctionEnd)
 
     def _op_input(self, args):
         location, *name_type_pairs = args

@@ -1,41 +1,40 @@
 import inspect
 from dis import dis as pprint_bytecode
 
-from ._module import SpirVModule
-from ._generator_bc import Bytecode2SpirVGenerator
-from . import _generator_bc as bc
+from ._module import ShaderModule
+from . import opcodes as op
 from ._dis import dis
 
 
-def python2spirv(func, shader_type=None):
-    """ Compile a Python function to SpirV and return as a SpirVModule object.
+def python2shader(func):
+    """ Convert a Python function to a ShaderModule object.
 
-    This function takes the bytecode of the given function, converts it to
-    a more standardized (and SpirV specific) bytecode, and then generates
-    the SpirV from that. All in dependency-free pure Python.
+    This function takes the bytecode of the given function and converts it to
+    a more standardized (and shader specific) bytecode. From there it be
+    converted to binary SpirV. All in dependency-free pure Python.
     """
 
     if not inspect.isfunction(func):
-        raise TypeError("python2spirv expects a Python function.")
+        raise TypeError("python2shader expects a Python function.")
 
-    if not shader_type:
-        # Try to auto-detect
-        if "vert" in func.__name__ and "frag" not in func.__name__:
-            shader_type = "vertex"
-        elif "frag" in func.__name__ and "vert" not in func.__name__:
-            shader_type = "fragment"
+    # Detect shader type
+    possible_types = "vertex", "fragment", "compute"
+    shader_types = [t for t in possible_types if t in func.__name__.lower()]
+    if len(shader_types) == 1:
+        shader_type = shader_types[0]
+    elif len(shader_types) == 0:
+        raise NameError(
+            "Shader entrypoint must contain 'vertex', 'fragment' or 'compute' to specify shader type."
+        )
+    else:
+        raise NameError("Ambiguous function name: is it a vert, frag or comp shader?")
 
+    # Convert to bytecode
     converter = PyBytecode2Bytecode()
-    converter.convert(func)
+    converter.convert(func, shader_type)
     bytecode = converter.dump()
 
-    generator = Bytecode2SpirVGenerator()
-    generator.generate(bytecode, shader_type)
-    bb = generator.to_bytes()
-
-    m = SpirVModule(func, bb, f"compiled from Pyfunc {func.__name__}")
-    m.gen = generator
-    return m
+    return ShaderModule(func, bytecode, f"shader from {func.__name__}")
 
 
 class PyBytecode2Bytecode:
@@ -45,12 +44,17 @@ class PyBytecode2Bytecode:
     of code generation becomes simpler.
     """
 
-    def convert(self, py_func):
+    def convert(self, py_func, shader_type):
         self._py_func = py_func
         self._co = self._py_func.__code__
 
         self._opcodes = []
+
+        # todo: odd, but name must be the same for vertex and fragment shader??
+        entrypoint_name = "main"  # py_func.__name__
+        self.emit(op.CO_ENTRYPOINT, (entrypoint_name, shader_type, []))
         self._convert()
+        self.emit(op.CO_FUNC_END, ())
 
     def emit(self, opcode, arg):
         self._opcodes.append((opcode, arg))
@@ -116,7 +120,7 @@ class PyBytecode2Bytecode:
         return self._co.co_code[self._pointer]
 
     def _define(self, kind, location, **variables):
-        COS = {"input": bc.CO_INPUT, "output": bc.CO_OUTPUT, "uniform": bc.CO_UNIFORM}
+        COS = {"input": op.CO_INPUT, "output": op.CO_OUTPUT, "uniform": op.CO_UNIFORM}
         DICTS = {"input": self._input, "output": self._output, "uniform": self._uniform}
         co = COS[kind]
         d = DICTS[kind]
@@ -131,7 +135,7 @@ class PyBytecode2Bytecode:
     def _op_pop_top(self):
         self._stack.pop()
         self._next()  # todo: why need pointer advance?
-        self.emit(bc.CO_POP_TOP, ())
+        self.emit(op.CO_POP_TOP, ())
 
     def _op_return_value(self):
         result = self._stack.pop()
@@ -146,7 +150,7 @@ class PyBytecode2Bytecode:
         if name in ("input", "output", "uniform"):
             self._stack.append(name)
         else:
-            self.emit(bc.CO_LOAD, name)
+            self.emit(op.CO_LOAD, name)
             self._stack.append(name)  # todo: euhm, do we still need a stack?
 
     def _op_load_const(self):
@@ -156,7 +160,7 @@ class PyBytecode2Bytecode:
             # We use strings in e.g. input.define(), mmm
             self._stack.append(ob)
         elif isinstance(ob, (float, int, bool)):
-            self.emit(bc.CO_LOAD_CONSTANT, ob)
+            self.emit(op.CO_LOAD_CONSTANT, ob)
             self._stack.append(ob)
         elif ob is None:
             self._stack.append(None)  # todo: for the final return ...
@@ -168,7 +172,7 @@ class PyBytecode2Bytecode:
     def _op_load_global(self):
         i = self._next()
         name = self._co.co_names[i]
-        self.emit(bc.CO_LOAD, name)
+        self.emit(op.CO_LOAD, name)
         self._stack.append(name)
 
     def _op_load_attr(self):
@@ -181,12 +185,12 @@ class PyBytecode2Bytecode:
         elif ob == "input":
             if name not in self._input:
                 raise NameError(f"No input {name} defined.")
-            self.emit(bc.CO_LOAD, "input." + name)
+            self.emit(op.CO_LOAD, "input." + name)
             self._stack.append("input." + name)
         elif ob == "uniform":
             if name not in self._uniform:
                 raise NameError(f"No uniform {name} defined.")
-            self.emit(bc.CO_LOAD, "uniform." + name)
+            self.emit(op.CO_LOAD, "uniform." + name)
             self._stack.append("uniform." + name)
         elif ob == "output":
             raise AttributeError("Cannot read from output.")
@@ -208,7 +212,7 @@ class PyBytecode2Bytecode:
         elif ob == "output":
             if name not in self._output:
                 raise NameError(f"No output {name} defined.")
-            self.emit(bc.CO_STORE, "output." + name)
+            self.emit(op.CO_STORE, "output." + name)
         else:
             raise NotImplementedError()
 
@@ -216,7 +220,7 @@ class PyBytecode2Bytecode:
         i = self._next()
         name = self._co.co_varnames[i]
         ob = self._stack.pop()  # noqa - ob not used
-        self.emit(bc.CO_STORE, name)
+        self.emit(op.CO_STORE, name)
 
     def _op_load_method(self):  # new in Python 3.7
         i = self._next()
@@ -244,7 +248,7 @@ class PyBytecode2Bytecode:
             result = func(ob, location, **{name: type})
             self._stack.append(result)
         else:
-            self.emit(bc.CO_CALL, nargs)
+            self.emit(op.CO_CALL, nargs)
             self._stack.append(None)
 
     def _op_call_function_kw(self):
@@ -273,7 +277,7 @@ class PyBytecode2Bytecode:
         func = self._stack.pop()
         assert isinstance(func, str)
 
-        self.emit(bc.CO_CALL, nargs)
+        self.emit(op.CO_CALL, nargs)
         self._stack.append(None)
 
     def _op_binary_subscr(self):
@@ -281,9 +285,9 @@ class PyBytecode2Bytecode:
         index = self._stack.pop()
         ob = self._stack.pop()  # noqa - ob not ised
         if isinstance(index, tuple):
-            self.emit(bc.CO_INDEX, len(index))
+            self.emit(op.CO_INDEX, len(index))
         else:
-            self.emit(bc.CO_INDEX, 1)
+            self.emit(op.CO_INDEX, 1)
         self._stack.append(None)
 
     def _op_build_tuple(self):
@@ -304,4 +308,4 @@ class PyBytecode2Bytecode:
         res = [self._stack.pop() for i in range(n)]
         res = list(reversed(res))
         self._stack.append(res)
-        self.emit(bc.CO_BUILD_ARRAY, n)
+        self.emit(op.CO_BUILD_ARRAY, n)

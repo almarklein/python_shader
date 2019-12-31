@@ -2,10 +2,10 @@
 Compile a shader written in Python to SpirV, and show the SpirV disassembly.
 """
 
-from spirv import python2spirv, i32, vec2, vec3, vec4
+from spirv import python2shader, i32, vec2, vec3, vec4
 
 
-@python2spirv
+@python2shader
 def vertex_shader(input, output):
     input.define("index", "VertexId", i32)
     output.define("pos", "Position", vec4)
@@ -18,12 +18,10 @@ def vertex_shader(input, output):
     output.color = vec3(p, 0.5)
 
 
-# You can uncomment these, but they need spirv-tools to be installed
-# vertex_shader.validate()
-# vertex_shader.disassble()
-
-# Similar output as disassble(), but derived from our own internal state
-print(vertex_shader.gen.to_text())
-
 # Get the raw bytes
-raw_spirv = vertex_shader.to_bytes()
+raw_spirv = vertex_shader.to_spirv()
+
+# Uncomment to validate the shader - note that thsese requires the Vulkan SDK
+# from spirv import dev
+# dev.disassemble(vertex_shader)
+# dev.validate(vertex_shader)
