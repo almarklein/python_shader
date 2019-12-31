@@ -2,7 +2,7 @@ trigger:
 - master
 
 variables:
-  NAME: python_shader
+  NAME: python-shader
 
 jobs:
 - job: Build
