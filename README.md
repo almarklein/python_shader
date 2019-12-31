@@ -1,4 +1,4 @@
-[![Build Status](https://dev.azure.com/almarklein/spirv-py/_apis/build/status/almarklein.spirv-py?branchName=master)](https://dev.azure.com/almarklein/spirv-py/_build/latest?definitionId=1&branchName=master)
+[![Build Status](https://dev.azure.com/almarklein/python_shader/_apis/build/status/almarklein.python_shader?branchName=master)](https://dev.azure.com/almarklein/python_shader/_build/latest?definitionId=3&branchName=master)
 
 
 # python_shader
