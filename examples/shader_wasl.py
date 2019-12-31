@@ -5,7 +5,7 @@ WASL is experimental, currently broken, and probably being deprecated :)
 """
 
 
-from spirv.wasl import wasl2spirv
+from python_shader.wasl import wasl2shader
 
 vertex_code = """
 fn main (
@@ -23,7 +23,6 @@ fn main (
 }
 """.lstrip()
 
-module = wasl2spirv(vertex_code, "vert")
+module = wasl2shader(vertex_code, "vert")
 
-module.validate()
-print(module.disassble())
+print(module.to_spirv())

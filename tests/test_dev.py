@@ -1,4 +1,4 @@
-import spirv
+import python_shader
 
 from pytest import raises
 
@@ -24,7 +24,6 @@ void main() {
 
 
 class FakeModule:
-
     def __init__(self, spirv):
         self._spirv = spirv
 
@@ -34,11 +33,11 @@ class FakeModule:
 
 def test_run():
 
-    bb = spirv.dev.glsl2spirv(vertex_code, "vertex")
-    spirv.dev.validate(bb)
-    spirv.dev.validate(FakeModule(bb))
-    x1 = spirv.dev.disassemble(bb)
-    x2 = spirv.dev.disassemble(FakeModule(bb))
+    bb = python_shader.dev.glsl2spirv(vertex_code, "vertex")
+    python_shader.dev.validate(bb)
+    python_shader.dev.validate(FakeModule(bb))
+    x1 = python_shader.dev.disassemble(bb)
+    x2 = python_shader.dev.disassemble(FakeModule(bb))
     assert x1 == x2
     assert isinstance(x1, str)
     assert "Version" in x1
@@ -49,26 +48,26 @@ def test_fails():
 
     # Shader type myst be vertex, fragment or compute
     with raises(ValueError):
-        spirv.dev.glsl2spirv(vertex_code, "invalid_type")
+        python_shader.dev.glsl2spirv(vertex_code, "invalid_type")
 
     # Code must be str
     with raises(TypeError):
-        spirv.dev.glsl2spirv(vertex_code.encode(), "vertex")
+        python_shader.dev.glsl2spirv(vertex_code.encode(), "vertex")
 
     # Code must actually glsl
     with raises(Exception):
-        spirv.dev.glsl2spirv("not valid glsls", "vertex")
+        python_shader.dev.glsl2spirv("not valid glsls", "vertex")
 
     # Input must be bytes or ShaderModule-ish
     with raises(Exception):
-        spirv.dev.validate(523)
+        python_shader.dev.validate(523)
     with raises(Exception):
-        spirv.dev.disassemble(523)
+        python_shader.dev.disassemble(523)
 
     # Not valid spirv
     with raises(Exception):
-        spirv.dev.validate(b"xxxxx")
+        python_shader.dev.validate(b"xxxxx")
 
     # Cannot disassemble invalid spirv
     with raises(Exception):
-        spirv.dev.disassemble(b"xxxxx")
+        python_shader.dev.disassemble(b"xxxxx")
