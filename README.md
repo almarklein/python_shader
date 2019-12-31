@@ -1,4 +1,4 @@
-[![Build Status](https://dev.azure.com/almarklein/python_shader/_apis/build/status/almarklein.python_shader?branchName=master)](https://dev.azure.com/almarklein/python_shader/_build/latest?definitionId=3&branchName=master)
+[![Build Status](https://dev.azure.com/almarklein/python-shader/_apis/build/status/almarklein.python-shader?branchName=master)](https://dev.azure.com/almarklein/python-shader/_build/latest?definitionId=5&branchName=master)
 
 
 # python_shader
