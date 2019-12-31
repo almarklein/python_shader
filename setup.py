@@ -3,20 +3,16 @@ import re
 from setuptools import find_packages, setup
 
 
-NAME = "python-shader"
-SUMMARY = "Write modern GPU shaders in Python!"
-
-with open(f"{NAME}/__init__.py") as fh:
+with open("python_shader/__init__.py") as fh:
     VERSION = re.search(r"__version__ = \"(.*?)\"", fh.read()).group(1)
 
-
 setup(
-    name=NAME,
+    name="python-shader",
     version=VERSION,
+    description="Write modern GPU shaders in Python!",
     packages=find_packages(exclude=["tests", "tests.*", "examples", "examples.*"]),
     python_requires=">=3.6.0",
     license=open("LICENSE").read(),
-    description=SUMMARY,
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
     author="Almar Klein",
