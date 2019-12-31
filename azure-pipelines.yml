@@ -11,6 +11,7 @@ jobs:
       Linux-py36-full:
         vmImage: ubuntu-16.04
         pyversion: '3.6'
+        PYTHON_SHADER_TEST_FULL: true
       Linux-py37:
         vmImage: ubuntu-16.04
         pyversion: '3.7'
@@ -50,7 +51,7 @@ jobs:
         pip install pytest
   - task: Bash@3
     displayName: Install more development requirements
-    condition: endsWith(variables['vmImage'], '-full')
+    condition: eq(variables['PYTHON_SHADER_TEST_FULL'], 'true')
     inputs:
       targetType: inline
       script: |
@@ -62,14 +63,14 @@ jobs:
         sudo apt install vulkan-sdk
   - task: Bash@3
     displayName: Lint (black)
-    condition: endsWith(variables['vmImage'], '-full')
+    condition: eq(variables['PYTHON_SHADER_TEST_FULL'], 'true')
     inputs:
       targetType: inline
       script: |
         black --check .
   - task: Bash@3
     displayName: Lint (flake8)
-    condition: endsWith(variables['vmImage'], '-full')
+    condition: eq(variables['PYTHON_SHADER_TEST_FULL'], 'true')
     inputs:
       targetType: inline
       script: |
@@ -81,8 +82,7 @@ jobs:
       script: |
         python setup.py install
         rm -rf ./python_shader ./build ./egg-info
-        pytest --disable-warnings --junit-xml=results-packaged.xml || true
-
+        pytest --disable-warnings --junit-xml=results-packaged.xml -v --cov=python_shader || true
         # Fail the task if results-packaged.xml was not created
         if [[ ! -f results-packaged.xml ]]
         then
