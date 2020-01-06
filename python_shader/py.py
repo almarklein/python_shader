@@ -275,10 +275,20 @@ class PyBytecode2Bytecode:
         args  # todo: not used?
         self._stack[-nargs:] = []
         func = self._stack.pop()
-        assert isinstance(func, str)
 
-        self.emit(op.CO_CALL, nargs)
-        self._stack.append(None)
+        if isinstance(func, str):
+            self.emit(op.CO_CALL, nargs)
+            self._stack.append(None)
+        elif isinstance(func, tuple) and func[0].__func__.__name__ == "_define":
+            func_define, what = func
+            assert (len(args) - 1) % 2 == 0
+            kwargs = args[1:]
+            n_kwargs = int(len(kwargs) / 2)
+            kwargs = {kwargs[i * 2]: kwargs[(i * 2) + 1] for i in range(n_kwargs)}
+            func_define(what, args[0], **kwargs)
+            self._stack.append(None)
+        else:
+            raise NotImplementedError()
 
     def _op_binary_subscr(self):
         self._next()  # because always 1 arg even if dummy
