@@ -104,9 +104,9 @@ OVERWRITE_HASHES = False
 
 
 HASHES = {
-    'test_null_shader.vertex_shader': ('512ca89b1c376bde', '17b8c22d37890119'),
-    'test_triangle_shader.vertex_shader': ('fe3fbcabd6ca2c19', 'e1ee457967857a87'),
-    'test_triangle_shader.fragment_shader': ('1b2d31e4656418c6', '69784202b4b63385'),
+    "test_null_shader.vertex_shader": ("512ca89b1c376bde", "17b8c22d37890119"),
+    "test_triangle_shader.vertex_shader": ("fe3fbcabd6ca2c19", "e1ee457967857a87"),
+    "test_triangle_shader.fragment_shader": ("1b2d31e4656418c6", "69784202b4b63385"),
 }
 
 
