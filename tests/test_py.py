@@ -1,3 +1,22 @@
+"""
+Tests for the Python to SpirV compiler chain.
+
+These tests validate that the Python bytecode to our internal bytecode
+is consistent between Python versions and platforms. This is important
+because the Python bytecode is not standardised.
+
+These tests also validate that the (internal) bytecode to SpirV compilation
+is consistent, and (where possible) validates the SpirV using spirv-val.
+
+Consistency is validated by means of hashes (of the bytecode and SpirV)
+which are present at the bottom of this module. Run this module as a
+script to get new hashes when needed:
+
+    * When the compiler is changed in a way to produce different results.
+    * When tests are added or changed.
+
+"""
+
 import os
 import hashlib
 import inspect
