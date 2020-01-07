@@ -144,7 +144,12 @@ class spv:
 
 def mainx(aPos: spv.input(0, vec3), vPos: spv.output("glPosition", vec4)):
 
+    # Assign to an input arg? Probably forbid this:
     vPos = aPos
+
+    # Better
+    vPos[:] = aPos
+    vPos.xyzw = aPos
 
 
 # %% Same, but using decorator

@@ -18,12 +18,21 @@ def vertex_shader(input, output):
     output.color = vec3(p, 0.5)
 
 
+@python2shader
+def fragment_shader(input, output):
+    input.define("color", 0, vec3)
+    output.define("color", 0, vec4)
+
+    output.color = vec4(input.color, 1.0)
+
+
 # Get the raw bytes
-raw_spirv = vertex_shader.to_spirv()
+raw_vert = vertex_shader.to_spirv()
+raw_frag = fragment_shader.to_spirv()
 
 # For developers: uncomment the lines below to validate and read the SpirV.
 # Note that thsese requires the Vulkan SDK!
 
 # from python_shader import dev
-# dev.disassemble(vertex_shader)
+# print(dev.disassemble(vertex_shader))
 # dev.validate(vertex_shader)

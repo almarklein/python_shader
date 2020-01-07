@@ -135,8 +135,11 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
         # Get the root variable
         if singleton_mode:
             # Singleton (not allowed for Uniform)
-            name, type_str = name_type_pairs
-            var_type = _types.spirv_types_map[type_str]
+            name, var_type = name_type_pairs
+            # todo: should our bytecode be fully jsonable? or do we force actual types here?
+            if isinstance(var_type, str):
+                type_str = var_type
+                var_type = _types.spirv_types_map[type_str]
             var_id, var_type_id = self.create_object(
                 var_type
             )  # todo: or f"{kind}.{name}"

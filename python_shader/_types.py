@@ -285,3 +285,44 @@ spirv_types_map = dict(
     Array=Array,  # todo: only concrete types here?
     # Struct=Struct,
 )
+
+
+# %% IO types
+
+
+# todo: remove or revive? (was part of experimental IO syntax)
+
+
+class IOType:
+    def __init__(self, slot, subtype):
+        if not (
+            (isinstance(slot, int) and slot >= 0)
+            or (isinstance(slot, str) and len(slot) > 0)
+        ):
+            raise TypeError("IOType slot must be a nonnegative int or nonempty str.")
+        self.slot = slot
+        if not isinstance(subtype, type) and issubclass(subtype, SpirVType):
+            raise TypeError("IOType subtype must be a SpirV type.")
+        elif subtype.is_abstract:
+            raise TypeError("IOType subtype cannot be an abstract SpirV type.")
+        self.subtype = subtype
+
+
+class Input(IOType):
+    pass
+
+
+class Output(IOType):
+    pass
+
+
+class BufferIO(IOType):
+    pass
+
+
+class TextureIO(IOType):
+    pass
+
+
+class SamplerIO(IOType):
+    pass

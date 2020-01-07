@@ -50,9 +50,36 @@ class PyBytecode2Bytecode:
 
         self._opcodes = []
 
+        # Keep track of shader io
+        self._input = {}
+        self._output = {}
+        self._uniform = {}
+        self._constants = {}  # ?
+
         # todo: odd, but name must be the same for vertex and fragment shader??
         entrypoint_name = "main"  # py_func.__name__
         self.emit(op.CO_ENTRYPOINT, (entrypoint_name, shader_type, []))
+
+        # # Parse function inputs
+        # todo: remove or revive? (was part of experimental IO syntax)
+        # for i in range(py_func.__code__.co_argcount):
+        #     argname = py_func.__code__.co_varnames[i]
+        #     slot_type = py_func.__annotations__.get(argname, None)
+        #     if not (isinstance(slot_type, tuple) and len(slot_type) == 2):
+        #         raise TypeError(f"Python-shader arg {argname} must be annotated with (slot, type) tuples.")
+        #     slot, argtype = slot_type
+        #     if isinstance(slot, str):
+        #         # Builtin
+        #         self._input[argname] = argtype
+        #         self.emit(op.CO_INPUT, (slot, argname, argtype))
+        #     elif isinstance(slot, int):
+        #         # Attribute
+        #         self._input[argname] = argtype
+        #         self.emit(op.CO_INPUT, (slot, argname, argtype))
+        #     else:
+        #         # todo: how to specify a Buffer, Texture, Sampler?
+        #         raise TypeError(f"Python-shader arg slot of {argname} must be int or str.")
+
         self._convert()
         self.emit(op.CO_FUNC_END, ())
 
@@ -90,12 +117,6 @@ class PyBytecode2Bytecode:
         # that has not yet been resolved. And IdInt objects representing SpirV objects.
         self._stack = []
 
-        # Keep track of shade io
-        self._input = {}
-        self._output = {}
-        self._uniform = {}
-        self._constants = {}  # ?
-
         # Python variable names -> (SpirV object id, type_id)
         # self._aliases = {}
 
@@ -119,15 +140,14 @@ class PyBytecode2Bytecode:
     def _peak_next(self):
         return self._co.co_code[self._pointer]
 
-    def _define(self, kind, location, **variables):
+    def _define(self, kind, name, location, type):
         COS = {"input": op.CO_INPUT, "output": op.CO_OUTPUT, "uniform": op.CO_UNIFORM}
         DICTS = {"input": self._input, "output": self._output, "uniform": self._uniform}
         co = COS[kind]
         d = DICTS[kind]
         args = [location]
-        for name, type in variables.items():
-            args.extend([kind + "." + name, type])
-            d[name] = type
+        args.extend([kind + "." + name, type])
+        d[name] = type
         self.emit(co, tuple(args))
 
     # %%
@@ -245,29 +265,32 @@ class PyBytecode2Bytecode:
         if ob in ("input", "output", "uniform"):
             name, location, type = args
             func = self._stack.pop()
-            result = func(ob, location, **{name: type})
+            result = func(ob, name, location, type)
             self._stack.append(result)
         else:
             self.emit(op.CO_CALL, nargs)
             self._stack.append(None)
 
     def _op_call_function_kw(self):
-        nargs = self._next()
-        kwarg_names = self._stack.pop()
-        n_kwargs = len(kwarg_names)
-        n_pargs = nargs - n_kwargs
+        raise SyntaxError("Python-shader does not support keyword args")
 
-        args = self._stack[-nargs:]
-        self._stack[-nargs:] = []
-
-        func = self._stack.pop()
-        assert isinstance(func, tuple) and func[0].__func__.__name__ == "_define"
-        func_define, what = func
-
-        pargs = args[:n_pargs]
-        kwargs = {kwarg_names[i]: args[i + n_pargs] for i in range(n_kwargs)}
-        func_define(what, *pargs, **kwargs)
-        self._stack.append(None)
+        # todo: remove or revive? (was part of experimental IO syntax)
+        # nargs = self._next()
+        # kwarg_names = self._stack.pop()
+        # n_kwargs = len(kwarg_names)
+        # n_pargs = nargs - n_kwargs
+        #
+        # args = self._stack[-nargs:]
+        # self._stack[-nargs:] = []
+        #
+        # func = self._stack.pop()
+        # assert isinstance(func, tuple) and func[0].__func__.__name__ == "_define"
+        # func_define, what = func
+        #
+        # pargs = args[:n_pargs]
+        # kwargs = {kwarg_names[i]: args[i + n_pargs] for i in range(n_kwargs)}
+        # func_define(what, *pargs, **kwargs)
+        # self._stack.append(None)
 
     def _op_call_function(self):
         nargs = self._next()
@@ -275,10 +298,16 @@ class PyBytecode2Bytecode:
         args  # todo: not used?
         self._stack[-nargs:] = []
         func = self._stack.pop()
-        assert isinstance(func, str)
-
-        self.emit(op.CO_CALL, nargs)
-        self._stack.append(None)
+        if isinstance(func, tuple):
+            func, ob = func
+            assert ob in ("input", "output", "uniform")
+            name, location, type = args
+            result = func(ob, name, location, type)
+            self._stack.append(result)
+        else:
+            assert isinstance(func, str)
+            self.emit(op.CO_CALL, nargs)
+            self._stack.append(None)
 
     def _op_binary_subscr(self):
         self._next()  # because always 1 arg even if dummy
@@ -291,6 +320,7 @@ class PyBytecode2Bytecode:
         self._stack.append(None)
 
     def _op_build_tuple(self):
+        # todo: but I want to be able to do ``x, y = y, x`` !
         raise SyntaxError("No tuples in SpirV-ish Python")
 
         n = self._next()
@@ -309,3 +339,28 @@ class PyBytecode2Bytecode:
         res = list(reversed(res))
         self._stack.append(res)
         self.emit(op.CO_BUILD_ARRAY, n)
+
+    def _op_build_map(self):
+        raise SyntaxError("Dict not allowed in Shader-Python")
+
+    def _op_build_const_key_map(self):
+        # The version of BUILD_MAP specialized for constant keys. Py3.6+
+        raise SyntaxError("Dict not allowed in Shader-Python")
+
+        # todo: remove or revive? (was part of experimental IO syntax)
+        # # Create dictionary
+        # n = self._next()
+        # keys = self._stack.pop()
+        # vals = self._stack[-n:]
+        # self._stack[-n:] = []
+        # d = {k:v for k, v in zip(keys, vals)}
+        #
+        # # Instead of appending it to the stack, we check whether this is
+        # # actually a return; the only place where a dict is allowed.
+        # opname = dis.opname[self._next()]
+        # self._next()  # pop stub
+        # if opname != "RETURN_VALUE":
+        #     raise SyntaxError("Dict not allowed in Shader-Python")
+        # else:
+        #     for slot, name in d.items():
+        #         self.emit(op.CO_SET_OUTPUT, (slot, name))
