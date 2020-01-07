@@ -1,6 +1,23 @@
 """ The opcodes of our bytecode.
 """
 
+import json
+
+
+def bc2str(opcodes):
+    lines = [json.dumps(op)[1:-1] for op in opcodes]
+    return "\n".join(lines)
+
+
+def str2bc(s):
+    opcodes = []
+    for line in s.splitlines():
+        line = line.strip()
+        if line:
+            opcodes.append(tuple(json.loads("[" + line + "]")))
+    return opcodes
+
+
 CO_FUNC = "CO_FUNC"
 CO_ENTRYPOINT = "CO_ENTRYPOINT"
 CO_FUNC_END = "CO_FUNC_END"

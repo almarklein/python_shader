@@ -31,28 +31,33 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
         self._input = {}
         self._output = {}
         self._uniform = {}
+
+        # todo: uniform or ... ?
+        self._buffer = {}
+        self._textures = {}
+        self._samplers = {}
+
         self._aliases = {}
 
         # Parse
-        for opcode, arg in bytecode:
+        for opcode, *args in bytecode:
             method_name = "_op_" + opcode[3:].lower()
             method = getattr(self, method_name, None)
             if method is None:
                 # pprint_bytecode(self._co)
                 raise RuntimeError(f"Cannot parse {opcode} yet (no {method_name}()).")
             else:
-                method(arg)
+                method(*args)
 
-    def _op_pop_top(self, arg):
+    def _op_pop_top(self):
         self._stack.pop()
 
-    def _op_func(self, args):
+    def _op_func(self, *args):
         # Start function definition
         raise NotImplementedError()
 
-    def _op_entrypoint(self, args):
+    def _op_entrypoint(self, name, execution_model, execution_modes):
         # Special function definition that acts as an entrypoint
-        name, execution_model, execution_modes = args
 
         # Get execution_model flag
         modelmap = {
@@ -100,21 +105,18 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
         )
         self.gen_func_instruction(cc.OpLabel, self.create_id("label"))
 
-    def _op_func_end(self, arg):
+    def _op_func_end(self):
         # End function or entrypoint
         self.gen_func_instruction(cc.OpReturn)
         self.gen_func_instruction(cc.OpFunctionEnd)
 
-    def _op_input(self, args):
-        location, *name_type_pairs = args
+    def _op_input(self, location, *name_type_pairs):
         self._setup_io_variable("input", location, name_type_pairs)
 
-    def _op_output(self, args):
-        location, *name_type_pairs = args
+    def _op_output(self, location, *name_type_pairs):
         self._setup_io_variable("output", location, name_type_pairs)
 
-    def _op_uniform(self, args):
-        binding, *name_type_pairs = args
+    def _op_uniform(self, binding, *name_type_pairs):
         self._setup_io_variable("uniform", binding, name_type_pairs)
 
     def _setup_io_variable(self, kind, location, name_type_pairs):
@@ -398,8 +400,8 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
             raise NotImplementedError(f"Wut is {op}??")
         self._stack.append(id)
 
-    def _op_index(self, arg):
-
+    def _op_index(self, n):
+        assert n == 1
         index = self._stack.pop()
         container_id = self._stack.pop()
 

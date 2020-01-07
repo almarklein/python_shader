@@ -54,11 +54,10 @@ class PyBytecode2Bytecode:
         self._input = {}
         self._output = {}
         self._uniform = {}
-        self._constants = {}  # ?
 
         # todo: odd, but name must be the same for vertex and fragment shader??
         entrypoint_name = "main"  # py_func.__name__
-        self.emit(op.CO_ENTRYPOINT, (entrypoint_name, shader_type, []))
+        self.emit(op.CO_ENTRYPOINT, entrypoint_name, shader_type, [])
 
         # # Parse function inputs
         # todo: remove or revive? (was part of experimental IO syntax)
@@ -71,20 +70,20 @@ class PyBytecode2Bytecode:
         #     if isinstance(slot, str):
         #         # Builtin
         #         self._input[argname] = argtype
-        #         self.emit(op.CO_INPUT, (slot, argname, argtype))
+        #         self.emit(op.CO_INPUT, slot, argname, argtype)
         #     elif isinstance(slot, int):
         #         # Attribute
         #         self._input[argname] = argtype
-        #         self.emit(op.CO_INPUT, (slot, argname, argtype))
+        #         self.emit(op.CO_INPUT, slot, argname, argtype)
         #     else:
         #         # todo: how to specify a Buffer, Texture, Sampler?
         #         raise TypeError(f"Python-shader arg slot of {argname} must be int or str.")
 
         self._convert()
-        self.emit(op.CO_FUNC_END, ())
+        self.emit(op.CO_FUNC_END)
 
-    def emit(self, opcode, arg):
-        self._opcodes.append((opcode, arg))
+    def emit(self, opcode, *args):
+        self._opcodes.append((opcode, *args))
 
     def dump(self):
         return self._opcodes
@@ -148,14 +147,14 @@ class PyBytecode2Bytecode:
         args = [location]
         args.extend([kind + "." + name, type])
         d[name] = type
-        self.emit(co, tuple(args))
+        self.emit(co, *args)
 
     # %%
 
     def _op_pop_top(self):
         self._stack.pop()
         self._next()  # todo: why need pointer advance?
-        self.emit(op.CO_POP_TOP, ())
+        self.emit(op.CO_POP_TOP)
 
     def _op_return_value(self):
         result = self._stack.pop()
@@ -363,4 +362,4 @@ class PyBytecode2Bytecode:
         #     raise SyntaxError("Dict not allowed in Shader-Python")
         # else:
         #     for slot, name in d.items():
-        #         self.emit(op.CO_SET_OUTPUT, (slot, name))
+        #         self.emit(op.CO_SET_OUTPUT, slot, name)
