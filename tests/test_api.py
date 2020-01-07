@@ -16,7 +16,7 @@ def test_shader_module_class():
 
     # Create shader module object
     ShaderModule = python_shader.ShaderModule
-    entrypoint = ("CO_ENTRYPOINT", ("main", "vertex", []))
+    entrypoint = ("CO_ENTRYPOINT", "main", "vertex", [])
     m = ShaderModule(42, [entrypoint], "stub")
 
     # Validate some stuff
