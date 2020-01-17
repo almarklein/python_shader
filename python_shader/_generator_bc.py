@@ -4,9 +4,11 @@ Implements generating SpirV code from our bytecode.
 
 import struct
 
-from ._generator_base import IdInt, BaseSpirVGenerator
+from ._generator_base import BaseSpirVGenerator, ValueId, VariableAccessId
 from . import _spirv_constants as cc
 from . import _types
+
+# from . import opcodes as op
 
 # todo: build in some checks
 # - expect no func or entrypoint inside a func definition
@@ -28,15 +30,15 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
     def _convert(self, bytecode):
 
         self._stack = []
+
+        # External variables per storage class
         self._input = {}
         self._output = {}
         self._uniform = {}
-
-        # todo: uniform or ... ?
         self._buffer = {}
-        self._textures = {}
-        self._samplers = {}
+        self._image = {}  # differentiate between texture and sampler?
 
+        # Resulting values may be given a name so we can pick them up
         self._aliases = {}
 
         # Parse
@@ -61,7 +63,7 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
 
         # Get execution_model flag
         modelmap = {
-            "compute": cc.ExecutionModel_Kernel,  # see also ExecutionModel_GLCompute
+            "compute": cc.ExecutionModel_GLCompute,  # see also ExecutionModel_Kernel
             "vertex": cc.ExecutionModel_Vertex,
             "fragment": cc.ExecutionModel_Fragment,
             "geometry": cc.ExecutionModel_Geometry,
@@ -72,27 +74,32 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
 
         # Define entry points
         # Note that we must add the ids of all used OpVariables that this entrypoint uses.
-        entry_point_id = self.create_id(name)
+        entry_point_id = self.obtain_id(name)
         self.gen_instruction(
             "entry_points", cc.OpEntryPoint, execution_model_flag, entry_point_id, name
         )
 
         # Define execution modes for each entry point
-        modes = set(execution_modes)
+        assert isinstance(execution_modes, dict)
+        modes = execution_modes.copy()
         if execution_model_flag == cc.ExecutionModel_Fragment:
             if "OriginLowerLeft" not in modes and "OriginUpperLeft" not in modes:
-                modes.add("OriginLowerLeft")
-        for mode in modes:
+                modes["OriginLowerLeft"] = []
+        if execution_model_flag == cc.ExecutionModel_GLCompute:
+            if "LocalSize" not in modes:
+                modes["LocalSize"] = [1, 1, 1]
+        for mode_name, mode_args in modes.items():
             self.gen_instruction(
                 "execution_modes",
                 cc.OpExecutionMode,
                 entry_point_id,
-                getattr(cc, "ExecutionMode_" + mode),
+                getattr(cc, "ExecutionMode_" + mode_name),
+                *mode_args,
             )
 
         # Declare funcion
-        return_type_id = self.get_type_id(_types.void)
-        func_type_id = self.create_id("func_declaration")
+        return_type_id = self.obtain_type_id(_types.void)
+        func_type_id = self.obtain_id("func_declaration")
         self.gen_instruction(
             "types", cc.OpTypeFunction, func_type_id, return_type_id
         )  # 0 args
@@ -103,7 +110,7 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
         self.gen_func_instruction(
             cc.OpFunction, return_type_id, func_id, func_control, func_type_id
         )
-        self.gen_func_instruction(cc.OpLabel, self.create_id("label"))
+        self.gen_func_instruction(cc.OpLabel, self.obtain_id("label"))
 
     def _op_func_end(self):
         # End function or entrypoint
@@ -119,18 +126,28 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
     def _op_uniform(self, binding, *name_type_pairs):
         self._setup_io_variable("uniform", binding, name_type_pairs)
 
+    def _op_buffer(self, binding, *name_type_pairs):
+        self._setup_io_variable("buffer", binding, name_type_pairs)
+
     def _setup_io_variable(self, kind, location, name_type_pairs):
 
         n_names = len(name_type_pairs) / 2
-        singleton_mode = n_names == 1 and kind != "uniform"
+        singleton_mode = n_names == 1 and kind in ("input", "output")
 
         # Triage over input kind
         if kind == "input":
             storage_class, iodict = cc.StorageClass_Input, self._input
+            location_or_binding = cc.Decoration_Location
         elif kind == "output":
             storage_class, iodict = cc.StorageClass_Output, self._output
+            location_or_binding = cc.Decoration_Location
         elif kind == "uniform":  # location == binding
             storage_class, iodict = cc.StorageClass_Uniform, self._uniform
+            location_or_binding = cc.Decoration_Binding
+        elif kind == "buffer":  # location == binding
+            # note: this should be cc.StorageClass_StorageBuffer in SpirV 1.4+
+            storage_class, iodict = cc.StorageClass_Uniform, self._buffer
+            location_or_binding = cc.Decoration_Binding
         else:
             raise RuntimeError(f"Invalid IO kind {kind}")
 
@@ -142,30 +159,54 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
             if isinstance(var_type, str):
                 type_str = var_type
                 var_type = _types.spirv_types_map[type_str]
-            var_id, var_type_id = self.create_object(
-                var_type
-            )  # todo: or f"{kind}.{name}"
+            var_id, var_type_id = self.obtain_value(var_type, "var-" + name)
         else:
             # todo: TBH I am not sure if this is allowed for non-uniforms :D
-            assert kind == "uniform", f"euhm, I dont know if you can use block {kind}s"
+            assert kind in (
+                "uniform",
+                "buffer",
+            ), f"euhm, I dont know if you can use block {kind}s"
             # Block - the variable is a struct
             subtypes = {}
             for i in range(0, len(name_type_pairs), 2):
-                key, subtype_str = name_type_pairs[i], name_type_pairs[i + 1]
-                subtypes[key] = _types.spirv_types_map[subtype_str]
+                key, subtype = name_type_pairs[i], name_type_pairs[i + 1]
+                if isinstance(subtype, str):
+                    subtypes[key] = _types.spirv_types_map[subtype]
+                else:
+                    subtypes[key] = subtype
             var_type = _types.Struct(**subtypes)
-            var_id, var_type_id = self.create_object(var_type)
-            # Define Variable as block
+            var_id, var_type_id = self.obtain_value(
+                var_type, "var-" + var_type.__name__
+            )
+
+        # Dectorate block for uniforms and buffers
+        if kind == "uniform":
             self.gen_instruction(
                 "annotations", cc.OpDecorate, var_id, cc.Decoration_Block
             )
+        elif kind == "buffer":
+            # todo: according to docs, in SpirV 1.4+, BufferBlock is deprecated
+            # and one should use Block with StorageBuffer. But this crashes.
+            self.gen_instruction(
+                "annotations", cc.OpDecorate, var_id, cc.Decoration_BufferBlock
+            )
 
         # Define location of variable
-        if isinstance(location, int):
+        if kind in ("buffer", "image"):
+            # Default to descriptor set zero
             self.gen_instruction(
-                "annotations", cc.OpDecorate, var_id, cc.Decoration_Location, location
+                "annotations", cc.OpDecorate, var_id, cc.Decoration_DescriptorSet, 0
+            )
+            self.gen_instruction(
+                "annotations", cc.OpDecorate, var_id, cc.Decoration_Binding, location
+            )
+        elif isinstance(location, int):
+            # todo: is it location_or_binding always LOCATION, also for uniforms?
+            self.gen_instruction(
+                "annotations", cc.OpDecorate, var_id, location_or_binding, location
             )
         elif isinstance(location, str):
+            # Builtin input or output
             try:
                 location = cc.builtins[location]
             except KeyError:
@@ -175,7 +216,7 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
             )
 
         # Create a variable (via a pointer)
-        var_pointer_id = self.create_id("pointer")
+        var_pointer_id = self.obtain_id("pointer")
         self.gen_instruction(
             "types", cc.OpTypePointer, var_pointer_id, storage_class, var_type_id
         )
@@ -187,16 +228,12 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
         if singleton_mode:
             if name in iodict:
                 raise NameError(f"{kind} {name} already exists")
-            iodict[name] = var_type, var_id  # the code only needs var_id
+            iodict[name] = VariableAccessId(var_id, storage_class, var_type)
         else:
             for i, subname in enumerate(subtypes):
                 subtype = subtypes[subname]
-                sub_pointer_id, subtype_id = self.create_object(subtype)
-                self.gen_instruction(
-                    "types", cc.OpTypePointer, sub_pointer_id, storage_class, subtype_id
-                )
-                index_id, index_type_id = self.create_object(_types.i32)
-                # todo: can re-use constants!
+                index_id, index_type_id = self.obtain_value(_types.i32)
+                # todo: can re-use constants! -> id, type_d = self.obtain_constant(type)
                 self.gen_instruction(
                     "types",
                     cc.OpConstant,
@@ -206,36 +243,26 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
                 )
                 if subname in iodict:
                     raise NameError(f"{kind} {subname} already exists")
-                iodict[subname] = subtype, sub_pointer_id, var_id, index_id
+                iodict[subname] = VariableAccessId(
+                    var_id, storage_class, subtype, index_id
+                )
 
     def _op_load(self, name):
         # store a variable that is used in an inner scope.
         if name in self._aliases:
             ob = self._aliases[name]
         elif name in self._input:
-            io_args = self._input[name]
-            if len(io_args) == 4:
-                type, pointer_id, var_id, index_id = io_args
-                temp_id = self.create_id("struct-field")
-                self.gen_func_instruction(
-                    cc.OpAccessChain, pointer_id, temp_id, var_id, index_id
-                )
-                id, type_id = self.create_object(type)
-                self.gen_func_instruction(cc.OpLoad, type_id, id, temp_id)
-            else:
-                type, pointer_id = io_args
-                id, type_id = self.create_object(type)
-                self.gen_func_instruction(cc.OpLoad, type_id, id, pointer_id)
-            ob = id
+            ob = self._input[name]
+            assert isinstance(ob, VariableAccessId)
+        elif name in self._output:
+            ob = self._output[name]
+            assert isinstance(ob, VariableAccessId)
         elif name in self._uniform:
-            type, pointer_id, var_id, index_id = self._uniform[name]
-            temp_id = self.create_id("struct-field")
-            self.gen_func_instruction(
-                cc.OpAccessChain, pointer_id, temp_id, var_id, index_id
-            )
-            id, type_id = self.create_object(type)
-            self.gen_func_instruction(cc.OpLoad, type_id, id, temp_id)
-            ob = id
+            ob = self._uniform[name]
+            assert isinstance(ob, VariableAccessId)
+        elif name in self._buffer:
+            ob = self._buffer[name]
+            assert isinstance(ob, VariableAccessId)
         elif name in _types.spirv_types_map:
             ob = _types.spirv_types_map[name]
         else:
@@ -245,19 +272,19 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
     def _op_load_constant(self, ob):
         if isinstance(ob, (float, int, bool)):
             if isinstance(ob, float):
-                id, type_id = self.create_object(_types.f32)
+                id, type_id = self.obtain_value(_types.f32)
                 bb = struct.pack("<f", ob)
                 self.gen_instruction("types", cc.OpConstant, type_id, id, bb)
                 # bb = struct.pack("<d", ob)
                 # self.gen_instruction("types", cc.OpConstant, type_id, id, bb[:4], bb[4:])
             elif isinstance(ob, int):
-                id, type_id = self.create_object(_types.i32)
+                id, type_id = self.obtain_value(_types.i32)
                 bb = struct.pack("<i", ob)
                 self.gen_instruction("types", cc.OpConstant, type_id, id, bb)
             elif isinstance(ob, bool):
-                id, type_id = self.create_object(_types.boolean)
-                op = cc.OpConstantTrue if ob else cc.OpConstantFalse
-                self.gen_instruction("types", op, type_id, id)
+                id, type_id = self.obtain_value(_types.boolean)
+                opcode = cc.OpConstantTrue if ob else cc.OpConstantFalse
+                self.gen_instruction("types", opcode, type_id, id)
             else:
                 raise NotImplementedError()
             self._stack.append(id)
@@ -272,18 +299,15 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
     def _op_store(self, name):
         ob = self._stack.pop()
         if name in self._output:
-            io_args = self._output[name]
-            if len(io_args) == 4:  # Struct
-                type, pointer_id, var_id, index_id = io_args
-                # type_id = self.get_type_id(type)
-                id = self.create_id("struct-field")
-                self.gen_func_instruction(
-                    cc.OpAccessChain, pointer_id, id, var_id, index_id
-                )
-                self.gen_func_instruction(cc.OpStore, id, ob)
-            else:  # Simple
-                type, pointer_id = io_args  # pointer is a Variable
-                self.gen_func_instruction(cc.OpStore, pointer_id, ob)
+            ac = self._output[name]
+            ac.resolve_store(self, ob)
+        elif name in self._buffer:
+            ac = self._buffer[name]
+            ac.resolve_store(self, ob)
+        elif name in self._input:
+            raise SyntaxError("Cannot store to input")
+        elif name in self._uniform:
+            raise SyntaxError("Cannot store to uniform")
 
         self._aliases[name] = ob
 
@@ -294,6 +318,7 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
         func = self._stack.pop()
 
         if isinstance(func, type):
+            assert not func.is_abstract
             if issubclass(func, _types.Vector):
                 result = self._vector_packing(func, args)
             elif issubclass(func, _types.Array):
@@ -314,29 +339,28 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
     def _vector_packing(self, vector_type, args):
 
         n, t = vector_type.length, vector_type.subtype  # noqa
-        type_id = self.get_type_id(t)
+        type_id = self.obtain_type_id(t)
         composite_ids = []
 
         # Deconstruct
         for arg in args:
-            if not isinstance(arg, IdInt):
+            if not isinstance(arg, ValueId):
                 raise RuntimeError("Expected a SpirV object")
-            element_type = self.get_type_from_id(arg)
-            if issubclass(element_type, _types.Scalar):
-                assert element_type is t, "vector type mismatch"
+            if issubclass(arg.type, _types.Scalar):
+                assert arg.type is t, "vector type mismatch"
                 composite_ids.append(arg)
-            elif issubclass(element_type, _types.Vector):
+            elif issubclass(arg.type, _types.Vector):
                 # todo: a contiguous subset of the scalars consumed can be represented by a vector operand instead!
                 # -> I think this means we can simply do composite_ids.append(arg)
-                assert element_type.subtype is t, "vector type mismatch"
-                for i in range(element_type.length):
-                    comp_id = self.create_id("composite")
+                assert arg.type.subtype is t, "vector type mismatch"
+                for i in range(arg.type.length):
+                    comp_id = self.obtain_id("composite")
                     self.gen_func_instruction(
                         cc.OpCompositeExtract, type_id, comp_id, arg, i
                     )
                     composite_ids.append(comp_id)
             else:
-                raise TypeError(f"Invalid type to compose vector: {element_type}")
+                raise TypeError(f"Invalid type to compose vector: {arg.type}")
 
         # Check the length
         if len(composite_ids) != n:
@@ -349,7 +373,7 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
         ), "When constructing a vector, there must be at least two Constituent operands."
 
         # Construct
-        result_id, vector_type_id = self.create_object(vector_type)
+        result_id, vector_type_id = self.obtain_value(vector_type)
         self.gen_func_instruction(
             cc.OpCompositeConstruct, vector_type_id, result_id, *composite_ids
         )
@@ -362,15 +386,15 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
             raise IndexError("No support for zero-sized arrays.")
 
         # Check that all args have the same type
-        element_type = self.get_type_from_id(args[0])
+        element_type = args[0].type
         composite_ids = args
         for arg in args:
-            assert self.get_type_from_id(arg) is element_type, "array type mismatch"
+            assert arg.type is element_type, "array type mismatch"
 
         # Create array class
         array_type = _types.Array(n, element_type)
 
-        result_id, type_id = self.create_object(array_type)
+        result_id, type_id = self.obtain_value(array_type)
         self.gen_func_instruction(
             cc.OpCompositeConstruct, type_id, result_id, *composite_ids
         )
@@ -378,46 +402,46 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
 
         return result_id
 
-    def _op_binary_op(self, op):
+    def _op_binary_op(self, operator):
         right = self._stack.pop()
         left = self._stack.pop()
-        right_type = self.get_type_from_id(right)
-        left_type = self.get_type_from_id(left)
 
-        assert left_type is _types.vec3
-        assert issubclass(right_type, _types.Float)
+        assert left.type is _types.vec3
+        assert issubclass(right.type, _types.Float)
 
-        if op == "*":
-            id, type_id = self.create_object(left_type)
+        if operator == "*":
+            id, type_id = self.obtain_value(left.type)
             self.gen_func_instruction(cc.OpVectorTimesScalar, type_id, id, left, right)
-        elif op == "/":
+        elif operator == "/":
             1 / 0
-        elif op == "+":
+        elif operator == "+":
             1 / 0
-        elif op == "-":
+        elif operator == "-":
             1 / 0
         else:
-            raise NotImplementedError(f"Wut is {op}??")
+            raise NotImplementedError(f"Wut is {operator}??")
         self._stack.append(id)
 
     def _op_index(self, n):
         assert n == 1
         index = self._stack.pop()
-        container_id = self._stack.pop()
+        container = self._stack.pop()
 
         # Get type of object and index
-        container_type = self.get_type_from_id(container_id)
-        element_type = container_type.subtype
-        container_type_id = self.get_type_id(container_type)
+        element_type = container.type.subtype
+        container_type_id = self.obtain_type_id(container.type)
 
-        # assert self.get_type_from_id(index) is int
+        # assert index.type is int
 
-        if issubclass(container_type, _types.Array):
+        if isinstance(container, VariableAccessId):
+            result_id = container.index(index)
+
+        elif issubclass(container.type, _types.Array):
 
             # todo: maybe ... the variable for a constant should be created only once ... instead of every time it gets indexed
             # Put the array into a variable
-            container_variable = self.create_id("variable")
-            container_variable_type = self.create_id("pointer_type")
+            container_variable = self.obtain_id("variable")
+            container_variable_type = self.obtain_id("pointer_type")
             self.gen_instruction(
                 "types",
                 cc.OpTypePointer,
@@ -431,14 +455,14 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
                 container_variable,
                 cc.StorageClass_Function,
             )
-            self.gen_func_instruction(cc.OpStore, container_variable, container_id)
+            self.gen_func_instruction(cc.OpStore, container_variable, container.id)
 
             # Prepare result id and type
-            result_id, result_type_id = self.create_object(element_type)
+            result_id, result_type_id = self.obtain_value(element_type)
 
             # Create pointer into the array
-            pointer1 = self.create_id("pointer")
-            pointer2 = self.create_id("pointer")
+            pointer1 = self.obtain_id("pointer")
+            pointer2 = self.obtain_id("pointer")
             self.gen_instruction(
                 "types",
                 cc.OpTypePointer,
@@ -457,12 +481,24 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
 
         self._stack.append(result_id)
 
-        # OpAccessChain: Create a pointer into a composite object that can be used with OpLoad and OpStore.
-
         # OpVectorExtractDynamic: Extract a single, dynamically selected, component of a vector.
         # OpVectorInsertDynamic: Make a copy of a vector, with a single, variably selected, component modified.
         # OpVectorShuffle: Select arbitrary components from two vectors to make a new vector.
         # OpCompositeInsert: Make a copy of a composite object, while modifying one part of it. (updating an element)
+
+    def _op_index_set(self):
+        index = self._stack.pop()
+        ob = self._stack.pop()
+        val = self._stack.pop()  # noqa
+
+        if isinstance(ob, VariableAccessId):
+            # Create new variable access for this last indexing op
+            ac = ob.index(index)
+            assert val.type is ac.type
+            # Then resolve the chain to a store op
+            ac.resolve_store(self, val)
+        else:
+            raise NotImplementedError()
 
     def _op_if(self):
         raise NotImplementedError()

@@ -4,6 +4,7 @@ from dis import dis as pprint_bytecode
 from ._module import ShaderModule
 from . import opcodes as op
 from ._dis import dis
+from ._types import spirv_types_map
 
 
 def python2shader(func):
@@ -50,14 +51,14 @@ class PyBytecode2Bytecode:
 
         self._opcodes = []
 
-        # Keep track of shader io
         self._input = {}
         self._output = {}
         self._uniform = {}
+        self._buffer = {}
 
         # todo: odd, but name must be the same for vertex and fragment shader??
         entrypoint_name = "main"  # py_func.__name__
-        self.emit(op.CO_ENTRYPOINT, entrypoint_name, shader_type, [])
+        self.emit(op.CO_ENTRYPOINT, entrypoint_name, shader_type, {})
 
         # # Parse function inputs
         # todo: remove or revive? (was part of experimental IO syntax)
@@ -112,8 +113,7 @@ class PyBytecode2Bytecode:
         # Pointer in the bytecode stream
         self._pointer = 0
 
-        # Bytecode is a stack machine. The stack has both Python objects, for stuff
-        # that has not yet been resolved. And IdInt objects representing SpirV objects.
+        # Bytecode is a stack machine.
         self._stack = []
 
         # Python variable names -> (SpirV object id, type_id)
@@ -140,8 +140,18 @@ class PyBytecode2Bytecode:
         return self._co.co_code[self._pointer]
 
     def _define(self, kind, name, location, type):
-        COS = {"input": op.CO_INPUT, "output": op.CO_OUTPUT, "uniform": op.CO_UNIFORM}
-        DICTS = {"input": self._input, "output": self._output, "uniform": self._uniform}
+        COS = {
+            "input": op.CO_INPUT,
+            "output": op.CO_OUTPUT,
+            "uniform": op.CO_UNIFORM,
+            "buffer": op.CO_BUFFER,
+        }
+        DICTS = {
+            "input": self._input,
+            "output": self._output,
+            "uniform": self._uniform,
+            "buffer": self._buffer,
+        }
         co = COS[kind]
         d = DICTS[kind]
         args = [location]
@@ -166,7 +176,7 @@ class PyBytecode2Bytecode:
         # store a variable that is used in an inner scope.
         i = self._next()
         name = self._co.co_varnames[i]
-        if name in ("input", "output", "uniform"):
+        if name in ("input", "output", "uniform", "buffer"):
             self._stack.append(name)
         else:
             self.emit(op.CO_LOAD, name)
@@ -199,7 +209,7 @@ class PyBytecode2Bytecode:
         name = self._co.co_names[i]
         ob = self._stack.pop()
 
-        if name == "define" and ob in ("input", "output", "uniform"):
+        if name == "define" and ob in ("input", "output", "uniform", "buffer"):
             self._stack.append((self._define, ob))
         elif ob == "input":
             if name not in self._input:
@@ -211,6 +221,11 @@ class PyBytecode2Bytecode:
                 raise NameError(f"No uniform {name} defined.")
             self.emit(op.CO_LOAD, "uniform." + name)
             self._stack.append("uniform." + name)
+        elif ob == "buffer":
+            if name not in self._buffer:
+                raise NameError(f"No buffer {name} defined.")
+            self.emit(op.CO_LOAD, "buffer." + name)
+            self._stack.append("buffer." + name)
         elif ob == "output":
             raise AttributeError("Cannot read from output.")
         else:
@@ -221,13 +236,16 @@ class PyBytecode2Bytecode:
         name = self._co.co_names[i]
         ob = self._stack.pop()
         value = self._stack.pop()  # noqa
-        # assert isinstance(value, IdInt)
         # todo: value not used?
 
         if ob == "input":
             raise AttributeError("Cannot assign to input.")
         elif ob == "uniform":
             raise AttributeError("Cannot assign to uniform.")
+        elif ob == "buffer":
+            if name not in self._buffer:
+                raise NameError(f"No buffer {name} defined.")
+            self.emit(op.CO_STORE, "buffer." + name)
         elif ob == "output":
             if name not in self._output:
                 raise NameError(f"No output {name} defined.")
@@ -245,7 +263,7 @@ class PyBytecode2Bytecode:
         i = self._next()
         method_name = self._co.co_names[i]
         ob = self._stack.pop()
-        if ob in ("input", "output", "uniform"):
+        if ob in ("input", "output", "uniform", "buffer"):
             if method_name == "define":
                 func = self._define
             else:
@@ -261,7 +279,7 @@ class PyBytecode2Bytecode:
         args = self._stack[-nargs:]
         self._stack[-nargs:] = []
         ob = self._stack.pop()
-        if ob in ("input", "output", "uniform"):
+        if ob in ("input", "output", "uniform", "buffer"):
             name, location, type = args
             func = self._stack.pop()
             result = func(ob, name, location, type)
@@ -299,11 +317,18 @@ class PyBytecode2Bytecode:
         func = self._stack.pop()
         if isinstance(func, tuple):
             func, ob = func
-            assert ob in ("input", "output", "uniform")
+            assert ob in ("input", "output", "uniform", "buffer")
             name, location, type = args
             result = func(ob, name, location, type)
             self._stack.append(result)
+        elif func in spirv_types_map and spirv_types_map[func].is_abstract:
+            # A type definition
+            assert len(args) == 1
+            subtype = spirv_types_map[args[0]]
+            spirv_type = spirv_types_map[func]
+            self._stack.append(spirv_type(subtype))
         else:
+            # Normal call
             assert isinstance(func, str)
             self.emit(op.CO_CALL, nargs)
             self._stack.append(None)
@@ -317,6 +342,13 @@ class PyBytecode2Bytecode:
         else:
             self.emit(op.CO_INDEX, 1)
         self._stack.append(None)
+
+    def _op_store_subscr(self):
+        self._next()  # because always 1 arg even if dummy
+        index = self._stack.pop()  # noqa
+        ob = self._stack.pop()  # noqa
+        val = self._stack.pop()  # noqa
+        self.emit(op.CO_INDEX_SET)
 
     def _op_build_tuple(self):
         # todo: but I want to be able to do ``x, y = y, x`` !
