@@ -3,9 +3,10 @@ import tempfile
 import subprocess
 
 
-def glsl2spirv(glsl):
-    filename1 = os.path.join(tempfile.gettempdir(), "x.vert")
-    filename2 = os.path.join(tempfile.gettempdir(), "x.vert.spv")
+def glsl2spirv(glsl, shader_type):
+    assert shader_type in ("comp", "vert", "frag")
+    filename1 = os.path.join(tempfile.gettempdir(), f"x.{shader_type}")
+    filename2 = os.path.join(tempfile.gettempdir(), f"x.{shader_type}.spv")
     with open(filename1, "wb") as f:
         f.write(glsl.encode())
 
@@ -29,26 +30,35 @@ def glsl2spirv(glsl):
         return stdout.decode()
 
 
+def print_glsl2spirv_comp(glsl):
+    print(glsl2spirv(glsl, "comp"))
+
+
+def print_glsl2spirv_vert(glsl):
+    print(glsl2spirv(glsl, "vert"))
+
+
+def print_glsl2spirv_frag(glsl):
+    print(glsl2spirv(glsl, "frag"))
+
+
 # %% Naked function
 
-print(
-    glsl2spirv(
-        """
+print_glsl2spirv_vert(
+    """
 #version 450
 
 void main()
 {
 }
 """
-    )
 )
 
 
 # %% One in, one out
 
-print(
-    glsl2spirv(
-        """
+print_glsl2spirv_vert(
+    """
 #version 450
 
 layout (location = 12) in vec3 aPos; // the position variable has attribute position 0
@@ -61,15 +71,13 @@ void main()
     vertexColor = vec4(aPos, 1.0);
 }
 """
-    )
 )
 
 
 # %% Builtin out vars
 
-print(
-    glsl2spirv(
-        """
+print_glsl2spirv_vert(
+    """
 #version 450
 
 void main()
@@ -77,15 +85,13 @@ void main()
     gl_Position = vec4(0.0, 0.0, 0.0, 1.0);
 }
 """
-    )
 )
 
 
 # %% Uniforms
 
-print(
-    glsl2spirv(
-        """
+print_glsl2spirv_vert(
+    """
 #version 450
 
 //layout(location = 13) out vec4 fragColor; float foo = 3.0;
@@ -98,15 +104,13 @@ void main()
    fragColor = vec4(1.0, 1.0, 1.0, foo);//uColor;
 }
 """
-    )
 )
 
 
 # %% Constant
 
-print(
-    glsl2spirv(
-        """
+print_glsl2spirv_vert(
+    """
 #version 450
 
 vec3 uColor = vec3(1.0, 0.0, 0.0);
@@ -115,15 +119,13 @@ void main()
 {
 }
 """
-    )
 )
 
 
 # %% Vector composite
 
-print(
-    glsl2spirv(
-        """
+print_glsl2spirv_vert(
+    """
 #version 450
 
 void main()
@@ -133,5 +135,22 @@ void main()
     vec2 x = positions[index];
 }
 """
-    )
+)
+
+# %% Compute minimal
+
+print_glsl2spirv_comp(
+    """
+#version 450
+//layout(local_size_x = 1) in;
+
+layout(set = 0, binding = 0) buffer PrimeIndices {
+    uint[] data;
+};
+
+void main() {
+    uint index = gl_GlobalInvocationID.x;
+    data[index] = index;
+}
+"""
 )
