@@ -97,7 +97,7 @@ class Vector(Composite):
             if n < 2 or n > 4:
                 raise TypeError("Vector can have 2, 3 or 4 elements.")
             props = dict(subtype=subtype, length=n, is_abstract=False)
-            return _create_type(f"vec{n}_{subtype.__name__}", Vector, props)
+            return _create_type(f"vec{n}x{subtype.__name__}", Vector, props)
         else:
             return super().__new__(*args)
 
@@ -131,7 +131,7 @@ class Matrix(Composite):
             if rows < 2 or rows > 4:
                 raise TypeError("Matrix can have 2, 3 or 4 rows.")
             props = dict(subtype=subtype, cols=cols, rows=rows, is_abstract=False)
-            return _create_type(f"mat{cols}x{rows}_{subtype.__name__}", Matrix, props)
+            return _create_type(f"mat{cols}x{rows}x{subtype.__name__}", Matrix, props)
         else:
             return super().__new__(*args)
 
@@ -149,10 +149,14 @@ class Array(Aggregate):
 
     def __new__(cls, *args):
         if cls.is_abstract:
-            if len(args) != 2:
+            if len(args) == 1:
+                n = 0
+                subtype = args[0]
+            elif len(args) == 2:
+                n, subtype = args
+                n = int(n)
+            else:
                 raise TypeError("Array specialization needs 2 args: Array(n, subtype)")
-            n, subtype = args
-            n = int(n)
             # Validate
             if not isinstance(subtype, type) and issubclass(subtype, SpirVType):
                 raise TypeError("Array subtype must be a SpirV type.")
@@ -160,11 +164,12 @@ class Array(Aggregate):
                 raise TypeError("Array subtype cannot be void.")
             elif subtype.is_abstract:
                 raise TypeError("Array subtype cannot be an abstract SpirV type.")
-            if n < 1:
+            if len(args) == 2 and n < 1:
                 raise TypeError("Array must have at least 1 element.")
             # Return type
+            # todo: an Array with length zero means it's length is unknown. Is it concrete?
             props = dict(subtype=subtype, length=n, is_abstract=False)
-            return _create_type(f"array{n}_{subtype.__name__}", Array, props)
+            return _create_type(f"array{n}x{subtype.__name__}", Array, props)
         else:
             return super().__new__(*args)
 

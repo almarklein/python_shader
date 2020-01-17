@@ -16,5 +16,6 @@ from ._types import i32, f32
 from ._types import vec2, vec3, vec4
 from ._types import ivec2, ivec3, ivec4
 from ._types import mat2, mat3, mat4
+from ._types import Array
 
 from . import dev
