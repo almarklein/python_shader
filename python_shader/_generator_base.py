@@ -186,6 +186,7 @@ class BaseSpirVGenerator:
     def _init(self):
 
         self._ids = {0: None}  # maps id -> info. For objects, info is a type in _types
+        self._constants = {}
         self._type_name_to_id = {}
         self.scope_stack = []  # stack of dicts: name -> id, type, type_id
         # todo: can we do without a stack, pass everything into funcs?
@@ -389,6 +390,34 @@ class BaseSpirVGenerator:
         return value_id, type_id
         # todo: return only value, and support value.type_id?
 
+    def obtain_constant(self, value):
+        """ Get the id object for the constant of given value.
+        Existing constants are re-used.
+        """
+        # First derive SpirV type from value
+        if isinstance(value, float):
+            the_type = _types.f32
+            bb = struct.pack("<f", value)
+        elif isinstance(value, int):
+            the_type = _types.i32
+            bb = struct.pack("<i", value)
+        elif isinstance(value, bool):
+            the_type = _types.boolean
+        else:
+            raise NotImplementedError()
+        # Make sure that we have it
+        key = the_type.__name__, value
+        if key not in self._constants:
+            id, type_id = self.obtain_value(the_type)
+            if the_type is _types.boolean:
+                opcode = cc.OpConstantTrue if value else cc.OpConstantFalse
+                self.gen_instruction("types", opcode, type_id, id)
+            else:
+                self.gen_instruction("types", cc.OpConstant, type_id, id, bb)
+            self._constants[key] = id
+        # Return cached
+        return self._constants[key]
+
     def obtain_variable(self, the_type, storage_class, name=""):
         """ Create a variable in the current scope. Generates an OpVariable
         definition instruction and returns a VariableAccessId to access it.
@@ -471,12 +500,7 @@ class BaseSpirVGenerator:
                 )
             else:
                 # Handle count
-                count_value_id, count_type_id = self.obtain_value(
-                    _types.i32, "array_count"
-                )
-                self.gen_instruction(
-                    "types", cc.OpConstant, count_type_id, count_value_id, count
-                )
+                count_value_id = self.obtain_constant(count)
                 # Handle toplevel array type
                 type_id = TypeId(the_type)
                 self.gen_instruction(

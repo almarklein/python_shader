@@ -2,8 +2,6 @@
 Implements generating SpirV code from our bytecode.
 """
 
-import struct
-
 from ._generator_base import BaseSpirVGenerator, ValueId, VariableAccessId
 from . import _spirv_constants as cc
 from . import _types
@@ -225,15 +223,7 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
         else:
             for i, subname in enumerate(subtypes):
                 subtype = subtypes[subname]
-                index_id, index_type_id = self.obtain_value(_types.i32)
-                # todo: can re-use constants! -> id, type_d = self.obtain_constant(type)
-                self.gen_instruction(
-                    "types",
-                    cc.OpConstant,
-                    index_type_id,
-                    index_id,
-                    struct.pack("<i", i),
-                )
+                index_id = self.obtain_constant(i)
                 if subname in iodict:
                     raise NameError(f"{kind} {subname} already exists")
                 iodict[subname] = var_access.index(index_id, i)
@@ -260,28 +250,9 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
             raise NameError(f"Using invalid variable: {name}")
         self._stack.append(ob)
 
-    def _op_load_constant(self, ob):
-        if isinstance(ob, (float, int, bool)):
-            if isinstance(ob, float):
-                id, type_id = self.obtain_value(_types.f32)
-                bb = struct.pack("<f", ob)
-                self.gen_instruction("types", cc.OpConstant, type_id, id, bb)
-                # bb = struct.pack("<d", ob)
-                # self.gen_instruction("types", cc.OpConstant, type_id, id, bb[:4], bb[4:])
-            elif isinstance(ob, int):
-                id, type_id = self.obtain_value(_types.i32)
-                bb = struct.pack("<i", ob)
-                self.gen_instruction("types", cc.OpConstant, type_id, id, bb)
-            elif isinstance(ob, bool):
-                id, type_id = self.obtain_value(_types.boolean)
-                opcode = cc.OpConstantTrue if ob else cc.OpConstantFalse
-                self.gen_instruction("types", opcode, type_id, id)
-            else:
-                raise NotImplementedError()
-            self._stack.append(id)
-        else:
-            raise NotImplementedError()
-
+    def _op_load_constant(self, value):
+        id = self.obtain_constant(value)
+        self._stack.append(id)
         # Also see OpConstantNull OpConstantSampler OpConstantComposite
 
     def _op_load_global(self):

@@ -166,8 +166,7 @@ class Array(Aggregate):
                 raise TypeError("Array subtype cannot be an abstract SpirV type.")
             if len(args) == 2 and n < 1:
                 raise TypeError("Array must have at least 1 element.")
-            # Return type
-            # todo: an Array with length zero means it's length is unknown. Is it concrete?
+            # Return type (an Array with length zero means it's length is unknown)
             props = dict(subtype=subtype, length=n, is_abstract=False)
             return _create_type(f"array{n}x{subtype.__name__}", Array, props)
         else:
