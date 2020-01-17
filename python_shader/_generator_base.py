@@ -98,16 +98,24 @@ class VariableAccessId(ValueId):
         self.storage_class = storage_class
         self.indices = indices  # ValueId's
 
-    def index(self, index):
+    def index(self, index, field=None):
         """ Index into the variable chain, so we go one level deeper.
         """
         assert isinstance(index, ValueId)
         assert issubclass(index.type, _types.Int)
-        assert issubclass(self.type, _types.Array)  # todo: also support structs
         indices = list(self.indices) + [index]
-        return VariableAccessId(
-            self.variable, self.storage_class, self.type.subtype, *indices
-        )
+        if issubclass(self.type, _types.Struct):
+            assert isinstance(field, int)
+            return VariableAccessId(
+                self.variable, self.storage_class, self.type.subtypes[field], *indices
+            )
+        elif issubclass(self.type, _types.Array):
+            assert field is None
+            return VariableAccessId(
+                self.variable, self.storage_class, self.type.subtype, *indices
+            )
+        else:
+            raise RuntimeError(f"VariableAccessId cannot index into {self.type}")
 
     def resolve_chain(self, gen):
         """ Generate OpAccessChain instruction and return pointer id object for result.
@@ -381,12 +389,26 @@ class BaseSpirVGenerator:
         return value_id, type_id
         # todo: return only value, and support value.type_id?
 
-    def obtain_variable(self, type, name, storage_class):
-        """ Create a variable in the current scope. Generates a variable
-        definition instruction. Return the new id.
+    def obtain_variable(self, the_type, storage_class, name=""):
+        """ Create a variable in the current scope. Generates an OpVariable
+        definition instruction and returns a VariableAccessId to access it.
         """
-        pass
-        # todo: XXXXX
+        # Create id and type_id
+        var_id, var_type_id = self.obtain_value(the_type, name)
+        #  Create pointer for variable
+        var_pointer_id = self.obtain_id("pointer")
+        self.gen_instruction(
+            "types", cc.OpTypePointer, var_pointer_id, storage_class, var_type_id
+        )
+        # Generate the variable instruction
+        where = "types"
+        if storage_class in (cc.StorageClass_Function, cc.StorageClass_Private):
+            where = "functions"
+        self.gen_instruction(
+            where, cc.OpVariable, var_pointer_id, var_id, storage_class
+        )
+        # Return object that can be used to access the variable with multi-level indexing
+        return VariableAccessId(var_id, storage_class, the_type, name=name)
 
     def obtain_type_id(self, the_type):
         """ Get the id for the given type_name. Generates a type

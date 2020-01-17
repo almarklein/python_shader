@@ -155,11 +155,11 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
         if singleton_mode:
             # Singleton (not allowed for Uniform)
             name, var_type = name_type_pairs
+            var_name = "var-" + name
             # todo: should our bytecode be fully jsonable? or do we force actual types here?
             if isinstance(var_type, str):
                 type_str = var_type
                 var_type = _types.spirv_types_map[type_str]
-            var_id, var_type_id = self.obtain_value(var_type, "var-" + name)
         else:
             # todo: TBH I am not sure if this is allowed for non-uniforms :D
             assert kind in (
@@ -175,9 +175,11 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
                 else:
                     subtypes[key] = subtype
             var_type = _types.Struct(**subtypes)
-            var_id, var_type_id = self.obtain_value(
-                var_type, "var-" + var_type.__name__
-            )
+            var_name = "var-" + var_type.__name__
+
+        # Create VariableAccessId object
+        var_access = self.obtain_variable(var_type, storage_class, var_name)
+        var_id = var_access.variable
 
         # Dectorate block for uniforms and buffers
         if kind == "uniform":
@@ -215,20 +217,11 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
                 "annotations", cc.OpDecorate, var_id, cc.Decoration_BuiltIn, location
             )
 
-        # Create a variable (via a pointer)
-        var_pointer_id = self.obtain_id("pointer")
-        self.gen_instruction(
-            "types", cc.OpTypePointer, var_pointer_id, storage_class, var_type_id
-        )
-        self.gen_instruction(
-            "types", cc.OpVariable, var_pointer_id, var_id, storage_class
-        )
-
         # Store internal info to derefererence the variables
         if singleton_mode:
             if name in iodict:
                 raise NameError(f"{kind} {name} already exists")
-            iodict[name] = VariableAccessId(var_id, storage_class, var_type)
+            iodict[name] = var_access
         else:
             for i, subname in enumerate(subtypes):
                 subtype = subtypes[subname]
@@ -243,9 +236,7 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
                 )
                 if subname in iodict:
                     raise NameError(f"{kind} {subname} already exists")
-                iodict[subname] = VariableAccessId(
-                    var_id, storage_class, subtype, index_id
-                )
+                iodict[subname] = var_access.index(index_id, i)
 
     def _op_load(self, name):
         # store a variable that is used in an inner scope.
@@ -429,8 +420,6 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
 
         # Get type of object and index
         element_type = container.type.subtype
-        container_type_id = self.obtain_type_id(container.type)
-
         # assert index.type is int
 
         if isinstance(container, VariableAccessId):
@@ -440,22 +429,9 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
 
             # todo: maybe ... the variable for a constant should be created only once ... instead of every time it gets indexed
             # Put the array into a variable
-            container_variable = self.obtain_id("variable")
-            container_variable_type = self.obtain_id("pointer_type")
-            self.gen_instruction(
-                "types",
-                cc.OpTypePointer,
-                container_variable_type,
-                cc.StorageClass_Function,
-                container_type_id,
-            )
-            self.gen_func_instruction(
-                cc.OpVariable,
-                container_variable_type,
-                container_variable,
-                cc.StorageClass_Function,
-            )
-            self.gen_func_instruction(cc.OpStore, container_variable, container.id)
+            var_access = self.obtain_variable(container.type, cc.StorageClass_Function)
+            container_variable = var_access.variable
+            var_access.resolve_store(self, container.id)
 
             # Prepare result id and type
             result_id, result_type_id = self.obtain_value(element_type)
