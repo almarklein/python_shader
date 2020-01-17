@@ -43,6 +43,42 @@ def glsl2spirv(glsl_code, shader_type):
     return binary
 
 
+def assemble(spirv_assembly_text):
+    """ Create a SPIR-V binary module from SPIR-V assembly text. This makes it
+    possible to disassemble your SpirV module, tweak the assembly text and try
+    with these changes. Also supports comments by starting a line with a "#".
+
+    Note: needs spirv-dis from spirv-tools or the Vulkan SDK!
+    """
+    if not isinstance(spirv_assembly_text, str):
+        raise TypeError("assemble() function expects a string.")
+
+    filename1 = os.path.join(tempfile.gettempdir(), f"x.spvtxt")
+    filename2 = os.path.join(tempfile.gettempdir(), "x.spv")
+
+    spirv_assembly_text = "\n".join(
+        line
+        for line in spirv_assembly_text.splitlines()
+        if not line.lstrip().startswith("#")
+    )
+    with open(filename1, "wb") as f:
+        f.write(spirv_assembly_text.encode())
+
+    try:
+        stdout = subprocess.check_output(
+            ["spirv-as", "-o", filename2, filename1], stderr=subprocess.STDOUT
+        )
+        stdout  # noqa - not used
+    except subprocess.CalledProcessError as err:
+        e = "Could not compile SpirV assembly text:\n" + err.output.decode()
+        raise Exception(e)
+
+    with open(filename2, "rb") as f:
+        binary = f.read()
+
+    return binary
+
+
 def disassemble(spirv):
     """ Disassemble the generated binary code using spirv-dis, and return as a string.
 
