@@ -323,10 +323,8 @@ class PyBytecode2Bytecode:
             self._stack.append(result)
         elif func in spirv_types_map and spirv_types_map[func].is_abstract:
             # A type definition
-            assert len(args) == 1
-            subtype = spirv_types_map[args[0]]
-            spirv_type = spirv_types_map[func]
-            self._stack.append(spirv_type(subtype))
+            type_str = f"{func}({','.join(args)})"
+            self._stack.append(type_str)
         else:
             # Normal call
             assert isinstance(func, str)

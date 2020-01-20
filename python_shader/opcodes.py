@@ -1,6 +1,8 @@
 """ The opcodes of our bytecode.
 """
 
+# todo: the name is misleading. It's a stack machine representation, but it is never represented in bytes.
+
 import json
 
 

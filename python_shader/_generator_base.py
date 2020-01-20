@@ -107,7 +107,10 @@ class VariableAccessId(ValueId):
         if issubclass(self.type, _types.Struct):
             assert isinstance(field, int)
             return VariableAccessId(
-                self.variable, self.storage_class, self.type.subtypes[field], *indices
+                self.variable,
+                self.storage_class,
+                self.type.get_subtype(field),
+                *indices,
             )
         elif issubclass(self.type, _types.Array):
             assert field is None
@@ -509,7 +512,7 @@ class BaseSpirVGenerator:
         elif issubclass(the_type, _types.Struct):
             type_id = TypeId(the_type)
             subtype_ids = [
-                self.obtain_type_id(subtype) for subtype in the_type.subtypes
+                self.obtain_type_id(the_type.get_subtype(key)) for key in the_type.keys
             ]
             self.gen_instruction("types", cc.OpTypeStruct, type_id, *subtype_ids)
         else:

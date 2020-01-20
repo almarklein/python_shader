@@ -22,7 +22,9 @@ import hashlib
 import inspect
 
 import python_shader
-from python_shader import i32, vec2, vec3, vec4
+from python_shader import i32, vec2, vec3, vec4, Array
+
+from pytest import mark
 
 from testutils import use_vulkan_sdk
 
@@ -61,6 +63,29 @@ def test_triangle_shader():
     m = python_shader.python2shader(fragment_shader)
     assert m.input is fragment_shader
     validate_module(fragment_shader, m)
+
+
+@mark.skipif(not use_vulkan_sdk, reason="No Vulkan SDK")
+def test_no_duplicate_constants():
+    def vertex_shader():
+        positions = [vec2(0.0, 1.0), vec2(0.0, 1.0), vec2(0.0, 1.0)]  # noqa
+
+    m = python_shader.python2shader(vertex_shader)
+    text = python_shader.dev.disassemble(m.to_spirv())
+    assert 2 <= text.count("OpConst") <= 3
+
+
+def test_compute_shader():
+    def compute_shader(input, buffer):
+        input.define("index", "GlobalInvocationId", i32)
+        buffer.define("data1", 0, Array(i32))
+        buffer.define("data2", 1, Array(i32))
+
+        buffer.data2[input.index] = buffer.data1[input.index]
+
+    m = python_shader.python2shader(compute_shader)
+    assert m.input is compute_shader
+    validate_module(compute_shader, m)
 
 
 # %% Validation
@@ -123,9 +148,10 @@ OVERWRITE_HASHES = False
 
 
 HASHES = {
-    "test_null_shader.vertex_shader": ("512ca89b1c376bde", "17b8c22d37890119"),
-    "test_triangle_shader.vertex_shader": ("fe3fbcabd6ca2c19", "e1ee457967857a87"),
-    "test_triangle_shader.fragment_shader": ("1b2d31e4656418c6", "69784202b4b63385"),
+    "test_null_shader.vertex_shader": ("801b48feb24d7aea", "1cd71e87b1ba5a32"),
+    "test_triangle_shader.vertex_shader": ("9cdef2b9fc3befa3", "ef7285ff8c51a8f1"),
+    "test_triangle_shader.fragment_shader": ("02bcc64a3e8b05d3", "33063b6db28277db"),
+    "test_compute_shader.compute_shader": ("02822d1f23bee04d", "3a3e6992643df7ea"),
 }
 
 

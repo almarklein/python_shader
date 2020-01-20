@@ -157,7 +157,7 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
             # todo: should our bytecode be fully jsonable? or do we force actual types here?
             if isinstance(var_type, str):
                 type_str = var_type
-                var_type = _types.spirv_types_map[type_str]
+                var_type = _types.type_from_name(type_str)
         else:
             # todo: TBH I am not sure if this is allowed for non-uniforms :D
             assert kind in (
@@ -169,7 +169,7 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
             for i in range(0, len(name_type_pairs), 2):
                 key, subtype = name_type_pairs[i], name_type_pairs[i + 1]
                 if isinstance(subtype, str):
-                    subtypes[key] = _types.spirv_types_map[subtype]
+                    subtypes[key] = _types.type_from_name(subtype)
                 else:
                     subtypes[key] = subtype
             var_type = _types.Struct(**subtypes)
@@ -244,7 +244,7 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
         elif name in self._buffer:
             ob = self._buffer[name]
             assert isinstance(ob, VariableAccessId)
-        elif name in _types.spirv_types_map:
+        elif name in _types.spirv_types_map:  # todo: use type_from_name instead?
             ob = _types.spirv_types_map[name]
         else:
             raise NameError(f"Using invalid variable: {name}")

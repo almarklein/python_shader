@@ -7,11 +7,11 @@ def test_simple():
     assert types.f32.__name__ == "f32"
 
     for t in [types.i16, types.i32, types.i64]:
-        assert isinstance(t, type) and issubclass(t, types.SpirVType)
+        assert isinstance(t, type) and issubclass(t, types.Numeric)
         assert types.type_from_name(t.__name__) is t
 
     for t in [types.f16, types.f32, types.f64]:
-        assert isinstance(t, type) and issubclass(t, types.SpirVType)
+        assert isinstance(t, type) and issubclass(t, types.Numeric)
         assert types.type_from_name(t.__name__) is t
 
     for t in [types.boolean, types.void]:

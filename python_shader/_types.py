@@ -265,23 +265,32 @@ class Struct(Aggregate):
                     raise TypeError("Struct subtype cannot be void.")
                 elif subtype.is_abstract:
                     raise TypeError("Struct subtype cannot be an abstract SpirV type.")
-                if not (isinstance(key, str) and key.isidentifier() and "_" not in key):
-                    raise TypeError(
-                        "Struct keys must be identifiers without underscore."
-                    )
+                if not (isinstance(key, str):  # and key.isidentifier(): -> allow . in name?
+                    raise TypeError("Struct keys must be str.")
             # Return type
             keys = tuple(kwargs.keys())
             type_names = [
                 f"{key}={subtype.__name__}" for key, subtype in kwargs.items()
             ]
             props = kwargs.copy()
-            props.update(dict(length=n, keys=keys, is_abstract=False))
+            props.update(dict(length=n, keys=keys, _kwargs=kwargs, is_abstract=False))
             return _create_type(f"Struct({','.join(type_names)})", Struct, props)
         else:
             return super().__new__(**kwargs)
 
     def __init__(self, **kwargs):
         raise NotImplementedError("Instantiation")
+
+    @classmethod
+    def get_subtype(cls, key):
+        if isinstance(key, int):
+            return cls._kwargs[cls.keys[key]]
+        else:
+            return cls._kwargs[key]
+
+
+# The base types that can be used to create composite types
+base_types = dict(Vector=Vector, Matrix=Matrix, Array=Array, Struct=Struct)
 
 
 # %% Concrete leaf types
@@ -319,10 +328,10 @@ class i64(Int):
     is_abstract = False
 
 
+# Types that are at the leaf of a composite type
 leaf_types = dict(
     void=void, boolean=boolean, f16=f16, f32=f32, f64=f64, i16=i16, i32=i32, i64=i64,
 )
-
 _subtypes.update(leaf_types)
 
 
@@ -344,42 +353,49 @@ mat2 = Matrix(2, 2, f32)
 mat3 = Matrix(3, 3, f32)
 mat4 = Matrix(4, 4, f32)
 
+mat2x2 = Matrix(2, 2, f32)
+mat3x2 = Matrix(3, 2, f32)
+mat4x2 = Matrix(4, 2, f32)
+mat2x3 = Matrix(2, 3, f32)
+mat3x3 = Matrix(3, 3, f32)
+mat4x3 = Matrix(4, 3, f32)
+mat2x4 = Matrix(2, 4, f32)
+mat3x4 = Matrix(3, 4, f32)
+mat4x4 = Matrix(4, 4, f32)
 
-# Types that can be referenced by name. From these types you can create any other type.
-spirv_types_map = dict(
-    # Scalars
-    void=void,
-    boolean=boolean,
-    f16=f16,
-    f32=f32,
-    f64=f64,
-    i16=i16,
-    i32=i32,
-    i64=i64,
-    # Vectors
+convenience_types = dict(
     vec2=vec2,
     vec3=vec3,
     vec4=vec4,
     ivec2=ivec2,
     ivec3=ivec3,
     ivec4=ivec4,
-    # bvec2=bvec2,
-    # bvec3=bvec3,
-    # bvec4=bvec4,
-    # Matrices
+    bvec2=bvec2,
+    bvec3=bvec3,
+    bvec4=bvec4,
     mat2=mat2,
-    # mat2x3=mat2x3,
-    # mat2x4=mat2x4,
-    # mat3x2=mat3x2,
     mat3=mat3,
-    # mat3x4=mat3x4,
-    # mat4x2=mat4x2,
-    # mat4x3=mat4x3,
-    mat4=mat4,
-    # Aggregates
-    Array=Array,  # todo: only concrete types here?
-    # Struct=Struct,
+    mat2x2=mat2x2,
+    mat3x2=mat3x2,
+    mat4x2=mat4x2,
+    mat2x3=mat2x3,
+    mat3x3=mat3x3,
+    mat4x3=mat4x3,
+    mat2x4=mat2x4,
+    mat3x4=mat3x4,
+    mat4x4=mat4x4,
 )
+_subtypes.update(convenience_types)
+
+
+# %% How to expose it all
+
+
+# Types that can be referenced by name.
+spirv_types_map = {}
+spirv_types_map.update(leaf_types)
+spirv_types_map.update(base_types)  # Only the last level, e,g. not SpirVType
+spirv_types_map.update(convenience_types)
 
 
 # %% IO types
