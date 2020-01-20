@@ -26,9 +26,19 @@ def fragment_shader(input, output):
     output.color = vec4(input.color, 1.0)
 
 
+@python2shader
+def compute_shader(input, buffer):
+    input.define("index", "GlobalInvocationId", i32)
+    buffer.define("data1", 0, Array(i32))
+    buffer.define("data2", 1, Array(i32))
+
+    buffer.data2[input.index] = buffer.data1[input.index]
+
+
 # Get the raw bytes
 raw_vert = vertex_shader.to_spirv()
 raw_frag = fragment_shader.to_spirv()
+raw_comp = compute_shader.to_spirv()
 
 # For developers: uncomment the lines below to validate and read the SpirV.
 # Note that thsese requires the Vulkan SDK!
