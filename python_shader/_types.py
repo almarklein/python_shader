@@ -27,6 +27,76 @@ def _create_type(name, base, props):
     return _subtypes[name]
 
 
+def type_from_name(name):
+    """ Get a SpirV type from its name.
+    """
+    original_name = name
+    name = name.replace(" ", "").lower()
+    if name in _subtypes:
+        return _subtypes[name]
+    return _type_from_name(name, original_name)
+
+
+def _type_from_name(name, original_name):
+    if name in leaf_types.keys():
+        return leaf_types[name]
+    elif name.startswith("vector"):
+        inner, commas = _select_between_braces(name[6:], original_name)
+        assert len(commas) == 1
+        n, _, subtypestr = inner.partition(",")
+        subtype = _type_from_name(subtypestr, original_name)
+        return Vector(int(n), subtype)
+    elif name.startswith("matrix"):
+        inner, commas = _select_between_braces(name[6:], original_name)
+        assert len(commas) == 2
+        cols, rows, subtypestr = inner.split(",", 2)
+        subtype = _type_from_name(subtypestr, original_name)
+        return Matrix(int(cols), int(rows), subtype)
+    elif name.startswith("array"):
+        inner, commas = _select_between_braces(name[5:], original_name)
+        assert len(commas) in (0, 1)
+        if len(commas) == 0:  # subtypestr = inner
+            subtype = _type_from_name(inner, original_name)
+            return Array(subtype)
+        else:
+            n, _, subtypestr = inner.partition(",")
+            subtype = _type_from_name(subtypestr, original_name)
+            return Array(int(n), subtype)
+    elif name.startswith("struct"):
+        inner, commas = _select_between_braces(name[6:], original_name)
+        commas.insert(0, -1)
+        commas.append(999999)
+        parts = [inner[commas[i] + 1 : commas[i + 1]] for i in range(len(commas) - 1)]
+        fields = {}
+        for part in [part for part in parts if part]:
+            key, _, subtypestr = part.partition("=")
+            fields[key.strip()] = _type_from_name(subtypestr, original_name)
+        return Struct(**fields)
+    else:
+        raise TypeError(f"Invalid SpirV type string '{original_name}': '{name}'")
+
+
+def _select_between_braces(s, original_name):
+    """ Assuming s starts with an opening brace, return the part between
+    braces and the position of the comma's at the root level.
+    """
+    assert s[0] == "("
+    level = 0
+    commas = []
+    for i in range(len(s)):
+        if s[i] == "(":
+            level += 1
+        elif s[i] == ")":
+            level -= 1
+            if level == 0:
+                break
+        elif level == 1 and s[i] == ",":
+            commas.append(i - 1)  # 1 offset because we drop the first char
+    if level != 0:
+        raise TypeError(f"No end-brace in SpirV type string '{original_name}': '{s}'")
+    return s[1:i], commas
+
+
 # %% Abstract types
 
 
@@ -97,7 +167,7 @@ class Vector(Composite):
             if n < 2 or n > 4:
                 raise TypeError("Vector can have 2, 3 or 4 elements.")
             props = dict(subtype=subtype, length=n, is_abstract=False)
-            return _create_type(f"vec{n}x{subtype.__name__}", Vector, props)
+            return _create_type(f"Vector({n},{subtype.__name__})", Vector, props)
         else:
             return super().__new__(*args)
 
@@ -131,7 +201,9 @@ class Matrix(Composite):
             if rows < 2 or rows > 4:
                 raise TypeError("Matrix can have 2, 3 or 4 rows.")
             props = dict(subtype=subtype, cols=cols, rows=rows, is_abstract=False)
-            return _create_type(f"mat{cols}x{rows}x{subtype.__name__}", Matrix, props)
+            return _create_type(
+                f"Matrix({cols},{rows},{subtype.__name__})", Matrix, props
+            )
         else:
             return super().__new__(*args)
 
@@ -155,6 +227,8 @@ class Array(Aggregate):
             elif len(args) == 2:
                 n, subtype = args
                 n = int(n)
+                if n < 1:
+                    raise TypeError("Array must have at least 1 element.")
             else:
                 raise TypeError("Array specialization needs 2 args: Array(n, subtype)")
             # Validate
@@ -164,11 +238,11 @@ class Array(Aggregate):
                 raise TypeError("Array subtype cannot be void.")
             elif subtype.is_abstract:
                 raise TypeError("Array subtype cannot be an abstract SpirV type.")
-            if len(args) == 2 and n < 1:
-                raise TypeError("Array must have at least 1 element.")
-            # Return type (an Array with length zero means it's length is unknown)
             props = dict(subtype=subtype, length=n, is_abstract=False)
-            return _create_type(f"array{n}x{subtype.__name__}", Array, props)
+            if n == 0:  # means it's length is unknown)
+                return _create_type(f"Array({subtype.__name__})", Array, props)
+            else:
+                return _create_type(f"Array({n},{subtype.__name__})", Array, props)
         else:
             return super().__new__(*args)
 
@@ -191,12 +265,18 @@ class Struct(Aggregate):
                     raise TypeError("Struct subtype cannot be void.")
                 elif subtype.is_abstract:
                     raise TypeError("Struct subtype cannot be an abstract SpirV type.")
+                if not (isinstance(key, str) and key.isidentifier() and "_" not in key):
+                    raise TypeError(
+                        "Struct keys must be identifiers without underscore."
+                    )
             # Return type
             keys = tuple(kwargs.keys())
-            subtypes = tuple(kwargs.values())
-            type_names = "_".join(subtype.__name__ for subtype in subtypes)
-            props = dict(subtypes=subtypes, length=n, keys=keys, is_abstract=False)
-            return _create_type(f"struct{n}_{type_names}", Struct, props)
+            type_names = [
+                f"{key}={subtype.__name__}" for key, subtype in kwargs.items()
+            ]
+            props = kwargs.copy()
+            props.update(dict(length=n, keys=keys, is_abstract=False))
+            return _create_type(f"Struct({','.join(type_names)})", Struct, props)
         else:
             return super().__new__(**kwargs)
 
@@ -204,7 +284,7 @@ class Struct(Aggregate):
         raise NotImplementedError("Instantiation")
 
 
-# %% Concrete types
+# %% Concrete leaf types
 
 
 class void(SpirVType):
@@ -239,6 +319,13 @@ class i64(Int):
     is_abstract = False
 
 
+leaf_types = dict(
+    void=void, boolean=boolean, f16=f16, f32=f32, f64=f64, i16=i16, i32=i32, i64=i64,
+)
+
+_subtypes.update(leaf_types)
+
+
 # %% Convenient concrete types
 
 vec2 = Vector(2, f32)
@@ -248,6 +335,10 @@ vec4 = Vector(4, f32)
 ivec2 = Vector(2, i32)
 ivec3 = Vector(3, i32)
 ivec4 = Vector(4, i32)
+
+bvec2 = Vector(2, boolean)
+bvec3 = Vector(3, boolean)
+bvec4 = Vector(4, boolean)
 
 mat2 = Matrix(2, 2, f32)
 mat3 = Matrix(3, 3, f32)
@@ -270,8 +361,8 @@ spirv_types_map = dict(
     vec3=vec3,
     vec4=vec4,
     ivec2=ivec2,
-    # ivec3=ivec3,
-    # ivec4=ivec4,
+    ivec3=ivec3,
+    ivec4=ivec4,
     # bvec2=bvec2,
     # bvec3=bvec3,
     # bvec4=bvec4,
