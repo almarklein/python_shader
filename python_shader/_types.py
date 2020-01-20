@@ -97,7 +97,7 @@ def _select_between_braces(s, original_name):
     return s[1:i], commas
 
 
-# %% Abstract types
+# %% Really abstract types
 
 
 class SpirVType:
@@ -142,6 +142,9 @@ class Composite(SpirVType):
 class Aggregate(Composite):
     """ Base class for Array and Struct types.
     """
+
+
+# %% Abstract types (but can be used to construct composite types)
 
 
 class Vector(Composite):
@@ -265,7 +268,9 @@ class Struct(Aggregate):
                     raise TypeError("Struct subtype cannot be void.")
                 elif subtype.is_abstract:
                     raise TypeError("Struct subtype cannot be an abstract SpirV type.")
-                if not (isinstance(key, str):  # and key.isidentifier(): -> allow . in name?
+                if not isinstance(
+                    key, str
+                ):  # and key.isidentifier(): -> allow . in name?
                     raise TypeError("Struct keys must be str.")
             # Return type
             keys = tuple(kwargs.keys())
