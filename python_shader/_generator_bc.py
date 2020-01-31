@@ -300,73 +300,96 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
         result = self._array_packing(args)
         self._stack.append(result)
 
-    def _convert_scalar(self, func, arg):
-        # todo: all these convert ops can also be applied to vectors
+    def _convert_scalar(self, out_type, arg):
+        return self._convert_scalar_or_vector(out_type, out_type, arg, arg.type)
+
+    def _convert_numeric_vector(self, out_type, arg):
+        if not (
+            issubclass(arg.type, _types.Vector) and arg.type.length == out_type.length
+        ):
+            raise TypeError("Vector conversion needs vectors of equal length.")
+        return self._convert_scalar_or_vector(
+            out_type, out_type.subtype, arg, arg.type.subtype
+        )
+
+    def _convert_scalar_or_vector(self, out_type, out_el_type, arg, arg_el_type):
+
+        # This function only works for vectors for numeric types (no bools)
+        if out_type is not out_el_type:
+            assert issubclass(out_el_type, _types.Numeric) and issubclass(
+                arg_el_type, _types.Numeric
+            )
 
         # Is a conversion actually needed?
-        argtname = arg.type.__name__
-        functname = func.__name__
-        if arg.type is func:
+        if arg.type is out_type:
             return arg
 
         # Otherwise we need a new value
-        result_id, type_id = self.obtain_value(func)
+        result_id, type_id = self.obtain_value(out_type)
 
-        if issubclass(func, _types.Float):
-            if issubclass(arg.type, _types.Float):
+        argtname = arg_el_type.__name__
+        outtname = out_el_type.__name__
+
+        if issubclass(out_el_type, _types.Float):
+            if issubclass(arg_el_type, _types.Float):
                 self.gen_func_instruction(cc.OpFConvert, type_id, result_id, arg)
-            elif issubclass(arg.type, _types.Int):
+            elif issubclass(arg_el_type, _types.Int):
                 op = cc.OpConvertSToF if argtname.startswith("u") else cc.OpConvertUToF
                 self.gen_func_instruction(op, type_id, result_id, arg)
-            elif issubclass(arg.type, _types.boolean):
-                zero = self.obtain_constant(0.0, func)
-                one = self.obtain_constant(1.0, func)
+            elif issubclass(arg_el_type, _types.boolean):
+                zero = self.obtain_constant(0.0, out_el_type)
+                one = self.obtain_constant(1.0, out_el_type)
                 self.gen_func_instruction(
                     cc.OpSelect, type_id, result_id, arg, one, zero
                 )
             else:
                 raise TypeError(f"Cannot convert to float: {arg.type}")
 
-        elif issubclass(func, _types.Int):
-            if issubclass(arg.type, _types.Float):
-                op = cc.OpConvertFToU if functname.startswith("u") else cc.OpConvertFToS
+        elif issubclass(out_el_type, _types.Int):
+            if issubclass(arg_el_type, _types.Float):
+                op = cc.OpConvertFToU if outtname.startswith("u") else cc.OpConvertFToS
                 self.gen_func_instruction(cc.OpConvertFToS, type_id, result_id, arg)
-            elif issubclass(arg.type, _types.Int):
-                op = cc.OpUConvert if functname.startswith("u") else cc.OpSConvert
+            elif issubclass(arg_el_type, _types.Int):
+                op = cc.OpUConvert if outtname.startswith("u") else cc.OpSConvert
                 self.gen_func_instruction(cc.OpSConvert, type_id, result_id, arg)
-            elif issubclass(arg.type, _types.boolean):
-                zero = self.obtain_constant(0, func)
-                one = self.obtain_constant(1, func)
+            elif issubclass(arg_el_type, _types.boolean):
+                zero = self.obtain_constant(0, out_type)
+                one = self.obtain_constant(1, out_type)
                 self.gen_func_instruction(
                     cc.OpSelect, type_id, result_id, arg, one, zero
                 )
             else:
                 raise TypeError(f"Cannot convert to int: {arg.type}")
 
-        elif issubclass(func, _types.boolean):
-            if issubclass(arg.type, _types.Float):
-                zero = self.obtain_constant(0.0, func)
+        elif issubclass(out_el_type, _types.boolean):
+            if issubclass(arg_el_type, _types.Float):
+                zero = self.obtain_constant(0.0, arg_el_type)
                 self.gen_func_instruction(
-                    cc.OpLogicalNotEqual, type_id, result_id, arg, zero
+                    cc.OpFOrdNotEqual, type_id, result_id, arg, zero
                 )
-            elif issubclass(arg.type, _types.Int):
-                zero = self.obtain_constant(0, func)
-                self.gen_func_instruction(
-                    cc.OpLogicalNotEqual, type_id, result_id, arg, zero
-                )
-            elif issubclass(arg.type, _types.boolean):
+            elif issubclass(arg_el_type, _types.Int):
+                zero = self.obtain_constant(0, arg_el_type)
+                self.gen_func_instruction(cc.OpINotEqual, type_id, result_id, arg, zero)
+            elif issubclass(arg_el_type, _types.boolean):
                 return arg  # actually covered above
             else:
                 raise TypeError(f"Cannot convert to bool: {arg.type}")
         else:
-            raise TypeError(f"Cannot convert to {func}")
+            raise TypeError(f"Cannot convert to {out_type}")
 
         return result_id
 
     def _vector_packing(self, vector_type, args):
 
+        # Vector conversion of numeric types is easier
+        if (
+            len(args) == 1
+            and issubclass(vector_type.subtype, _types.Numeric)
+            and issubclass(args[0].type.subtype, _types.Numeric)
+        ):
+            return self._convert_numeric_vector(vector_type, args[0])
+
         n, t = vector_type.length, vector_type.subtype  # noqa
-        type_id = self.obtain_type_id(t)
         composite_ids = []
 
         # Deconstruct
@@ -374,17 +397,20 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
             if not isinstance(arg, ValueId):
                 raise RuntimeError("Expected a SpirV object")
             if issubclass(arg.type, _types.Scalar):
-                assert arg.type is t, "vector type mismatch"
-                composite_ids.append(arg)
+                comp_id = arg
+                if arg.type is not t:
+                    comp_id = self._convert_scalar(t, arg)
+                composite_ids.append(comp_id)
             elif issubclass(arg.type, _types.Vector):
                 # todo: a contiguous subset of the scalars consumed can be represented by a vector operand instead!
                 # -> I think this means we can simply do composite_ids.append(arg)
-                assert arg.type.subtype is t, "vector type mismatch"
                 for i in range(arg.type.length):
-                    comp_id = self.obtain_id("composite")
+                    comp_id, comp_type_id = self.obtain_value(arg.type.subtype)
                     self.gen_func_instruction(
-                        cc.OpCompositeExtract, type_id, comp_id, arg, i
+                        cc.OpCompositeExtract, comp_type_id, comp_id, arg, i
                     )
+                    if arg.type.subtype is not t:
+                        comp_id = self._convert_scalar(t, comp_id)
                     composite_ids.append(comp_id)
             else:
                 raise TypeError(f"Invalid type to compose vector: {arg.type}")

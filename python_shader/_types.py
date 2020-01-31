@@ -32,14 +32,12 @@ def type_from_name(name):
     """
     original_name = name
     name = name.replace(" ", "").lower()
-    if name in _subtypes:
-        return _subtypes[name]
     return _type_from_name(name, original_name)
 
 
 def _type_from_name(name, original_name):
-    if name in leaf_types.keys():
-        return leaf_types[name]
+    if name in _subtypes:
+        return _subtypes[name]
     elif name.startswith("vector"):
         inner, commas = _select_between_braces(name[6:], original_name)
         assert len(commas) == 1

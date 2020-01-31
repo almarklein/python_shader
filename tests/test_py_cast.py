@@ -6,7 +6,8 @@ Tests related to casting and vector/array composition.
 import ctypes
 
 import python_shader
-from python_shader import f32, f64, u8, i16, i32, i64, vec2, vec3, vec4, Array  # noqa
+from python_shader import f32, f64, u8, i16, i32, i64  # noqa
+from python_shader import bvec2, ivec2, ivec3, vec2, vec3, vec4, Array  # noqa
 
 import wgpu.backend.rs  # noqa
 from wgpu.utils import compute_with_buffers
@@ -135,6 +136,83 @@ def test_cast_i16_u8():
     inp_arrays = {0: (ctypes.c_short * len(values1))(*values1)}
     out_arrays = {1: ctypes.c_ubyte * len(values1)}
     out = compute_with_buffers(inp_arrays, out_arrays, compute_shader)
+    assert iters_equal(out[1], values2)
+
+
+def test_cast_vec_ivec2_vec2():
+    # This triggers the direct number-vector conversion
+    @python2shader_and_validate
+    def compute_shader(input, buffer):
+        input.define("index", "GlobalInvocationId", i32)
+        buffer.define("data1", 0, Array(ivec2))
+        buffer.define("data2", 1, Array(vec2))
+        buffer.data2[input.index] = vec2(buffer.data1[input.index])
+
+    skip_if_no_wgpu()
+
+    values1 = [-999999, -100, -4, 1, 4, 100, 32767, 32760, 0, 999999]
+
+    inp_arrays = {0: (ctypes.c_int32 * len(values1))(*values1)}
+    out_arrays = {1: ctypes.c_float * len(values1)}
+    out = compute_with_buffers(inp_arrays, out_arrays, compute_shader, n=5)
+    assert iters_equal(out[1], values1)
+
+
+def test_cast_vec_any_vec4():
+    # Look how all args in a vector are converted :)
+    @python2shader_and_validate
+    def compute_shader(input, buffer):
+        input.define("index", "GlobalInvocationId", i32)
+        buffer.define("data2", 1, Array(vec4))
+        buffer.data2[input.index] = vec4(7.0, 3, ivec2(False, 2.7))
+
+    skip_if_no_wgpu()
+
+    values2 = [7.0, 3.0, 0.0, 2.0] * 2
+
+    inp_arrays = {}
+    out_arrays = {1: ctypes.c_float * len(values2)}
+    out = compute_with_buffers(inp_arrays, out_arrays, compute_shader, n=2)
+    assert iters_equal(out[1], values2)
+
+
+# todo: why does this not work -> zeros in the result???
+def test_cast_vec_ivec3_vec3():
+    @python2shader_and_validate
+    def compute_shader(input, buffer):
+        input.define("index", "GlobalInvocationId", i32)
+        buffer.define("data1", 0, Array(ivec3))
+        buffer.define("data2", 1, Array(vec3))
+        buffer.data2[input.index] = vec3(buffer.data1[input.index])
+
+    skip_if_no_wgpu()
+
+    values1 = [-999999, -100, -4, 1, 4, 100, 32767, 32760, 999999]
+
+    inp_arrays = {0: (ctypes.c_int32 * len(values1))(*values1)}
+    out_arrays = {1: ctypes.c_float * len(values1)}
+    out = compute_with_buffers(inp_arrays, out_arrays, compute_shader, n=3)
+    assert iters_equal(out[1], values1)
+
+
+def test_cast_ivec2_bvec2():
+    # This triggers the per-element vector conversion
+    @python2shader_and_validate
+    def compute_shader(input, buffer):
+        input.define("index", "GlobalInvocationId", i32)
+        buffer.define("data1", 0, Array(ivec2))
+        buffer.define("data2", 1, Array(ivec2))
+        tmp = bvec2(buffer.data1[input.index])
+        buffer.data2[input.index] = ivec2(tmp)  # ext visible storage cannot be bool
+
+    skip_if_no_wgpu()
+
+    values1 = [-999999, -100, 0, 1, 4, 100, 32767, 32760, 0, 999999]
+    values2 = [True, True, False, True, True, True, True, True, False, True]
+
+    inp_arrays = {0: (ctypes.c_int32 * len(values1))(*values1)}
+    out_arrays = {1: ctypes.c_int32 * len(values1)}
+    out = compute_with_buffers(inp_arrays, out_arrays, compute_shader, n=5)
     assert iters_equal(out[1], values2)
 
 
