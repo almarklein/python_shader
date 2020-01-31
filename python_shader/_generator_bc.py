@@ -304,6 +304,8 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
         # todo: all these convert ops can also be applied to vectors
 
         # Is a conversion actually needed?
+        argtname = arg.type.__name__
+        functname = func.__name__
         if arg.type is func:
             return arg
 
@@ -314,7 +316,8 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
             if issubclass(arg.type, _types.Float):
                 self.gen_func_instruction(cc.OpFConvert, type_id, result_id, arg)
             elif issubclass(arg.type, _types.Int):
-                self.gen_func_instruction(cc.OpConvertSToF, type_id, result_id, arg)
+                op = cc.OpConvertSToF if argtname.startswith("u") else cc.OpConvertUToF
+                self.gen_func_instruction(op, type_id, result_id, arg)
             elif issubclass(arg.type, _types.boolean):
                 zero = self.obtain_constant(0.0, func)
                 one = self.obtain_constant(1.0, func)
@@ -326,8 +329,10 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
 
         elif issubclass(func, _types.Int):
             if issubclass(arg.type, _types.Float):
+                op = cc.OpConvertFToU if functname.startswith("u") else cc.OpConvertFToS
                 self.gen_func_instruction(cc.OpConvertFToS, type_id, result_id, arg)
-            elif issubclass(arg.type, _types.Int):  # todo: or UConvert???
+            elif issubclass(arg.type, _types.Int):
+                op = cc.OpUConvert if functname.startswith("u") else cc.OpSConvert
                 self.gen_func_instruction(cc.OpSConvert, type_id, result_id, arg)
             elif issubclass(arg.type, _types.boolean):
                 zero = self.obtain_constant(0, func)

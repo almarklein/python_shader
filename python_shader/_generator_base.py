@@ -396,14 +396,14 @@ class BaseSpirVGenerator:
         # First derive SpirV type from value
         if isinstance(value, float):
             the_type = _types.f32 if the_type is None else the_type
-            struct_type = {"f32": "<f", "f64": "<d"}[the_type.__name__]
+            assert the_type.__name__ != "f16", "Cannot yet create f16 constants."
+            M = {"f32": "<f", "f64": "<d"}
+            struct_type = M[the_type.__name__]
             bb = struct.pack(struct_type, value)
         elif isinstance(value, int):
             the_type = _types.i32 if the_type is None else the_type
-            # todo: unsigned ints
-            struct_type = {"i8": "<b", "i16": "<h", "i32": "<i", "i64": "<q"}[
-                the_type.__name__
-            ]
+            M = {"u8": "<B", "i16": "<h", "i32": "<i", "i64": "<q"}
+            struct_type = M[the_type.__name__]
             bb = struct.pack(struct_type, value)
         elif isinstance(value, bool):
             the_type = _types.boolean
@@ -465,26 +465,31 @@ class BaseSpirVGenerator:
             self.gen_instruction("types", cc.OpTypeBool, type_id)
         elif issubclass(the_type, _types.Int):
             type_id = TypeId(the_type)
-            bits = 32
-            if issubclass(the_type, _types.i16):
+            if issubclass(the_type, _types.u8):
+                self._capabilities.add(cc.Capability_Int8)
+                self.gen_instruction("types", cc.OpTypeInt, type_id, 8, 0)
+            elif issubclass(the_type, _types.i16):
                 self._capabilities.add(cc.Capability_Int16)
-                bits = 16
+                self.gen_instruction("types", cc.OpTypeInt, type_id, 16, 1)
+            elif issubclass(the_type, _types.i32):
+                self.gen_instruction("types", cc.OpTypeInt, type_id, 32, 1)
             elif issubclass(the_type, _types.i64):
                 self._capabilities.add(cc.Capability_Int64)
-                bits = 64
-            self.gen_instruction(
-                "types", cc.OpTypeInt, type_id, bits, 0
-            )  # no signedness semantics
+                self.gen_instruction("types", cc.OpTypeInt, type_id, 64, 1)
+            else:
+                raise TypeError(f"Unknown integer type: {the_type}")
         elif issubclass(the_type, _types.Float):
             type_id = TypeId(the_type)
-            bits = 32
             if issubclass(the_type, _types.f16):
                 self._capabilities.add(cc.Capability_Float16)
-                bits = 16
+                self.gen_instruction("types", cc.OpTypeFloat, type_id, 16)
+            elif issubclass(the_type, _types.f32):
+                self.gen_instruction("types", cc.OpTypeFloat, type_id, 32)
             elif issubclass(the_type, _types.f64):
                 self._capabilities.add(cc.Capability_Float64)
-                bits = 64
-            self.gen_instruction("types", cc.OpTypeFloat, type_id, bits)
+                self.gen_instruction("types", cc.OpTypeFloat, type_id, 64)
+            else:
+                raise TypeError(f"Unknown float type: {the_type}")
         elif issubclass(the_type, _types.Vector):
             sub_type_id = self.obtain_type_id(the_type.subtype)
             type_id = TypeId(the_type)

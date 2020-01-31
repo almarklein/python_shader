@@ -6,7 +6,7 @@ Tests related to casting and vector/array composition.
 import ctypes
 
 import python_shader
-from python_shader import f32, f64, i16, i32, i64, vec2, vec3, vec4, Array  # noqa
+from python_shader import f32, f64, u8, i16, i32, i64, vec2, vec3, vec4, Array  # noqa
 
 import wgpu.backend.rs  # noqa
 from wgpu.utils import compute_with_buffers
@@ -26,11 +26,30 @@ def test_cast_i32_f32():
 
     skip_if_no_wgpu()
 
-    inp_arrays = {0: (ctypes.c_int32 * 20)(*range(20))}
-    out_arrays = {1: ctypes.c_float * 20}
-    out = compute_with_buffers(inp_arrays, out_arrays, compute_shader)
+    values1 = [-999999, -100, -4, 0, 4, 100, 32767, 32768, 999999]
 
-    assert iters_equal(out[1], range(20))
+    inp_arrays = {0: (ctypes.c_int32 * len(values1))(*values1)}
+    out_arrays = {1: ctypes.c_float * len(values1)}
+    out = compute_with_buffers(inp_arrays, out_arrays, compute_shader)
+    assert iters_equal(out[1], values1)
+
+
+def test_cast_u8_f32():
+    @python2shader_and_validate
+    def compute_shader(input, buffer):
+        input.define("index", "GlobalInvocationId", i32)
+        buffer.define("data1", 0, Array(u8))
+        buffer.define("data2", 1, Array(f32))
+        buffer.data2[input.index] = f32(buffer.data1[input.index])
+
+    skip_if_no_wgpu()
+
+    values1 = [0, 1, 4, 127, 128, 255]
+
+    inp_arrays = {0: (ctypes.c_ubyte * len(values1))(*values1)}
+    out_arrays = {1: ctypes.c_float * len(values1)}
+    out = compute_with_buffers(inp_arrays, out_arrays, compute_shader)
+    assert iters_equal(out[1], values1)
 
 
 def test_cast_f32_i32():
@@ -46,7 +65,6 @@ def test_cast_f32_i32():
     inp_arrays = {0: (ctypes.c_float * 20)(*range(20))}
     out_arrays = {1: ctypes.c_int32 * 20}
     out = compute_with_buffers(inp_arrays, out_arrays, compute_shader)
-
     assert iters_equal(out[1], range(20))
 
 
@@ -63,7 +81,6 @@ def test_cast_f32_f32():
     inp_arrays = {0: (ctypes.c_float * 20)(*range(20))}
     out_arrays = {1: ctypes.c_float * 20}
     out = compute_with_buffers(inp_arrays, out_arrays, compute_shader)
-
     assert iters_equal(out[1], range(20))
 
 
@@ -80,25 +97,45 @@ def test_cast_f32_f64():
     inp_arrays = {0: (ctypes.c_float * 20)(*range(20))}
     out_arrays = {1: ctypes.c_double * 20}
     out = compute_with_buffers(inp_arrays, out_arrays, compute_shader)
-
     assert iters_equal(out[1], range(20))
 
 
-def test_cast_i16_i64():
+def test_cast_i64_i16():
+    @python2shader_and_validate
+    def compute_shader(input, buffer):
+        input.define("index", "GlobalInvocationId", i32)
+        buffer.define("data1", 0, Array(i64))
+        buffer.define("data2", 1, Array(i16))
+        buffer.data2[input.index] = i16(buffer.data1[input.index])
+
+    skip_if_no_wgpu()
+
+    values1 = [-999999, -100, -4, 0, 4, 100, 32767, 32768, 999999]
+    values2 = [-16959, -100, -4, 0, 4, 100, 32767, -32768, 16959]
+
+    inp_arrays = {0: (ctypes.c_longlong * len(values1))(*values1)}
+    out_arrays = {1: ctypes.c_short * len(values1)}
+    out = compute_with_buffers(inp_arrays, out_arrays, compute_shader)
+    assert iters_equal(out[1], values2)
+
+
+def test_cast_i16_u8():
     @python2shader_and_validate
     def compute_shader(input, buffer):
         input.define("index", "GlobalInvocationId", i32)
         buffer.define("data1", 0, Array(i16))
-        buffer.define("data2", 1, Array(i64))
-        buffer.data2[input.index] = i64(buffer.data1[input.index])
+        buffer.define("data2", 1, Array(u8))
+        buffer.data2[input.index] = u8(buffer.data1[input.index])
 
     skip_if_no_wgpu()
 
-    inp_arrays = {0: (ctypes.c_short * 20)(*range(20))}
-    out_arrays = {1: ctypes.c_longlong * 20}
-    out = compute_with_buffers(inp_arrays, out_arrays, compute_shader)
+    values1 = [-3, -2, -1, 0, 1, 2, 3, 127, 128, 255, 256, 300]
+    values2 = [253, 254, 255, 0, 1, 2, 3, 127, 128, 255, 0, 44]
 
-    assert iters_equal(out[1], range(20))
+    inp_arrays = {0: (ctypes.c_short * len(values1))(*values1)}
+    out_arrays = {1: ctypes.c_ubyte * len(values1)}
+    out = compute_with_buffers(inp_arrays, out_arrays, compute_shader)
+    assert iters_equal(out[1], values2)
 
 
 # %% Utils for this module

@@ -321,6 +321,14 @@ class f64(Float):
     is_abstract = False
 
 
+# For now, we simply have 3 signed ints,
+# and an unsigned byte for when things need to be compact.
+
+
+class u8(Int):
+    is_abstract = False
+
+
 class i16(Int):
     is_abstract = False
 
@@ -335,7 +343,15 @@ class i64(Int):
 
 # Types that are at the leaf of a composite type
 leaf_types = dict(
-    void=void, boolean=boolean, f16=f16, f32=f32, f64=f64, i16=i16, i32=i32, i64=i64,
+    void=void,
+    boolean=boolean,
+    u8=u8,
+    i16=i16,
+    i32=i32,
+    i64=i64,
+    f16=f16,
+    f32=f32,
+    f64=f64,
 )
 _subtypes.update(leaf_types)
 
