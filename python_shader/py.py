@@ -393,3 +393,31 @@ class PyBytecode2Bytecode:
         # else:
         #     for slot, name in d.items():
         #         self.emit(op.CO_SET_OUTPUT, slot, name)
+
+    def _op_binary_add(self):
+        self._next()
+        self._stack.pop()
+        self._stack.pop()
+        self._stack.append(None)
+        self.emit(op.CO_ADD)
+
+    def _op_binary_subtract(self):
+        self._next()
+        self._stack.pop()
+        self._stack.pop()
+        self._stack.append(None)
+        self.emit(op.CO_SUB)
+
+    def _op_binary_multiply(self):
+        self._next()
+        self._stack.pop()
+        self._stack.pop()
+        self._stack.append(None)
+        self.emit(op.CO_MUL)
+
+    def _op_binary_true_divide(self):
+        self._next()
+        self._stack.pop()
+        self._stack.pop()
+        self._stack.append(None)
+        self.emit(op.CO_DIV)

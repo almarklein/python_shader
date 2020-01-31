@@ -541,3 +541,41 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
     def _op_if(self):
         raise NotImplementedError()
         # OpSelect
+
+    def _op_add(self):
+        self._binary_math_op("add")
+
+    def _op_sub(self):
+        self._binary_math_op("subtract")
+
+    def _op_mul(self):
+        self._binary_math_op("multiply")
+
+    def _op_div(self):
+        self._binary_math_op("divide")
+
+    def _binary_math_op(self, action):
+        val2 = self._stack.pop()
+        val1 = self._stack.pop()
+
+        if val1.type is not val2.type:
+            raise TypeError(
+                f"Cannot {action} values of different types ({val1.type} and {val2.type})"
+            )
+        result_id, type_id = self.obtain_value(val1.type)
+
+        if issubclass(val1.type, _types.Float):
+            M = {
+                "add": cc.OpFAdd,
+                "subtract": cc.OpFSub,
+                "multiply": cc.OpFMul,
+                "divide": cc.OpFDiv,
+            }
+            self.gen_func_instruction(M[action], type_id, result_id, val1, val2)
+        elif issubclass(val1.type, _types.Int):
+            M = {"add": cc.OpIAdd, "subtract": cc.OpISub, "multiply": cc.OpIMul}
+            self.gen_func_instruction(M[action], type_id, result_id, val1, val2)
+        else:
+            raise TypeError(f"Cannot {action} values of type {val1.type}.")
+
+        self._stack.append(result_id)
