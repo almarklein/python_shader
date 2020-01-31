@@ -82,10 +82,10 @@ def python2shader_and_validate(func):
 
 
 HASHES = {
-    "test_null_shader.vertex_shader": ("801b48feb24d7aea", "1cd71e87b1ba5a32"),
-    "test_triangle_shader.vertex_shader": ("9cdef2b9fc3befa3", "ef7285ff8c51a8f1"),
-    "test_triangle_shader.fragment_shader": ("02bcc64a3e8b05d3", "33063b6db28277db"),
-    "test_compute_shader.compute_shader": ("02822d1f23bee04d", "3a3e6992643df7ea"),
+    "test_null_shader.vertex_shader": ("801b48feb24d7aea", "a48ffae9d0f09a5c"),
+    "test_triangle_shader.vertex_shader": ("9cdef2b9fc3befa3", "66438f015d5624e6"),
+    "test_triangle_shader.fragment_shader": ("02bcc64a3e8b05d3", "65c031ea84186747"),
+    "test_compute_shader.compute_shader": ("02822d1f23bee04d", "49a4b4a0735b8d14"),
 }
 
 

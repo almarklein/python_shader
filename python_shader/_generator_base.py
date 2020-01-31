@@ -191,6 +191,7 @@ class BaseSpirVGenerator:
         self._ids = {0: None}  # maps id -> info. For objects, info is a type in _types
         self._constants = {}
         self._type_name_to_id = {}
+        self._capabilities = set()
         self.scope_stack = []  # stack of dicts: name -> id, type, type_id
         # todo: can we do without a stack, pass everything into funcs?
 
@@ -239,15 +240,10 @@ class BaseSpirVGenerator:
             cc.MemoryModel_Simple,
         )
 
-        # Define capabilities. Therea area lot more, and we probably should detect
-        # todo: detect capabilities from SpirV stuff being used
-        # the cases when we need to define them, and/or let the user define them somehow.
-        self.gen_instruction("capabilities", cc.OpCapability, cc.Capability_Matrix)
+        # Define capabilities. We "collect" these as certain features are used.
         self.gen_instruction("capabilities", cc.OpCapability, cc.Capability_Shader)
-        # self.gen_instruction("capabilities", cc.OpCapability, cc.Capability_Geometry)
-        # self.gen_instruction("capabilities", cc.OpCapability, cc.Capability_Float16)
-        # self.gen_instruction("capabilities", cc.OpCapability, cc.Capability_Float64)
-        self.gen_instruction("capabilities", cc.OpCapability, cc.Capability_ImageBasic)
+        for capability_op in sorted(self._capabilities):
+            self.gen_instruction("capabilities", cc.OpCapability, capability_op)
 
         # Move OpVariable to the start of a function
         # Variables are used to refer to either internal variables, or IO, and load/store
@@ -393,17 +389,22 @@ class BaseSpirVGenerator:
         return value_id, type_id
         # todo: return only value, and support value.type_id?
 
-    def obtain_constant(self, value):
+    def obtain_constant(self, value, the_type=None):
         """ Get the id object for the constant of given value.
         Existing constants are re-used.
         """
         # First derive SpirV type from value
         if isinstance(value, float):
-            the_type = _types.f32
-            bb = struct.pack("<f", value)
+            the_type = _types.f32 if the_type is None else the_type
+            struct_type = {"f32": "<f", "f64": "<d"}[the_type.__name__]
+            bb = struct.pack(struct_type, value)
         elif isinstance(value, int):
-            the_type = _types.i32
-            bb = struct.pack("<i", value)
+            the_type = _types.i32 if the_type is None else the_type
+            # todo: unsigned ints
+            struct_type = {"i8": "<b", "i16": "<h", "i32": "<i", "i64": "<q"}[
+                the_type.__name__
+            ]
+            bb = struct.pack(struct_type, value)
         elif isinstance(value, bool):
             the_type = _types.boolean
         else:
@@ -466,9 +467,10 @@ class BaseSpirVGenerator:
             type_id = TypeId(the_type)
             bits = 32
             if issubclass(the_type, _types.i16):
-                # todo: need OpCapability
+                self._capabilities.add(cc.Capability_Int16)
                 bits = 16
             elif issubclass(the_type, _types.i64):
+                self._capabilities.add(cc.Capability_Int64)
                 bits = 64
             self.gen_instruction(
                 "types", cc.OpTypeInt, type_id, bits, 0
@@ -477,9 +479,10 @@ class BaseSpirVGenerator:
             type_id = TypeId(the_type)
             bits = 32
             if issubclass(the_type, _types.f16):
-                # todo: need OpCapability
+                self._capabilities.add(cc.Capability_Float16)
                 bits = 16
             elif issubclass(the_type, _types.f64):
+                self._capabilities.add(cc.Capability_Float64)
                 bits = 64
             self.gen_instruction("types", cc.OpTypeFloat, type_id, bits)
         elif issubclass(the_type, _types.Vector):

@@ -50,23 +50,6 @@ def test_copy():
     assert iters_equal(out[1], range(20))
 
 
-def test_cast():
-    @python2shader_and_validate
-    def compute_shader(input, buffer):
-        input.define("index", "GlobalInvocationId", i32)
-        buffer.define("data1", 0, Array(i32))
-        buffer.define("data2", 1, Array(f32))
-        buffer.data2[input.index] = f32(buffer.data1[input.index])
-
-    skip_if_no_wgpu()
-
-    inp_arrays = {0: (ctypes.c_int32 * 20)(*range(20))}
-    out_arrays = {1: ctypes.c_int32 * 20}
-    out = compute_with_buffers(inp_arrays, out_arrays, compute_shader)
-
-    assert iters_equal(out[1], range(20))
-
-
 # %% Utils for this module
 
 
@@ -82,7 +65,11 @@ def skip_if_no_wgpu():
         raise pytest.skip(msg="SpirV validated, but not run (cannot use wgpu)")
 
 
-HASHES = {}
+HASHES = {
+    "test_index.compute_shader": ("344f1e42e6addbf2", "54535768a2a9eaea"),
+    "test_copy.compute_shader": ("02822d1f23bee04d", "49a4b4a0735b8d14"),
+}
+
 
 if __name__ == "__main__":
     run_test_and_print_new_hashes(globals())

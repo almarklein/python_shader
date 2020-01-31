@@ -79,7 +79,7 @@ def run_test_and_print_new_hashes(ns):
     # Print new hashes
     print("\nHASHES = {")
     for key, val in new_hashes.items():
-        print(f"    {key!r}: {val!r},")
+        print(f"    {key!r}: {val!r},".replace("'", '"'))
     print("}\n")
 
     # Show a hint about what changed

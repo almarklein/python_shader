@@ -285,8 +285,10 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
                 result = self._vector_packing(func, args)
             elif issubclass(func, _types.Array):
                 result = self._array_packing(args)
-            else:
-                raise NotImplementedError()
+            elif issubclass(func, _types.Scalar):
+                if len(args) != 1:
+                    raise TypeError("Scalar convert needs exactly one argument.")
+                result = self._convert_scalar(func, args[0])
             self._stack.append(result)
         else:
             raise NotImplementedError()
@@ -297,6 +299,64 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
         self._stack[-nargs:] = []
         result = self._array_packing(args)
         self._stack.append(result)
+
+    def _convert_scalar(self, func, arg):
+        # todo: all these convert ops can also be applied to vectors
+
+        # Is a conversion actually needed?
+        if arg.type is func:
+            return arg
+
+        # Otherwise we need a new value
+        result_id, type_id = self.obtain_value(func)
+
+        if issubclass(func, _types.Float):
+            if issubclass(arg.type, _types.Float):
+                self.gen_func_instruction(cc.OpFConvert, type_id, result_id, arg)
+            elif issubclass(arg.type, _types.Int):
+                self.gen_func_instruction(cc.OpConvertSToF, type_id, result_id, arg)
+            elif issubclass(arg.type, _types.boolean):
+                zero = self.obtain_constant(0.0, func)
+                one = self.obtain_constant(1.0, func)
+                self.gen_func_instruction(
+                    cc.OpSelect, type_id, result_id, arg, one, zero
+                )
+            else:
+                raise TypeError(f"Cannot convert to float: {arg.type}")
+
+        elif issubclass(func, _types.Int):
+            if issubclass(arg.type, _types.Float):
+                self.gen_func_instruction(cc.OpConvertFToS, type_id, result_id, arg)
+            elif issubclass(arg.type, _types.Int):  # todo: or UConvert???
+                self.gen_func_instruction(cc.OpSConvert, type_id, result_id, arg)
+            elif issubclass(arg.type, _types.boolean):
+                zero = self.obtain_constant(0, func)
+                one = self.obtain_constant(1, func)
+                self.gen_func_instruction(
+                    cc.OpSelect, type_id, result_id, arg, one, zero
+                )
+            else:
+                raise TypeError(f"Cannot convert to int: {arg.type}")
+
+        elif issubclass(func, _types.boolean):
+            if issubclass(arg.type, _types.Float):
+                zero = self.obtain_constant(0.0, func)
+                self.gen_func_instruction(
+                    cc.OpLogicalNotEqual, type_id, result_id, arg, zero
+                )
+            elif issubclass(arg.type, _types.Int):
+                zero = self.obtain_constant(0, func)
+                self.gen_func_instruction(
+                    cc.OpLogicalNotEqual, type_id, result_id, arg, zero
+                )
+            elif issubclass(arg.type, _types.boolean):
+                return arg  # actually covered above
+            else:
+                raise TypeError(f"Cannot convert to bool: {arg.type}")
+        else:
+            raise TypeError(f"Cannot convert to {func}")
+
+        return result_id
 
     def _vector_packing(self, vector_type, args):
 
