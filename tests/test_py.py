@@ -17,28 +17,21 @@ script to get new hashes when needed:
 
 """
 
-import os
-import hashlib
-import inspect
-
 import python_shader
 from python_shader import i32, vec2, vec3, vec4, Array
 
 from pytest import mark
-
-from testutils import use_vulkan_sdk
+from testutils import can_use_vulkan_sdk, validate_module, run_test_and_print_new_hashes
 
 
 def test_null_shader():
+    @python2shader_and_validate
     def vertex_shader(input, output):
         pass
 
-    m = python_shader.python2shader(vertex_shader)
-    assert m.input is vertex_shader
-    validate_module(vertex_shader, m)
-
 
 def test_triangle_shader():
+    @python2shader_and_validate
     def vertex_shader(input, output):
         input.define("index", "VertexId", i32)
         output.define("pos", "Position", vec4)
@@ -50,22 +43,15 @@ def test_triangle_shader():
         output.pos = vec4(p, 0.0, 1.0)
         output.color = vec3(p, 0.5)
 
-    m = python_shader.python2shader(vertex_shader)
-    assert m.input is vertex_shader
-    validate_module(vertex_shader, m)
-
+    @python2shader_and_validate
     def fragment_shader(input, output):
         input.define("color", 0, vec3)
         output.define("color", 0, vec4)
 
         output.color = vec4(input.color, 1.0)
 
-    m = python_shader.python2shader(fragment_shader)
-    assert m.input is fragment_shader
-    validate_module(fragment_shader, m)
 
-
-@mark.skipif(not use_vulkan_sdk, reason="No Vulkan SDK")
+@mark.skipif(not can_use_vulkan_sdk, reason="No Vulkan SDK")
 def test_no_duplicate_constants():
     def vertex_shader():
         positions = [vec2(0.0, 1.0), vec2(0.0, 1.0), vec2(0.0, 1.0)]  # noqa
@@ -76,6 +62,7 @@ def test_no_duplicate_constants():
 
 
 def test_compute_shader():
+    @python2shader_and_validate
     def compute_shader(input, buffer):
         input.define("index", "GlobalInvocationId", i32)
         buffer.define("data1", 0, Array(i32))
@@ -83,68 +70,15 @@ def test_compute_shader():
 
         buffer.data2[input.index] = buffer.data1[input.index]
 
-    m = python_shader.python2shader(compute_shader)
-    assert m.input is compute_shader
-    validate_module(compute_shader, m)
+
+# %% Utils for this module
 
 
-# %% Validation
-
-
-def validate_module(func, m):
-
-    # Get steps of code: Python, bytecode, spirv
-    key = func.__qualname__.replace(".<locals>.", ".")
-    text_bc = python_shader.opcodes.bc2str(m.to_bytecode())
-    byte_sp = m.to_spirv()
-
-    # Get hashes so we can compare it easier
-    assert isinstance(text_bc, str)
-    assert isinstance(byte_sp, bytes)
-    hash_bc = hashlib.md5(text_bc.encode()).hexdigest()[:16]
-    hash_sp = hashlib.md5(byte_sp).hexdigest()[:16]
-
-    if OVERWRITE_HASHES:
-        # Dev mode: print hashes so they can be copied in. MUST validate here.
-        assert not os.environ.get("CI")
-        python_shader.dev.validate(byte_sp)
-        assert key not in HASHES  # prevent duplicates
-        HASHES[key] = hash_bc, hash_sp
-
-    else:
-        # Normal mode: compare hashes with preset hashes. This allows
-        # us to generate the hashes once, and then on CI we make sure
-        # that any Python function results in the exact same bytecode
-        # and SpirV on different platforms and Python versions.
-        if HASHES[key][0] != hash_bc:
-            code = inspect.getsource(func)
-            assert False, f"Bytecode for {key} does not match:\n{code}\n{text_bc}"
-        if HASHES[key][1] != hash_sp:
-            code = inspect.getsource(func)
-            assert False, f"SpirV for {key} does not match:\n{code}\n{byte_sp}"
-        # If the Vulkan SKD is available, validate the module for good measure.
-        # In practice there will probably be one CI build that does this.
-        if use_vulkan_sdk:
-            python_shader.dev.validate(byte_sp)
-
-
-def run_test_and_print_new_hashes():
-    global OVERWRITE_HASHES
-    OVERWRITE_HASHES = True
-    HASHES.clear()
-
-    for funcname, func in globals().items():
-        if funcname.startswith("test_") and callable(func):
-            print(f"Running {funcname} ...")
-            func()
-
-    print("\nHASHES = {")
-    for key, val in HASHES.items():
-        print(f"    {key!r}: {val!r},")
-    print("}")
-
-
-OVERWRITE_HASHES = False
+def python2shader_and_validate(func):
+    m = python_shader.python2shader(func)
+    assert m.input is func
+    validate_module(m, HASHES)
+    return m
 
 
 HASHES = {
@@ -157,4 +91,4 @@ HASHES = {
 
 # Run this as a script to get new hashes when needed
 if __name__ == "__main__":
-    run_test_and_print_new_hashes()
+    run_test_and_print_new_hashes(globals())

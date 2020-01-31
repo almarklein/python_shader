@@ -2,7 +2,7 @@ import python_shader
 
 from pytest import raises, mark
 
-from testutils import use_vulkan_sdk
+from testutils import can_use_vulkan_sdk
 
 
 vertex_code = """
@@ -33,7 +33,7 @@ class FakeModule:
         return self._spirv
 
 
-@mark.skipif(not use_vulkan_sdk, reason="No Vulkan SDK")
+@mark.skipif(not can_use_vulkan_sdk, reason="No Vulkan SDK")
 def test_run():
 
     bb = python_shader.dev.glsl2spirv(vertex_code, "vertex")
@@ -47,7 +47,7 @@ def test_run():
     assert "OpTypeVoid" in x1
 
 
-@mark.skipif(not use_vulkan_sdk, reason="No Vulkan SDK")
+@mark.skipif(not can_use_vulkan_sdk, reason="No Vulkan SDK")
 def test_fails():
 
     # Shader type myst be vertex, fragment or compute
