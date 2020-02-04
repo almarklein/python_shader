@@ -6,7 +6,7 @@ from ._generator_base import BaseSpirVGenerator, ValueId, VariableAccessId
 from . import _spirv_constants as cc
 from . import _types
 
-# from . import opcodes as op
+from .opcodes import ByteCodeDefinitions
 
 # todo: build in some checks
 # - expect no func or entrypoint inside a func definition
@@ -14,7 +14,7 @@ from . import _types
 # - expect input/output/uniform at the very start (or inside an entrypoint?)
 
 
-class Bytecode2SpirVGenerator(BaseSpirVGenerator):
+class Bytecode2SpirVGenerator(ByteCodeDefinitions, BaseSpirVGenerator):
     """ A generator that operates on our own well-defined bytecode.
 
     Bytecode describing a stack machine is a pretty nice representation to generate
@@ -41,22 +41,14 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
 
         # Parse
         for opcode, *args in bytecode:
-            method_name = "_op_" + opcode[3:].lower()
-            method = getattr(self, method_name, None)
+            method = getattr(self, opcode.lower(), None)
             if method is None:
                 # pprint_bytecode(self._co)
-                raise RuntimeError(f"Cannot parse {opcode} yet (no {method_name}()).")
+                raise RuntimeError(f"Cannot parse {opcode} yet.")
             else:
                 method(*args)
 
-    def _op_pop_top(self):
-        self._stack.pop()
-
-    def _op_func(self, *args):
-        # Start function definition
-        raise NotImplementedError()
-
-    def _op_entrypoint(self, name, execution_model, execution_modes):
+    def co_entrypoint(self, name, execution_model, execution_modes):
         # Special function definition that acts as an entrypoint
 
         # Get execution_model flag
@@ -110,26 +102,49 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
         )
         self.gen_func_instruction(cc.OpLabel, self.obtain_id("label"))
 
-    def _op_func_end(self):
+    def co_func_end(self):
         # End function or entrypoint
         self.gen_func_instruction(cc.OpReturn)
         self.gen_func_instruction(cc.OpFunctionEnd)
 
-    def _op_input(self, location, *name_type_pairs):
-        self._setup_io_variable("input", location, name_type_pairs)
+    def co_call(self, nargs):
 
-    def _op_output(self, location, *name_type_pairs):
-        self._setup_io_variable("output", location, name_type_pairs)
+        args = self._stack[-nargs:]
+        self._stack[-nargs:] = []
+        func = self._stack.pop()
 
-    def _op_uniform(self, binding, *name_type_pairs):
-        self._setup_io_variable("uniform", binding, name_type_pairs)
+        if isinstance(func, type):
+            assert not func.is_abstract
+            if issubclass(func, _types.Vector):
+                result = self._vector_packing(func, args)
+            elif issubclass(func, _types.Array):
+                result = self._array_packing(args)
+            elif issubclass(func, _types.Scalar):
+                if len(args) != 1:
+                    raise TypeError("Scalar convert needs exactly one argument.")
+                result = self._convert_scalar(func, args[0])
+            self._stack.append(result)
+        else:
+            raise NotImplementedError()
 
-    def _op_buffer(self, binding, *name_type_pairs):
-        self._setup_io_variable("buffer", binding, name_type_pairs)
+    # %% IO
 
-    def _setup_io_variable(self, kind, location, name_type_pairs):
 
-        n_names = len(name_type_pairs) / 2
+    def co_input(self, location, name_type_items):
+        self._setup_io_variable("input", location, name_type_items)
+
+    def co_output(self, location, name_type_items):
+        self._setup_io_variable("output", location, name_type_items)
+
+    def co_uniform(self, binding, name_type_items):
+        self._setup_io_variable("uniform", binding, name_type_items)
+
+    def co_buffer(self, binding, name_type_items):
+        self._setup_io_variable("buffer", binding, name_type_items)
+
+    def _setup_io_variable(self, kind, location, name_type_items):
+
+        n_names = len(name_type_items)
         singleton_mode = n_names == 1 and kind in ("input", "output")
 
         # Triage over input kind
@@ -152,7 +167,7 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
         # Get the root variable
         if singleton_mode:
             # Singleton (not allowed for Uniform)
-            name, var_type = name_type_pairs
+            name, var_type = list(name_type_items.items())[0]
             var_name = "var-" + name
             # todo: should our bytecode be fully jsonable? or do we force actual types here?
             if isinstance(var_type, str):
@@ -166,8 +181,7 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
             ), f"euhm, I dont know if you can use block {kind}s"
             # Block - the variable is a struct
             subtypes = {}
-            for i in range(0, len(name_type_pairs), 2):
-                key, subtype = name_type_pairs[i], name_type_pairs[i + 1]
+            for key, subtype in name_type_items.items():
                 if isinstance(subtype, str):
                     subtypes[key] = _types.type_from_name(subtype)
                 else:
@@ -228,7 +242,12 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
                     raise NameError(f"{kind} {subname} already exists")
                 iodict[subname] = var_access.index(index_id, i)
 
-    def _op_load(self, name):
+    # %% Basics
+
+    def co_pop_top(self):
+        self._stack.pop()
+
+    def co_load_local(self, name):
         # store a variable that is used in an inner scope.
         if name in self._aliases:
             ob = self._aliases[name]
@@ -250,15 +269,7 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
             raise NameError(f"Using invalid variable: {name}")
         self._stack.append(ob)
 
-    def _op_load_constant(self, value):
-        id = self.obtain_constant(value)
-        self._stack.append(id)
-        # Also see OpConstantNull OpConstantSampler OpConstantComposite
-
-    def _op_load_global(self):
-        raise NotImplementedError()
-
-    def _op_store(self, name):
+    def co_store_local(self, name):
         ob = self._stack.pop()
         if name in self._output:
             ac = self._output[name]
@@ -273,32 +284,143 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
 
         self._aliases[name] = ob
 
-    def _op_call(self, nargs):
+    def co_load_index(self):
+        index = self._stack.pop()
+        container = self._stack.pop()
 
-        args = self._stack[-nargs:]
-        self._stack[-nargs:] = []
-        func = self._stack.pop()
+        # Get type of object and index
+        element_type = container.type.subtype
+        # assert index.type is int
 
-        if isinstance(func, type):
-            assert not func.is_abstract
-            if issubclass(func, _types.Vector):
-                result = self._vector_packing(func, args)
-            elif issubclass(func, _types.Array):
-                result = self._array_packing(args)
-            elif issubclass(func, _types.Scalar):
-                if len(args) != 1:
-                    raise TypeError("Scalar convert needs exactly one argument.")
-                result = self._convert_scalar(func, args[0])
-            self._stack.append(result)
+        if isinstance(container, VariableAccessId):
+            result_id = container.index(index)
+
+        elif issubclass(container.type, _types.Array):
+
+            # todo: maybe ... the variable for a constant should be created only once ... instead of every time it gets indexed
+            # Put the array into a variable
+            var_access = self.obtain_variable(container.type, cc.StorageClass_Function)
+            container_variable = var_access.variable
+            var_access.resolve_store(self, container.id)
+
+            # Prepare result id and type
+            result_id, result_type_id = self.obtain_value(element_type)
+
+            # Create pointer into the array
+            pointer1 = self.obtain_id("pointer")
+            pointer2 = self.obtain_id("pointer")
+            self.gen_instruction(
+                "types",
+                cc.OpTypePointer,
+                pointer1,
+                cc.StorageClass_Function,
+                result_type_id,
+            )
+            self.gen_func_instruction(
+                cc.OpInBoundsAccessChain, pointer1, pointer2, container_variable, index
+            )
+
+            # Load the element from the array
+            self.gen_func_instruction(cc.OpLoad, result_type_id, result_id, pointer2)
         else:
             raise NotImplementedError()
 
-    def _op_build_array(self, nargs):
+        self._stack.append(result_id)
+
+        # OpVectorExtractDynamic: Extract a single, dynamically selected, component of a vector.
+        # OpVectorInsertDynamic: Make a copy of a vector, with a single, variably selected, component modified.
+        # OpVectorShuffle: Select arbitrary components from two vectors to make a new vector.
+        # OpCompositeInsert: Make a copy of a composite object, while modifying one part of it. (updating an element)
+
+    def co_store_index(self):
+        index = self._stack.pop()
+        ob = self._stack.pop()
+        val = self._stack.pop()  # noqa
+
+        if isinstance(ob, VariableAccessId):
+            # Create new variable access for this last indexing op
+            ac = ob.index(index)
+            assert val.type is ac.type
+            # Then resolve the chain to a store op
+            ac.resolve_store(self, val)
+        else:
+            raise NotImplementedError()
+
+    def co_load_constant(self, value):
+        id = self.obtain_constant(value)
+        self._stack.append(id)
+        # Also see OpConstantNull OpConstantSampler OpConstantComposite
+
+    def co_load_array(self, nargs):
         # Literal array
         args = self._stack[-nargs:]
         self._stack[-nargs:] = []
         result = self._array_packing(args)
         self._stack.append(result)
+
+    # %% Math and more
+
+    def co_binary_op(self, operator):
+        assert False, "doet nie toch?"
+        right = self._stack.pop()
+        left = self._stack.pop()
+
+        assert left.type is _types.vec3
+        assert issubclass(right.type, _types.Float)
+
+        if operator == "*":
+            id, type_id = self.obtain_value(left.type)
+            self.gen_func_instruction(cc.OpVectorTimesScalar, type_id, id, left, right)
+        elif operator == "/":
+            1 / 0
+        elif operator == "+":
+            1 / 0
+        elif operator == "-":
+            1 / 0
+        else:
+            raise NotImplementedError(f"Wut is {operator}??")
+        self._stack.append(id)
+
+    def co_add(self):
+        self._binary_math_op("add")
+
+    def co_sub(self):
+        self._binary_math_op("subtract")
+
+    def co_mul(self):
+        self._binary_math_op("multiply")
+
+    def co_div(self):
+        self._binary_math_op("divide")
+
+    def _binary_math_op(self, action):
+        val2 = self._stack.pop()
+        val1 = self._stack.pop()
+
+        if val1.type is not val2.type:
+            raise TypeError(
+                f"Cannot {action} values of different types ({val1.type} and {val2.type})"
+            )
+        result_id, type_id = self.obtain_value(val1.type)
+
+        if issubclass(val1.type, _types.Float):
+            M = {
+                "add": cc.OpFAdd,
+                "subtract": cc.OpFSub,
+                "multiply": cc.OpFMul,
+                "divide": cc.OpFDiv,
+            }
+            self.gen_func_instruction(M[action], type_id, result_id, val1, val2)
+        elif issubclass(val1.type, _types.Int):
+            M = {"add": cc.OpIAdd, "subtract": cc.OpISub, "multiply": cc.OpIMul}
+            self.gen_func_instruction(M[action], type_id, result_id, val1, val2)
+        else:
+            raise TypeError(f"Cannot {action} values of type {val1.type}.")
+
+        self._stack.append(result_id)
+
+
+    # %% Helper methods
 
     def _convert_scalar(self, out_type, arg):
         return self._convert_scalar_or_vector(out_type, out_type, arg, arg.type)
@@ -454,128 +576,3 @@ class Bytecode2SpirVGenerator(BaseSpirVGenerator):
         # todo: or OpConstantComposite
 
         return result_id
-
-    def _op_binary_op(self, operator):
-        right = self._stack.pop()
-        left = self._stack.pop()
-
-        assert left.type is _types.vec3
-        assert issubclass(right.type, _types.Float)
-
-        if operator == "*":
-            id, type_id = self.obtain_value(left.type)
-            self.gen_func_instruction(cc.OpVectorTimesScalar, type_id, id, left, right)
-        elif operator == "/":
-            1 / 0
-        elif operator == "+":
-            1 / 0
-        elif operator == "-":
-            1 / 0
-        else:
-            raise NotImplementedError(f"Wut is {operator}??")
-        self._stack.append(id)
-
-    def _op_index(self, n):
-        assert n == 1
-        index = self._stack.pop()
-        container = self._stack.pop()
-
-        # Get type of object and index
-        element_type = container.type.subtype
-        # assert index.type is int
-
-        if isinstance(container, VariableAccessId):
-            result_id = container.index(index)
-
-        elif issubclass(container.type, _types.Array):
-
-            # todo: maybe ... the variable for a constant should be created only once ... instead of every time it gets indexed
-            # Put the array into a variable
-            var_access = self.obtain_variable(container.type, cc.StorageClass_Function)
-            container_variable = var_access.variable
-            var_access.resolve_store(self, container.id)
-
-            # Prepare result id and type
-            result_id, result_type_id = self.obtain_value(element_type)
-
-            # Create pointer into the array
-            pointer1 = self.obtain_id("pointer")
-            pointer2 = self.obtain_id("pointer")
-            self.gen_instruction(
-                "types",
-                cc.OpTypePointer,
-                pointer1,
-                cc.StorageClass_Function,
-                result_type_id,
-            )
-            self.gen_func_instruction(
-                cc.OpInBoundsAccessChain, pointer1, pointer2, container_variable, index
-            )
-
-            # Load the element from the array
-            self.gen_func_instruction(cc.OpLoad, result_type_id, result_id, pointer2)
-        else:
-            raise NotImplementedError()
-
-        self._stack.append(result_id)
-
-        # OpVectorExtractDynamic: Extract a single, dynamically selected, component of a vector.
-        # OpVectorInsertDynamic: Make a copy of a vector, with a single, variably selected, component modified.
-        # OpVectorShuffle: Select arbitrary components from two vectors to make a new vector.
-        # OpCompositeInsert: Make a copy of a composite object, while modifying one part of it. (updating an element)
-
-    def _op_index_set(self):
-        index = self._stack.pop()
-        ob = self._stack.pop()
-        val = self._stack.pop()  # noqa
-
-        if isinstance(ob, VariableAccessId):
-            # Create new variable access for this last indexing op
-            ac = ob.index(index)
-            assert val.type is ac.type
-            # Then resolve the chain to a store op
-            ac.resolve_store(self, val)
-        else:
-            raise NotImplementedError()
-
-    def _op_if(self):
-        raise NotImplementedError()
-        # OpSelect
-
-    def _op_add(self):
-        self._binary_math_op("add")
-
-    def _op_sub(self):
-        self._binary_math_op("subtract")
-
-    def _op_mul(self):
-        self._binary_math_op("multiply")
-
-    def _op_div(self):
-        self._binary_math_op("divide")
-
-    def _binary_math_op(self, action):
-        val2 = self._stack.pop()
-        val1 = self._stack.pop()
-
-        if val1.type is not val2.type:
-            raise TypeError(
-                f"Cannot {action} values of different types ({val1.type} and {val2.type})"
-            )
-        result_id, type_id = self.obtain_value(val1.type)
-
-        if issubclass(val1.type, _types.Float):
-            M = {
-                "add": cc.OpFAdd,
-                "subtract": cc.OpFSub,
-                "multiply": cc.OpFMul,
-                "divide": cc.OpFDiv,
-            }
-            self.gen_func_instruction(M[action], type_id, result_id, val1, val2)
-        elif issubclass(val1.type, _types.Int):
-            M = {"add": cc.OpIAdd, "subtract": cc.OpISub, "multiply": cc.OpIMul}
-            self.gen_func_instruction(M[action], type_id, result_id, val1, val2)
-        else:
-            raise TypeError(f"Cannot {action} values of type {val1.type}.")
-
-        self._stack.append(result_id)

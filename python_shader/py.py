@@ -2,7 +2,7 @@ import inspect
 from dis import dis as pprint_bytecode
 
 from ._module import ShaderModule
-from . import opcodes as op
+from .opcodes import ByteCodeDefinitions as op
 from ._dis import dis
 from ._types import spirv_types_map
 
@@ -58,7 +58,7 @@ class PyBytecode2Bytecode:
 
         # todo: odd, but name must be the same for vertex and fragment shader??
         entrypoint_name = "main"  # py_func.__name__
-        self.emit(op.CO_ENTRYPOINT, entrypoint_name, shader_type, {})
+        self.emit(op.co_entrypoint, entrypoint_name, shader_type, {})
 
         # # Parse function inputs
         # todo: remove or revive? (was part of experimental IO syntax)
@@ -71,19 +71,25 @@ class PyBytecode2Bytecode:
         #     if isinstance(slot, str):
         #         # Builtin
         #         self._input[argname] = argtype
-        #         self.emit(op.CO_INPUT, slot, argname, argtype)
+        #         self.emit(op.co_input, slot, argname, argtype)
         #     elif isinstance(slot, int):
         #         # Attribute
         #         self._input[argname] = argtype
-        #         self.emit(op.CO_INPUT, slot, argname, argtype)
+        #         self.emit(op.co_input, slot, argname, argtype)
         #     else:
         #         # todo: how to specify a Buffer, Texture, Sampler?
         #         raise TypeError(f"Python-shader arg slot of {argname} must be int or str.")
 
         self._convert()
-        self.emit(op.CO_FUNC_END)
+        self.emit(op.co_func_end)
 
     def emit(self, opcode, *args):
+        if callable(opcode):
+            fcode = opcode.__code__
+            opcode = fcode.co_name  # a method of ByteCodeDefinitions class
+            argnames = [fcode.co_varnames[i] for i in range(fcode.co_argcount)][1:]
+            if len(args) != len(argnames):
+                raise RuntimeError(f"Got {len(args)} args for {opcode}({', '.join(argnames)})")
         self._opcodes.append((opcode, *args))
 
     def dump(self):
@@ -141,10 +147,10 @@ class PyBytecode2Bytecode:
 
     def _define(self, kind, name, location, type):
         COS = {
-            "input": op.CO_INPUT,
-            "output": op.CO_OUTPUT,
-            "uniform": op.CO_UNIFORM,
-            "buffer": op.CO_BUFFER,
+            "input": op.co_input,
+            "output": op.co_output,
+            "uniform": op.co_uniform,
+            "buffer": op.co_buffer,
         }
         DICTS = {
             "input": self._input,
@@ -153,18 +159,16 @@ class PyBytecode2Bytecode:
             "buffer": self._buffer,
         }
         co = COS[kind]
-        d = DICTS[kind]
-        args = [location]
-        args.extend([kind + "." + name, type])
-        d[name] = type
-        self.emit(co, *args)
+        name_type_items = {kind + "." + name: type}
+        DICTS[kind].update({name: type})
+        self.emit(co, location, name_type_items)
 
     # %%
 
     def _op_pop_top(self):
         self._stack.pop()
-        self._next()  # todo: why need pointer advance?
-        self.emit(op.CO_POP_TOP)
+        self._next()
+        self.emit(op.co_pop_top)
 
     def _op_return_value(self):
         result = self._stack.pop()
@@ -179,7 +183,7 @@ class PyBytecode2Bytecode:
         if name in ("input", "output", "uniform", "buffer"):
             self._stack.append(name)
         else:
-            self.emit(op.CO_LOAD, name)
+            self.emit(op.co_load_local, name)
             self._stack.append(name)  # todo: euhm, do we still need a stack?
 
     def _op_load_const(self):
@@ -189,7 +193,7 @@ class PyBytecode2Bytecode:
             # We use strings in e.g. input.define(), mmm
             self._stack.append(ob)
         elif isinstance(ob, (float, int, bool)):
-            self.emit(op.CO_LOAD_CONSTANT, ob)
+            self.emit(op.co_load_constant, ob)
             self._stack.append(ob)
         elif ob is None:
             self._stack.append(None)  # todo: for the final return ...
@@ -201,7 +205,7 @@ class PyBytecode2Bytecode:
     def _op_load_global(self):
         i = self._next()
         name = self._co.co_names[i]
-        self.emit(op.CO_LOAD, name)
+        self.emit(op.co_load_local, name)
         self._stack.append(name)
 
     def _op_load_attr(self):
@@ -214,17 +218,17 @@ class PyBytecode2Bytecode:
         elif ob == "input":
             if name not in self._input:
                 raise NameError(f"No input {name} defined.")
-            self.emit(op.CO_LOAD, "input." + name)
+            self.emit(op.co_load_local, "input." + name)
             self._stack.append("input." + name)
         elif ob == "uniform":
             if name not in self._uniform:
                 raise NameError(f"No uniform {name} defined.")
-            self.emit(op.CO_LOAD, "uniform." + name)
+            self.emit(op.co_load_local, "uniform." + name)
             self._stack.append("uniform." + name)
         elif ob == "buffer":
             if name not in self._buffer:
                 raise NameError(f"No buffer {name} defined.")
-            self.emit(op.CO_LOAD, "buffer." + name)
+            self.emit(op.co_load_local, "buffer." + name)
             self._stack.append("buffer." + name)
         elif ob == "output":
             raise AttributeError("Cannot read from output.")
@@ -245,11 +249,11 @@ class PyBytecode2Bytecode:
         elif ob == "buffer":
             if name not in self._buffer:
                 raise NameError(f"No buffer {name} defined.")
-            self.emit(op.CO_STORE, "buffer." + name)
+            self.emit(op.co_store_local, "buffer." + name)
         elif ob == "output":
             if name not in self._output:
                 raise NameError(f"No output {name} defined.")
-            self.emit(op.CO_STORE, "output." + name)
+            self.emit(op.co_store_local, "output." + name)
         else:
             raise NotImplementedError()
 
@@ -257,7 +261,7 @@ class PyBytecode2Bytecode:
         i = self._next()
         name = self._co.co_varnames[i]
         ob = self._stack.pop()  # noqa - ob not used
-        self.emit(op.CO_STORE, name)
+        self.emit(op.co_store_local, name)
 
     def _op_load_method(self):  # new in Python 3.7
         i = self._next()
@@ -285,7 +289,7 @@ class PyBytecode2Bytecode:
             result = func(ob, name, location, type)
             self._stack.append(result)
         else:
-            self.emit(op.CO_CALL, nargs)
+            self.emit(op.co_call, nargs)
             self._stack.append(None)
 
     def _op_call_function_kw(self):
@@ -328,7 +332,7 @@ class PyBytecode2Bytecode:
         else:
             # Normal call
             assert isinstance(func, str)
-            self.emit(op.CO_CALL, nargs)
+            self.emit(op.co_call, nargs)
             self._stack.append(None)
 
     def _op_binary_subscr(self):
@@ -336,9 +340,9 @@ class PyBytecode2Bytecode:
         index = self._stack.pop()
         ob = self._stack.pop()  # noqa - ob not ised
         if isinstance(index, tuple):
-            self.emit(op.CO_INDEX, len(index))
+            self.emit(op.co_load_index, len(index))
         else:
-            self.emit(op.CO_INDEX, 1)
+            self.emit(op.co_load_index)
         self._stack.append(None)
 
     def _op_store_subscr(self):
@@ -346,7 +350,7 @@ class PyBytecode2Bytecode:
         index = self._stack.pop()  # noqa
         ob = self._stack.pop()  # noqa
         val = self._stack.pop()  # noqa
-        self.emit(op.CO_INDEX_SET)
+        self.emit(op.co_store_index)
 
     def _op_build_tuple(self):
         # todo: but I want to be able to do ``x, y = y, x`` !
@@ -367,7 +371,7 @@ class PyBytecode2Bytecode:
         res = [self._stack.pop() for i in range(n)]
         res = list(reversed(res))
         self._stack.append(res)
-        self.emit(op.CO_BUILD_ARRAY, n)
+        self.emit(op.co_load_array, n)
 
     def _op_build_map(self):
         raise SyntaxError("Dict not allowed in Shader-Python")
@@ -399,25 +403,25 @@ class PyBytecode2Bytecode:
         self._stack.pop()
         self._stack.pop()
         self._stack.append(None)
-        self.emit(op.CO_ADD)
+        self.emit(op.co_add)
 
     def _op_binary_subtract(self):
         self._next()
         self._stack.pop()
         self._stack.pop()
         self._stack.append(None)
-        self.emit(op.CO_SUB)
+        self.emit(op.co_sub)
 
     def _op_binary_multiply(self):
         self._next()
         self._stack.pop()
         self._stack.pop()
         self._stack.append(None)
-        self.emit(op.CO_MUL)
+        self.emit(op.co_mul)
 
     def _op_binary_true_divide(self):
         self._next()
         self._stack.pop()
         self._stack.pop()
         self._stack.append(None)
-        self.emit(op.CO_DIV)
+        self.emit(op.co_div)
