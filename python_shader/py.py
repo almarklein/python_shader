@@ -2,7 +2,7 @@ import inspect
 from dis import dis as pprint_bytecode
 
 from ._module import ShaderModule
-from .opcodes import ByteCodeDefinitions as op
+from .opcodes import OpCodeDefinitions as op
 from ._dis import dis
 from ._types import spirv_types_map
 
@@ -86,7 +86,7 @@ class PyBytecode2Bytecode:
     def emit(self, opcode, *args):
         if callable(opcode):
             fcode = opcode.__code__
-            opcode = fcode.co_name  # a method of ByteCodeDefinitions class
+            opcode = fcode.co_name  # a method of OpCodeDefinitions class
             argnames = [fcode.co_varnames[i] for i in range(fcode.co_argcount)][1:]
             if len(args) != len(argnames):
                 raise RuntimeError(
@@ -185,7 +185,7 @@ class PyBytecode2Bytecode:
         if name in ("input", "output", "uniform", "buffer"):
             self._stack.append(name)
         else:
-            self.emit(op.co_load_local, name)
+            self.emit(op.co_load_name, name)
             self._stack.append(name)  # todo: euhm, do we still need a stack?
 
     def _op_load_const(self):
@@ -207,7 +207,7 @@ class PyBytecode2Bytecode:
     def _op_load_global(self):
         i = self._next()
         name = self._co.co_names[i]
-        self.emit(op.co_load_local, name)
+        self.emit(op.co_load_name, name)
         self._stack.append(name)
 
     def _op_load_attr(self):
@@ -220,17 +220,17 @@ class PyBytecode2Bytecode:
         elif ob == "input":
             if name not in self._input:
                 raise NameError(f"No input {name} defined.")
-            self.emit(op.co_load_local, "input." + name)
+            self.emit(op.co_load_name, "input." + name)
             self._stack.append("input." + name)
         elif ob == "uniform":
             if name not in self._uniform:
                 raise NameError(f"No uniform {name} defined.")
-            self.emit(op.co_load_local, "uniform." + name)
+            self.emit(op.co_load_name, "uniform." + name)
             self._stack.append("uniform." + name)
         elif ob == "buffer":
             if name not in self._buffer:
                 raise NameError(f"No buffer {name} defined.")
-            self.emit(op.co_load_local, "buffer." + name)
+            self.emit(op.co_load_name, "buffer." + name)
             self._stack.append("buffer." + name)
         elif ob == "output":
             raise AttributeError("Cannot read from output.")
@@ -251,11 +251,11 @@ class PyBytecode2Bytecode:
         elif ob == "buffer":
             if name not in self._buffer:
                 raise NameError(f"No buffer {name} defined.")
-            self.emit(op.co_store_local, "buffer." + name)
+            self.emit(op.co_store_name, "buffer." + name)
         elif ob == "output":
             if name not in self._output:
                 raise NameError(f"No output {name} defined.")
-            self.emit(op.co_store_local, "output." + name)
+            self.emit(op.co_store_name, "output." + name)
         else:
             raise NotImplementedError()
 
@@ -263,7 +263,7 @@ class PyBytecode2Bytecode:
         i = self._next()
         name = self._co.co_varnames[i]
         ob = self._stack.pop()  # noqa - ob not used
-        self.emit(op.co_store_local, name)
+        self.emit(op.co_store_name, name)
 
     def _op_load_method(self):  # new in Python 3.7
         i = self._next()

@@ -6,7 +6,7 @@ from ._generator_base import BaseSpirVGenerator, ValueId, VariableAccessId
 from . import _spirv_constants as cc
 from . import _types
 
-from .opcodes import ByteCodeDefinitions
+from .opcodes import OpCodeDefinitions
 
 # todo: build in some checks
 # - expect no func or entrypoint inside a func definition
@@ -14,7 +14,7 @@ from .opcodes import ByteCodeDefinitions
 # - expect input/output/uniform at the very start (or inside an entrypoint?)
 
 
-class Bytecode2SpirVGenerator(ByteCodeDefinitions, BaseSpirVGenerator):
+class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
     """ A generator that operates on our own well-defined bytecode.
 
     Bytecode describing a stack machine is a pretty nice representation to generate
@@ -246,7 +246,7 @@ class Bytecode2SpirVGenerator(ByteCodeDefinitions, BaseSpirVGenerator):
     def co_pop_top(self):
         self._stack.pop()
 
-    def co_load_local(self, name):
+    def co_load_name(self, name):
         # store a variable that is used in an inner scope.
         if name in self._aliases:
             ob = self._aliases[name]
@@ -268,7 +268,7 @@ class Bytecode2SpirVGenerator(ByteCodeDefinitions, BaseSpirVGenerator):
             raise NameError(f"Using invalid variable: {name}")
         self._stack.append(ob)
 
-    def co_store_local(self, name):
+    def co_store_name(self, name):
         ob = self._stack.pop()
         if name in self._output:
             ac = self._output[name]

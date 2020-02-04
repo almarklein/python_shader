@@ -1,17 +1,28 @@
 """ The opcodes of our bytecode.
-"""
 
-# todo: the name is misleading. It's a stack machine representation, but it is never represented in bytes.
+We define our own little bytecode. It consists of a list of tuples, in
+which the first element is a (str) opcode, and the remaining elements
+its arguments. These opcodes are to be executed in a stack machine.
+
+The term bytecode is a bit odd, because we never really store it as
+bytes. But the meaning of the term "bytecode" most closely represents
+this intermediate representation of code.
+
+"""
 
 import json
 
 
 def bc2str(opcodes):
+    """ Serialize opcodes to str, one opcode + args per line (hint: it's json).
+    """
     lines = [json.dumps(op)[1:-1] for op in opcodes]
     return "\n".join(lines)
 
 
 def str2bc(s):
+    """ Get a list of opcodes (+args) from string.
+    """
     opcodes = []
     for line in s.splitlines():
         line = line.strip()
@@ -20,7 +31,7 @@ def str2bc(s):
     return opcodes
 
 
-class ByteCodeDefinitions:
+class OpCodeDefinitions:
     """ Abstract class that defines the bytecode ops as methods, making
     it easy to document them (using docstring and arguments.
 
@@ -83,15 +94,14 @@ class ByteCodeDefinitions:
         """
         raise NotImplementedError()
 
-    # todo: local is not the right name, since we use it for globals and io too
-    def co_load_local(self, varname):
+    def co_load_name(self, varname):
         """ Load a local variable onto the stack.
         """
         raise NotImplementedError()
 
-    def co_store_local(self, varname):
+    def co_store_name(self, varname):
         """ Store the TOS under the given name, so it can be referenced later
-        using co_load_local.
+        using co_load_name.
         """
         raise NotImplementedError()
 
