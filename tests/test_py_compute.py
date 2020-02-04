@@ -66,8 +66,8 @@ def skip_if_no_wgpu():
 
 
 HASHES = {
-    "test_index.compute_shader": ("344f1e42e6addbf2", "dea9d31b63653ae6"),
-    "test_copy.compute_shader": ("02822d1f23bee04d", "b31b56f93d83e6e6"),
+    "test_index.compute_shader": ("66a2c50d263da09d", "dea9d31b63653ae6"),
+    "test_copy.compute_shader": ("3bf7aea392bbe4fb", "b31b56f93d83e6e6"),
 }
 
 
