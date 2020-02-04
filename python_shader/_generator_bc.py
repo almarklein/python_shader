@@ -359,62 +359,30 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
 
     # %% Math and more
 
-    def co_binary_op(self, operator):
-        assert False, "doet nie toch?"
-        right = self._stack.pop()
-        left = self._stack.pop()
+    def co_binop(self, operator):
 
-        assert left.type is _types.vec3
-        assert issubclass(right.type, _types.Float)
-
-        if operator == "*":
-            id, type_id = self.obtain_value(left.type)
-            self.gen_func_instruction(cc.OpVectorTimesScalar, type_id, id, left, right)
-        elif operator == "/":
-            1 / 0
-        elif operator == "+":
-            1 / 0
-        elif operator == "-":
-            1 / 0
-        else:
-            raise NotImplementedError(f"Wut is {operator}??")
-        self._stack.append(id)
-
-    def co_add(self):
-        self._binary_math_op("add")
-
-    def co_sub(self):
-        self._binary_math_op("subtract")
-
-    def co_mul(self):
-        self._binary_math_op("multiply")
-
-    def co_div(self):
-        self._binary_math_op("divide")
-
-    def _binary_math_op(self, action):
         val2 = self._stack.pop()
         val1 = self._stack.pop()
 
         if val1.type is not val2.type:
             raise TypeError(
-                f"Cannot {action} values of different types ({val1.type} and {val2.type})"
+                f"Cannot {operator} values of different types ({val1.type} and {val2.type})"
             )
         result_id, type_id = self.obtain_value(val1.type)
 
         if issubclass(val1.type, _types.Float):
             M = {
                 "add": cc.OpFAdd,
-                "subtract": cc.OpFSub,
-                "multiply": cc.OpFMul,
-                "divide": cc.OpFDiv,
+                "sub": cc.OpFSub,
+                "mul": cc.OpFMul,
+                "div": cc.OpFDiv,
             }
-            self.gen_func_instruction(M[action], type_id, result_id, val1, val2)
+            self.gen_func_instruction(M[operator], type_id, result_id, val1, val2)
         elif issubclass(val1.type, _types.Int):
             M = {"add": cc.OpIAdd, "subtract": cc.OpISub, "multiply": cc.OpIMul}
-            self.gen_func_instruction(M[action], type_id, result_id, val1, val2)
+            self.gen_func_instruction(M[operator], type_id, result_id, val1, val2)
         else:
-            raise TypeError(f"Cannot {action} values of type {val1.type}.")
+            raise TypeError(f"Cannot {operator} values of type {val1.type}.")
 
         self._stack.append(result_id)
 

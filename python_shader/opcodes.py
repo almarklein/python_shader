@@ -134,24 +134,3 @@ class OpCodeDefinitions:
         which can be: add, sub, mul, div, ...
         """
         raise NotImplementedError()
-        # todo: use a generic binop or one op for each op?
-
-    def co_add(self):
-        """ Implements TOS = TOS1 + TOS.
-        """
-        raise NotImplementedError()
-
-    def co_sub(self):
-        """ Implements TOS = TOS1 - TOS.
-        """
-        raise NotImplementedError()
-
-    def co_mul(self):
-        """ Implements TOS = TOS1 * TOS.
-        """
-        raise NotImplementedError()
-
-    def co_div(self):
-        """ Implements TOS = TOS1 / TOS. Float types only.
-        """
-        raise NotImplementedError()

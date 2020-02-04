@@ -405,25 +405,25 @@ class PyBytecode2Bytecode:
         self._stack.pop()
         self._stack.pop()
         self._stack.append(None)
-        self.emit(op.co_add)
+        self.emit(op.co_binop, "add")
 
     def _op_binary_subtract(self):
         self._next()
         self._stack.pop()
         self._stack.pop()
         self._stack.append(None)
-        self.emit(op.co_sub)
+        self.emit(op.co_binop, "sub")
 
     def _op_binary_multiply(self):
         self._next()
         self._stack.pop()
         self._stack.pop()
         self._stack.append(None)
-        self.emit(op.co_mul)
+        self.emit(op.co_binop, "mul")
 
     def _op_binary_true_divide(self):
         self._next()
         self._stack.pop()
         self._stack.pop()
         self._stack.append(None)
-        self.emit(op.co_div)
+        self.emit(op.co_binop, "div")
