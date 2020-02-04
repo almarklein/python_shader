@@ -164,7 +164,7 @@ class BaseSpirVGenerator:
     """ Base class that can be used by compiler implementations in the
     last compile step to generate the SpirV code. It has an internal
     representation of SpirV module and provides an API to generate
-    instructions.
+    instructions. This class it not aware of our bytecode representation.
     """
 
     def convert(self, input):

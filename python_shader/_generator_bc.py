@@ -17,12 +17,8 @@ from .opcodes import OpCodeDefinitions
 class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
     """ A generator that operates on our own well-defined bytecode.
 
-    Bytecode describing a stack machine is a pretty nice representation to generate
-    SpirV code, because the code gets visited in a flow, making it easier to
-    do type inference. By implementing our own bytecode, we can implement a single
-    generator based on that, and use the bytecode as a target for different source
-    languages. Also, we can target the bytecode a bit towards SpirV, making this
-    class relatively simple. In other words, it separates concerns very well.
+    In essence, this class implements BaseSpirVGenerator by implementing
+    the opcode methods of OpCodeDefinitions.
     """
 
     def _convert(self, bytecode):
@@ -48,7 +44,10 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             else:
                 method(*args)
 
-    def co_entrypoint(self, name, execution_model, execution_modes):
+    def co_func(self, name):
+        raise NotImplementedError()
+
+    def co_entrypoint(self, name, shader_type, execution_modes):
         # Special function definition that acts as an entrypoint
 
         # Get execution_model flag
@@ -58,9 +57,9 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             "fragment": cc.ExecutionModel_Fragment,
             "geometry": cc.ExecutionModel_Geometry,
         }
-        execution_model_flag = modelmap.get(execution_model.lower(), None)
+        execution_model_flag = modelmap.get(shader_type.lower(), None)
         if execution_model_flag is None:
-            raise ValueError(f"Unknown execution model: {execution_model}")
+            raise ValueError(f"Unknown execution model: {shader_type}")
 
         # Define entry points
         # Note that we must add the ids of all used OpVariables that this entrypoint uses.
@@ -135,11 +134,13 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
     def co_output(self, location, name_type_items):
         self._setup_io_variable("output", location, name_type_items)
 
-    def co_uniform(self, binding, name_type_items):
-        self._setup_io_variable("uniform", binding, name_type_items)
+    def co_uniform(self, location, name_type_items):
+        # location == binding
+        self._setup_io_variable("uniform", location, name_type_items)
 
-    def co_buffer(self, binding, name_type_items):
-        self._setup_io_variable("buffer", binding, name_type_items)
+    def co_buffer(self, location, name_type_items):
+        # location == binding
+        self._setup_io_variable("buffer", location, name_type_items)
 
     def _setup_io_variable(self, kind, location, name_type_items):
 
@@ -359,14 +360,14 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
 
     # %% Math and more
 
-    def co_binop(self, operator):
+    def co_binop(self, op):
 
         val2 = self._stack.pop()
         val1 = self._stack.pop()
 
         if val1.type is not val2.type:
             raise TypeError(
-                f"Cannot {operator} values of different types ({val1.type} and {val2.type})"
+                f"Cannot {op} values of different types ({val1.type} and {val2.type})"
             )
         result_id, type_id = self.obtain_value(val1.type)
 
@@ -377,12 +378,12 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
                 "mul": cc.OpFMul,
                 "div": cc.OpFDiv,
             }
-            self.gen_func_instruction(M[operator], type_id, result_id, val1, val2)
+            self.gen_func_instruction(M[op], type_id, result_id, val1, val2)
         elif issubclass(val1.type, _types.Int):
             M = {"add": cc.OpIAdd, "subtract": cc.OpISub, "multiply": cc.OpIMul}
-            self.gen_func_instruction(M[operator], type_id, result_id, val1, val2)
+            self.gen_func_instruction(M[op], type_id, result_id, val1, val2)
         else:
-            raise TypeError(f"Cannot {operator} values of type {val1.type}.")
+            raise TypeError(f"Cannot {op} values of type {val1.type}.")
 
         self._stack.append(result_id)
 

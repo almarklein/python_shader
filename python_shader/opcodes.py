@@ -1,8 +1,17 @@
 """ The opcodes of our bytecode.
 
-We define our own little bytecode. It consists of a list of tuples, in
-which the first element is a (str) opcode, and the remaining elements
-its arguments. These opcodes are to be executed in a stack machine.
+Bytecode describing a stack machine is a pretty nice representation to
+generate SpirV code, because the code gets visited in a flow, making
+it relatively easy to do type inference.
+
+By defining our own bytecode, we can implement a single generator that
+consumes it, and use the bytecode as a target for different source
+languages. Also, we can target the bytecode towards SpirV, which helps
+keeping the generator relatively simple.
+
+Our bytecode consists of a list of tuples, in which the first element
+is a (str) opcode, and the remaining elements its arguments. These
+opcodes are to be executed in a stack machine.
 
 The term bytecode is a bit odd, because we never really store it as
 bytes. But the meaning of the term "bytecode" most closely represents
@@ -33,7 +42,7 @@ def str2bc(s):
 
 class OpCodeDefinitions:
     """ Abstract class that defines the bytecode ops as methods, making
-    it easy to document them (using docstring and arguments.
+    it easy to document them (using docstring and arguments).
 
     Code that produces bytecode can use this as class as a kind of enum
     for the opcodes (and for documentation). Code that consumes bytecode
@@ -94,12 +103,12 @@ class OpCodeDefinitions:
         """
         raise NotImplementedError()
 
-    def co_load_name(self, varname):
+    def co_load_name(self, name):
         """ Load a local variable onto the stack.
         """
         raise NotImplementedError()
 
-    def co_store_name(self, varname):
+    def co_store_name(self, name):
         """ Store the TOS under the given name, so it can be referenced later
         using co_load_name.
         """
