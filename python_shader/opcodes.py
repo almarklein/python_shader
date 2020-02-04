@@ -54,7 +54,6 @@ class ByteCodeDefinitions:
         """
         raise NotImplementedError()
 
-
     # %% IO
 
     def co_input(self, location, name_type_items):

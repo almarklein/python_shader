@@ -88,11 +88,14 @@ def run_test_and_print_new_hashes(ns):
     else:
         n_more = len(set(new_hashes).difference(old_hashes))
         n_less = len(set(old_hashes).difference(new_hashes))
-        n_diff = sum(
-            new_hashes[key] != old_hashes[key]
-            for key in set(old_hashes).intersection(new_hashes)
+        keys_in_both = set(old_hashes).intersection(new_hashes)
+        n_diff = sum(new_hashes[key] != old_hashes[key] for key in keys_in_both)
+        n_diff1 = sum(new_hashes[key][0] != old_hashes[key][0] for key in keys_in_both)
+        n_diff2 = sum(new_hashes[key][1] != old_hashes[key][1] for key in keys_in_both)
+        print(
+            f"Hashes changed: {n_more} added, {n_less} removed, "
+            f"{n_diff1}/{n_diff2}/{n_diff} changed."
         )
-        print(f"Hashes changed: {n_more} added, {n_less} removed, {n_diff} changed.")
 
 
 def _determine_can_use_vulkan_sdk():

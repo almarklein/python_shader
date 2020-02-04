@@ -89,7 +89,9 @@ class PyBytecode2Bytecode:
             opcode = fcode.co_name  # a method of ByteCodeDefinitions class
             argnames = [fcode.co_varnames[i] for i in range(fcode.co_argcount)][1:]
             if len(args) != len(argnames):
-                raise RuntimeError(f"Got {len(args)} args for {opcode}({', '.join(argnames)})")
+                raise RuntimeError(
+                    f"Got {len(args)} args for {opcode}({', '.join(argnames)})"
+                )
         self._opcodes.append((opcode, *args))
 
     def dump(self):

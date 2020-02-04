@@ -129,7 +129,6 @@ class Bytecode2SpirVGenerator(ByteCodeDefinitions, BaseSpirVGenerator):
 
     # %% IO
 
-
     def co_input(self, location, name_type_items):
         self._setup_io_variable("input", location, name_type_items)
 
@@ -418,7 +417,6 @@ class Bytecode2SpirVGenerator(ByteCodeDefinitions, BaseSpirVGenerator):
             raise TypeError(f"Cannot {action} values of type {val1.type}.")
 
         self._stack.append(result_id)
-
 
     # %% Helper methods
 
