@@ -34,7 +34,7 @@ def test_null_shader():
 def test_triangle_shader():
     @python2shader_and_validate
     def vertex_shader(
-        index: InputResource("GlobalInvocationId", i32),
+        index: InputResource("VertexId", i32),
         pos: OutputResource("Position", vec4),
         color: OutputResource(0, vec3),
     ):
@@ -82,9 +82,9 @@ def python2shader_and_validate(func):
 
 HASHES = {
     "test_null_shader.vertex_shader": ("bc099a07b86d70f2", "a48ffae9d0f09a5c"),
-    "test_triangle_shader.vertex_shader": ("671577253fa75b41", "b886a8bb3c375e81"),
-    "test_triangle_shader.fragment_shader": ("982f5530ea253ca4", "7bd19fb630a787ce"),
-    "test_compute_shader.compute_shader": ("3bf7aea392bbe4fb", "b31b56f93d83e6e6"),
+    "test_triangle_shader.vertex_shader": ("d06683f706fdcc8f", "53d4b596bc25b5a0"),
+    "test_triangle_shader.fragment_shader": ("38f694941020f1cb", "6febd7dab6d72c8d"),
+    "test_compute_shader.compute_shader": ("7fb8036d7f706f98", "46f084870ce2681b"),
 }
 
 

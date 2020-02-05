@@ -7,6 +7,7 @@ With this we can validate arithmetic, control flow etc.
 import ctypes
 
 import python_shader
+from python_shader import InputResource, BufferResource
 from python_shader import f32, i32, vec2, vec3, vec4, Array  # noqa
 
 import wgpu.backend.rs  # noqa
@@ -19,10 +20,11 @@ from testutils import validate_module, run_test_and_print_new_hashes
 
 def test_index():
     @python2shader_and_validate
-    def compute_shader(input, buffer):
-        input.define("index", "GlobalInvocationId", i32)
-        buffer.define("data2", 1, Array(i32))
-        buffer.data2[input.index] = input.index
+    def compute_shader(
+        index: InputResource("GlobalInvocationId", i32),
+        data2: BufferResource(1, Array(i32)),
+    ):
+        data2[index] = index
 
     skip_if_no_wgpu()
 
@@ -35,11 +37,12 @@ def test_index():
 
 def test_copy():
     @python2shader_and_validate
-    def compute_shader(input, buffer):
-        input.define("index", "GlobalInvocationId", i32)
-        buffer.define("data1", 0, Array(i32))
-        buffer.define("data2", 1, Array(i32))
-        buffer.data2[input.index] = buffer.data1[input.index]
+    def compute_shader(
+        index: InputResource("GlobalInvocationId", i32),
+        data1: BufferResource(0, Array(i32)),
+        data2: BufferResource(1, Array(i32)),
+    ):
+        data2[index] = data1[index]
 
     skip_if_no_wgpu()
 
@@ -66,8 +69,8 @@ def skip_if_no_wgpu():
 
 
 HASHES = {
-    "test_index.compute_shader": ("66a2c50d263da09d", "dea9d31b63653ae6"),
-    "test_copy.compute_shader": ("3bf7aea392bbe4fb", "b31b56f93d83e6e6"),
+    "test_index.compute_shader": ("faecff6f2dc749ec", "e677b4cc6992630a"),
+    "test_copy.compute_shader": ("7fb8036d7f706f98", "46f084870ce2681b"),
 }
 
 

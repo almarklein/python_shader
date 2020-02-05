@@ -28,6 +28,9 @@ def validate_module(shader_module, hashes):
     text_bc = python_shader.opcodes.bc2str(shader_module.to_bytecode())
     byte_sp = shader_module.to_spirv()
 
+    # print(text_bc)
+    # print(python_shader.dev.disassemble(byte_sp))
+
     # Get hashes so we can compare it easier
     assert isinstance(text_bc, str)
     assert isinstance(byte_sp, bytes)
