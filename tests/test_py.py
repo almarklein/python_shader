@@ -18,6 +18,7 @@ script to get new hashes when needed:
 """
 
 import python_shader
+from python_shader import InputResource, OutputResource, BufferResource
 from python_shader import i32, vec2, vec3, vec4, Array
 
 from pytest import mark
@@ -26,29 +27,27 @@ from testutils import can_use_vulkan_sdk, validate_module, run_test_and_print_ne
 
 def test_null_shader():
     @python2shader_and_validate
-    def vertex_shader(input, output):
+    def vertex_shader():
         pass
 
 
 def test_triangle_shader():
     @python2shader_and_validate
-    def vertex_shader(input, output):
-        input.define("index", "VertexId", i32)
-        output.define("pos", "Position", vec4)
-        output.define("color", 0, vec3)
-
+    def vertex_shader(
+        index: InputResource("GlobalInvocationId", i32),
+        pos: OutputResource("Position", vec4),
+        color: OutputResource(0, vec3),
+    ):
         positions = [vec2(+0.0, -0.5), vec2(+0.5, +0.5), vec2(-0.5, +0.7)]
-
-        p = positions[input.index]
-        output.pos = vec4(p, 0.0, 1.0)
-        output.color = vec3(p, 0.5)
+        p = positions[index]
+        pos = vec4(p, 0.0, 1.0)  # noqa
+        color = vec3(p, 0.5)  # noqa
 
     @python2shader_and_validate
-    def fragment_shader(input, output):
-        input.define("color", 0, vec3)
-        output.define("color", 0, vec4)
-
-        output.color = vec4(input.color, 1.0)
+    def fragment_shader(
+        in_color: InputResource(0, vec3), out_color: OutputResource(0, vec4),
+    ):
+        out_color = vec4(in_color, 1.0)  # noqa
 
 
 @mark.skipif(not can_use_vulkan_sdk, reason="No Vulkan SDK")
@@ -63,12 +62,12 @@ def test_no_duplicate_constants():
 
 def test_compute_shader():
     @python2shader_and_validate
-    def compute_shader(input, buffer):
-        input.define("index", "GlobalInvocationId", i32)
-        buffer.define("data1", 0, Array(i32))
-        buffer.define("data2", 1, Array(i32))
-
-        buffer.data2[input.index] = buffer.data1[input.index]
+    def compute_shader(
+        index: InputResource("GlobalInvocationId", i32),
+        data1: BufferResource(0, Array(i32)),
+        data2: BufferResource(1, Array(i32)),
+    ):
+        data2[index] = data1[index]
 
 
 # %% Utils for this module

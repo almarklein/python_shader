@@ -73,6 +73,8 @@ class PyBytecode2Bytecode:
         for i in range(py_func.__code__.co_argcount):
             # Get name and resource object
             argname = py_func.__code__.co_varnames[i]
+            if argname not in py_func.__annotations__:
+                raise TypeError("Shader arguments must be annotated.")
             resource = py_func.__annotations__.get(argname, None)
             if not isinstance(resource, _types.BaseShaderResource):
                 raise TypeError(
@@ -87,8 +89,9 @@ class PyBytecode2Bytecode:
                 )
             # Emit and store in our dict
             # todo: change opcode args to just slot, argname, typename
-            self.emit(opcode, resource.slot, {argname: resource.subtype.__name__})
-            resource_dict[resource.kind + "." + argname] = resource.subtype
+            argname_alt = resource.kind + "." + argname
+            self.emit(opcode, resource.slot, {argname_alt: resource.subtype.__name__})
+            resource_dict[argname] = resource.subtype
 
         self._convert()
         self.emit(op.co_func_end)
@@ -191,6 +194,23 @@ class PyBytecode2Bytecode:
             self.emit(op.co_load_name, name)
             self._stack.append(name)
 
+    def _op_store_fast(self):
+        i = self._next()
+        name = self._co.co_varnames[i]
+        ob = self._stack.pop()  # noqa - ob not used
+        # we don't prevent assigning to input here, that's the task of bc generator
+        if name in self._input:
+            self.emit(op.co_store_name, "input." + name)
+        elif name in self._output:
+            self.emit(op.co_store_name, "output." + name)
+        elif name in self._uniform:
+            self.emit(op.co_store_name, "uniform." + name)
+        elif name in self._buffer:
+            self.emit(op.co_store_name, "buffer." + name)
+        else:
+            # Normal store
+            self.emit(op.co_store_name, name)
+
     def _op_load_const(self):
         i = self._next()
         ob = self._co.co_consts[i]
@@ -220,23 +240,6 @@ class PyBytecode2Bytecode:
         ob = self._stack.pop()
         value = self._stack.pop()  # noqa
         raise NotImplementedError(f"{ob}.{name} store")
-
-    def _op_store_fast(self):
-        i = self._next()
-        name = self._co.co_varnames[i]
-        ob = self._stack.pop()  # noqa - ob not used
-        if name in self._input:
-            raise ValueError("Cannot set an input resource.")
-        elif name in self._output:
-            raise ValueError("Cannot set an output resource, set attributes instead.")
-        elif name in self._uniform:
-            raise ValueError("Cannot set a uniform resource.")
-        elif name in self._buffer:
-            raise ValueError(
-                "Cannot set a buffer resource. set attribute/index instead."
-            )
-        else:
-            self.emit(op.co_store_name, name)
 
     def _op_call_function(self):
         nargs = self._next()
