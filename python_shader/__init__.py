@@ -18,5 +18,7 @@ from ._types import ivec2, ivec3, ivec4
 from ._types import bvec2, bvec3, bvec4
 from ._types import mat2, mat3, mat4
 from ._types import Vector, Matrix, Array, Struct
+from ._types import InputResource, OutputResource
+from ._types import BufferResource, TextureResource, SamplerResource
 
 from . import dev

@@ -423,7 +423,10 @@ spirv_types_map.update(convenience_types)
 # todo: remove or revive? (was part of experimental IO syntax)
 
 
-class IOType:
+class BaseShaderResource:
+
+    kind = ""
+
     def __init__(self, slot, subtype):
         if not (
             (isinstance(slot, int) and slot >= 0)
@@ -438,21 +441,26 @@ class IOType:
         self.subtype = subtype
 
 
-class Input(IOType):
-    pass
+class InputResource(BaseShaderResource):
+
+    kind = "input"
 
 
-class Output(IOType):
-    pass
+class OutputResource(BaseShaderResource):
+
+    kind = "output"
 
 
-class BufferIO(IOType):
-    pass
+class BufferResource(BaseShaderResource):
+
+    kind = "buffer"
 
 
-class TextureIO(IOType):
-    pass
+class TextureResource(BaseShaderResource):
+
+    kind = "texture"
 
 
-class SamplerIO(IOType):
-    pass
+class SamplerResource(BaseShaderResource):
+
+    kind = "sampler"
