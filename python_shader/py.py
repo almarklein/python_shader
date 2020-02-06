@@ -62,10 +62,10 @@ class PyBytecode2Bytecode:
         self.emit(op.co_entrypoint, entrypoint_name, shader_type, {})
 
         KINDMAP = {
-            "input": (op.co_input, self._input),
-            "output": (op.co_output, self._output),
-            "uniform": (op.co_uniform, self._uniform),
-            "buffer": (op.co_buffer, self._buffer),
+            "input": self._input,
+            "output": self._output,
+            "uniform": self._uniform,
+            "buffer": self._buffer,
         }
 
         # Parse function inputs
@@ -79,17 +79,20 @@ class PyBytecode2Bytecode:
                 raise TypeError(
                     f"Python-shader arg {argname} must be a resource object (e.g. InputResource)."
                 )
-            # Get opcode, dict
+            kind = resource.kind
+            location = resource.slot
+            # todo: terminology: use location, binding, or slot
+            # todo: allow specifying type by name?
+            typename = resource.subtype.__name__
+            # Get dict to store ref in
             try:
-                opcode, resource_dict = KINDMAP[resource.kind]
+                resource_dict = KINDMAP[kind]
             except KeyError:
                 raise TypeError(
                     f"Python-shader arg {argname} has unknown resource type {type(resource)})."
                 )
             # Emit and store in our dict
-            # todo: change opcode args to just slot, argname, typename
-            argname_alt = resource.kind + "." + argname
-            self.emit(opcode, resource.slot, {argname_alt: resource.subtype.__name__})
+            self.emit(op.co_resource, kind + "." + argname, kind, location, typename)
             resource_dict[argname] = resource.subtype
 
         self._convert()

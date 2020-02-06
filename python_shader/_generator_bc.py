@@ -129,24 +129,7 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
 
     # %% IO
 
-    def co_input(self, location, name_type_items):
-        self._setup_io_variable("input", location, name_type_items)
-
-    def co_output(self, location, name_type_items):
-        self._setup_io_variable("output", location, name_type_items)
-
-    def co_uniform(self, location, name_type_items):
-        # location == binding
-        self._setup_io_variable("uniform", location, name_type_items)
-
-    def co_buffer(self, location, name_type_items):
-        # location == binding
-        self._setup_io_variable("buffer", location, name_type_items)
-
-    def _setup_io_variable(self, kind, location, name_type_items):
-
-        n_names = len(name_type_items)
-        singleton_mode = n_names == 1 and kind in ("input", "output")
+    def co_resource(self, name, kind, location, typename):
 
         # Triage over input kind
         if kind == "input":
@@ -166,7 +149,6 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             raise RuntimeError(f"Invalid IO kind {kind}")
 
         # Check if location is taken
-        name = "/".join(x for x in name_type_items)
         locationmap_key = (kind, location)
         if locationmap_key in self._locationmap:
             other_name = self._locationmap[locationmap_key]
@@ -177,29 +159,21 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             self._locationmap[locationmap_key] = name
 
         # Get the root variable
-        if singleton_mode:
-            # Singleton (not allowed for Uniform)
-            name, var_type = list(name_type_items.items())[0]
+        if kind in ("input", "output"):
             var_name = "var-" + name
-            # todo: should our bytecode be fully jsonable? or do we force actual types here?
-            if isinstance(var_type, str):
-                type_str = var_type
-                var_type = _types.type_from_name(type_str)
+            var_type = _types.type_from_name(typename)
+            subtypes = None
         else:
-            # todo: TBH I am not sure if this is allowed for non-uniforms :D
-            assert kind in (
-                "uniform",
-                "buffer",
-            ), f"euhm, I dont know if you can use block {kind}s"
-            # Block - the variable is a struct
-            subtypes = {}
-            for key, subtype in name_type_items.items():
-                if isinstance(subtype, str):
-                    subtypes[key] = _types.type_from_name(subtype)
-                else:
-                    subtypes[key] = subtype
-            var_type = _types.Struct(**subtypes)
-            var_name = "var-" + var_type.__name__
+            # Block - Consider the variable to be a struct
+            var_name = "var-" + name
+            var_type = _types.type_from_name(typename)
+            # Block needs to be a struct
+            if issubclass(var_type, _types.Struct):
+                subtypes = None
+            else:
+                subtypes = {name: var_type}
+                var_type = _types.Struct(**subtypes)
+                var_name = "var-" + var_type.__name__
 
         # Create VariableAccessId object
         var_access = self.obtain_variable(var_type, storage_class, var_name)
@@ -242,13 +216,12 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             )
 
         # Store internal info to derefererence the variables
-        if singleton_mode:
+        if subtypes is None:
             if name in iodict:
                 raise NameError(f"{kind} {name} already exists")
             iodict[name] = var_access
         else:
             for i, subname in enumerate(subtypes):
-                subtype = subtypes[subname]
                 index_id = self.obtain_constant(i)
                 if subname in iodict:
                     raise NameError(f"{kind} {subname} already exists")

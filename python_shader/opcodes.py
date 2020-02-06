@@ -49,8 +49,6 @@ class OpCodeDefinitions:
     can subclass this class and implement the methods.
     """
 
-    # %% High level stuff
-
     def co_func(self, name):
         """ Define a function. WIP
         """
@@ -74,29 +72,13 @@ class OpCodeDefinitions:
         """
         raise NotImplementedError()
 
-    # %% IO
-
-    def co_input(self, location, name_type_items):
-        """ Define shader input.
+    def co_resource(self, name, kind, location, typename):
+        """ Define a shader resource, to be available under the given name.
+        Kind can be 'input', 'output', 'uniform', 'buffer', 'texture' or 'sampler'.
+        Location is typically an int defining the location/binding slot,
+        but can also be a string specifying a builtin (for input and output).
         """
         raise NotImplementedError()
-
-    def co_output(self, location, name_type_items):
-        """ Define sader output.
-        """
-        raise NotImplementedError()
-
-    def co_uniform(self, location, name_type_items):
-        """ Define shader uniform.
-        """
-        raise NotImplementedError()
-
-    def co_buffer(self, location, name_type_items):
-        """ Define storage buffer.
-        """
-        raise NotImplementedError()
-
-    # %% Basics
 
     def co_pop_top(self):
         """ Pop the top of the stack.
@@ -135,8 +117,6 @@ class OpCodeDefinitions:
         and push that on the stack.
         """
         raise NotImplementedError()
-
-    # %% Math and more
 
     def co_binop(self, op):
         """ Implements TOS = TOS1 ?? TOS, where ?? is the given operation,
