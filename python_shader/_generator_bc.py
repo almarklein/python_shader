@@ -30,6 +30,7 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         self._output = {}
         self._uniform = {}
         self._buffer = {}
+        self._locationmap = {}  # (kind, location) -> name
         self._image = {}  # differentiate between texture and sampler?
 
         # Resulting values may be given a name so we can pick them up
@@ -163,6 +164,17 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             location_or_binding = cc.Decoration_Binding
         else:
             raise RuntimeError(f"Invalid IO kind {kind}")
+
+        # Check if location is taken
+        name = "/".join(x for x in name_type_items)
+        locationmap_key = (kind, location)
+        if locationmap_key in self._locationmap:
+            other_name = self._locationmap[locationmap_key]
+            raise TypeError(
+                f"Location {location} for {kind} {name} already taken by {other_name}."
+            )
+        else:
+            self._locationmap[locationmap_key] = name
 
         # Get the root variable
         if singleton_mode:

@@ -21,7 +21,7 @@ import python_shader
 from python_shader import InputResource, OutputResource, BufferResource
 from python_shader import i32, vec2, vec3, vec4, Array
 
-from pytest import mark
+from pytest import mark, raises
 from testutils import can_use_vulkan_sdk, validate_module, run_test_and_print_new_hashes
 
 
@@ -68,6 +68,19 @@ def test_compute_shader():
         data2: BufferResource(1, Array(i32)),
     ):
         data2[index] = data1[index]
+
+
+def test_cannot_assign_same_slot():
+    def compute_shader(
+        index: InputResource("GlobalInvocationId", i32),
+        data1: BufferResource(0, Array(i32)),
+        data2: BufferResource(0, Array(i32)),
+    ):
+        data2[index] = data1[index]
+
+    with raises(TypeError) as err:
+        python_shader.python2shader(compute_shader).to_spirv()
+    assert "already taken" in str(err.value)
 
 
 # %% Utils for this module

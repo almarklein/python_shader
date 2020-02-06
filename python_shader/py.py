@@ -69,7 +69,6 @@ class PyBytecode2Bytecode:
         }
 
         # Parse function inputs
-        # todo: check duplicate slots -> upstream
         for i in range(py_func.__code__.co_argcount):
             # Get name and resource object
             argname = py_func.__code__.co_varnames[i]
