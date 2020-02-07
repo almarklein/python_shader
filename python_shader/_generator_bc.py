@@ -202,6 +202,8 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             )
         elif isinstance(location, int):
             # todo: is it location_or_binding always LOCATION, also for uniforms?
+            # todo: I think input also needs DescriptorSet for vertex shader, right?
+            # or ... is a vertex buffer defined as kind "buffer", not input?
             self.gen_instruction(
                 "annotations", cc.OpDecorate, var_id, location_or_binding, location
             )
