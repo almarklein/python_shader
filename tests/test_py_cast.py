@@ -6,6 +6,7 @@ Tests related to casting and vector/array composition.
 import ctypes
 
 import python_shader
+from python_shader import RES_INPUT, RES_BUFFER
 from python_shader import InputResource, BufferResource
 from python_shader import f32, f64, u8, i16, i32, i64  # noqa
 from python_shader import bvec2, ivec2, ivec3, vec2, vec3, vec4, Array  # noqa
@@ -18,12 +19,13 @@ from testutils import can_use_wgpu_lib, iters_equal
 from testutils import validate_module, run_test_and_print_new_hashes
 
 
+# todo: this first test uses a 3-tuple to specify IO, the rest uses resource object. Pick one!
 def test_cast_i32_f32():
     @python2shader_and_validate
     def compute_shader(
-        index: InputResource("GlobalInvocationId", i32),
-        data1: BufferResource(0, Array(i32)),
-        data2: BufferResource(1, Array(f32)),
+        index: (RES_INPUT, "GlobalInvocationId", i32),
+        data1: (RES_BUFFER, 0, Array(i32)),
+        data2: (RES_BUFFER, 1, Array(f32)),
     ):
         data2[index] = f32(data1[index])
 

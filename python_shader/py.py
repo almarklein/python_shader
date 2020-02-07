@@ -75,25 +75,36 @@ class PyBytecode2Bytecode:
             if argname not in py_func.__annotations__:
                 raise TypeError("Shader arguments must be annotated.")
             resource = py_func.__annotations__.get(argname, None)
-            if not isinstance(resource, _types.BaseShaderResource):
+            # todo: Allow only one: either 3-tuple or Resource object
+            if resource is None:
+                raise TypeError(f"Python-shader arg {argname} is not decorated.")
+            elif isinstance(resource, _types.BaseShaderResource):
+                kind = resource.kind
+                location = resource.slot
+                subtype = resource.subtype
+                # todo: terminology: use location, binding, or slot?
+            elif isinstance(resource, tuple) and len(resource) == 3:
+                kind, location, subtype = resource
+                assert isinstance(kind, str)
+                assert isinstance(location, (int, str))
+                assert isinstance(subtype, type)
+            else:
                 raise TypeError(
-                    f"Python-shader arg {argname} must be a resource object (e.g. InputResource)."
+                    f"Python-shader arg {argname} must be a resource object "
+                    + f"(3-tuple or e.g. InputResource), not {type(resource)}."
                 )
-            kind = resource.kind
-            location = resource.slot
-            # todo: terminology: use location, binding, or slot
             # todo: allow specifying type by name?
-            typename = resource.subtype.__name__
+            typename = subtype.__name__
             # Get dict to store ref in
             try:
                 resource_dict = KINDMAP[kind]
             except KeyError:
                 raise TypeError(
-                    f"Python-shader arg {argname} has unknown resource type {type(resource)})."
+                    f"Python-shader arg {argname} has unknown resource kind '{kind}')."
                 )
             # Emit and store in our dict
             self.emit(op.co_resource, kind + "." + argname, kind, location, typename)
-            resource_dict[argname] = resource.subtype
+            resource_dict[argname] = subtype
 
         self._convert()
         self.emit(op.co_func_end)

@@ -422,6 +422,11 @@ spirv_types_map.update(convenience_types)
 
 # todo: remove or revive? (was part of experimental IO syntax)
 
+RES_INPUT = "input"
+RES_OUTPUT = "output"
+RES_UNIFORM = "uniform"
+RES_BUFFER = "buffer"
+
 
 class BaseShaderResource:
 
@@ -449,6 +454,11 @@ class InputResource(BaseShaderResource):
 class OutputResource(BaseShaderResource):
 
     kind = "output"
+
+
+class UniformResource(BaseShaderResource):
+
+    kind = "uniform"
 
 
 class BufferResource(BaseShaderResource):
