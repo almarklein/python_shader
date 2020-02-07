@@ -87,14 +87,13 @@ class PyBytecode2Bytecode:
                 kind, location, subtype = resource
                 assert isinstance(kind, str)
                 assert isinstance(location, (int, str))
-                assert isinstance(subtype, type)
+                assert isinstance(subtype, (type, str))
             else:
                 raise TypeError(
                     f"Python-shader arg {argname} must be a resource object "
                     + f"(3-tuple or e.g. InputResource), not {type(resource)}."
                 )
-            # todo: allow specifying type by name?
-            typename = subtype.__name__
+            subtype = subtype.__name__ if isinstance(subtype, type) else subtype
             # Get dict to store ref in
             try:
                 resource_dict = KINDMAP[kind]
@@ -103,7 +102,7 @@ class PyBytecode2Bytecode:
                     f"Python-shader arg {argname} has unknown resource kind '{kind}')."
                 )
             # Emit and store in our dict
-            self.emit(op.co_resource, kind + "." + argname, kind, location, typename)
+            self.emit(op.co_resource, kind + "." + argname, kind, location, subtype)
             resource_dict[argname] = subtype
 
         self._convert()

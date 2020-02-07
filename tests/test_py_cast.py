@@ -20,12 +20,13 @@ from testutils import validate_module, run_test_and_print_new_hashes
 
 
 # todo: this first test uses a 3-tuple to specify IO, the rest uses resource object. Pick one!
+# todo: additionally, it specifies the type as a string, which can be convenient, I think?
 def test_cast_i32_f32():
     @python2shader_and_validate
     def compute_shader(
-        index: (RES_INPUT, "GlobalInvocationId", i32),
-        data1: (RES_BUFFER, 0, Array(i32)),
-        data2: (RES_BUFFER, 1, Array(f32)),
+        index: (RES_INPUT, "GlobalInvocationId", "i32"),
+        data1: (RES_BUFFER, 0, "Array(i32)"),
+        data2: (RES_BUFFER, 1, "Array(f32)"),
     ):
         data2[index] = f32(data1[index])
 
