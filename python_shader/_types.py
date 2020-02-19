@@ -14,6 +14,8 @@ abstract types start with a capital letter, concrete types are lowercase.
 
 """
 
+import ctypes
+
 
 _subtypes = {}
 
@@ -170,10 +172,19 @@ class Vector(Composite):
             props = dict(subtype=subtype, length=n, is_abstract=False)
             return _create_type(f"Vector({n},{subtype.__name__})", Vector, props)
         else:
-            return super().__new__(*args)
+            # return super().__new__(cls, *args)
+            return cls._get_ctypes_object(*args)
 
-    def __init__(self, *args):
-        raise NotImplementedError("Instantiation")
+    @classmethod
+    def _get_ctypes_object(cls, *args):
+        ctype = cls.subtype._ctype * cls.length
+        return ctype(*args)
+
+    # def __getitem__(self, i):
+    #     return self._cval[i]
+    #
+    # def __setitem__(self, i, value):
+    #     self._cval[i] = value
 
 
 class Matrix(Composite):
@@ -206,10 +217,19 @@ class Matrix(Composite):
                 f"Matrix({cols},{rows},{subtype.__name__})", Matrix, props
             )
         else:
-            return super().__new__(*args)
+            # return super().__new__(cls, *args)
+            return cls._get_ctypes_object(*args)
 
-    def __init__(self, *args):
-        raise NotImplementedError("Instantiation")
+    @classmethod
+    def _get_ctypes_object(cls, *args):
+        ctype = cls.subtype._ctype * (cls.cols * cls.rows)  # todo: or  * (cols * rows)
+        return ctype(*args)
+
+    # def __getitem__(self, i):
+    #     return self._cval[i]
+    #
+    # def __setitem__(self, i, value):
+    #     self._cval[i] = value
 
 
 class Array(Aggregate):
@@ -245,10 +265,20 @@ class Array(Aggregate):
             else:
                 return _create_type(f"Array({n},{subtype.__name__})", Array, props)
         else:
-            return super().__new__(*args)
+            # return super().__new__(cls, *args)
+            return cls._get_ctypes_object(*args)
 
-    def __init__(self, *args):
-        raise NotImplementedError("Instantiation")
+    @classmethod
+    def _get_ctypes_object(cls, *args):
+        sub_ctype = cls.subtype._get_ctypes_object().__class__
+        ctype = sub_ctype * cls.length
+        return ctype(*args)
+
+    # def __getitem__(self, i):
+    #     return self._cval[i]
+    #
+    # def __setitem__(self, i, value):
+    #     self._cval[i] = value
 
 
 class Struct(Aggregate):
@@ -279,10 +309,18 @@ class Struct(Aggregate):
             props.update(dict(length=n, keys=keys, _kwargs=kwargs, is_abstract=False))
             return _create_type(f"Struct({','.join(type_names)})", Struct, props)
         else:
-            return super().__new__(**kwargs)
+            # return super().__new__(cls, **kwargs)
+            return cls._get_ctypes_object(**kwargs)
 
-    def __init__(self, **kwargs):
-        raise NotImplementedError("Instantiation")
+    @classmethod
+    def _get_ctypes_object(cls, **kwargs):
+        type_fields = [
+            (key, val._get_ctypes_object().__class__)
+            for key, val in cls._kwargs.items()
+        ]
+        type_name = "C_" + cls.__name__
+        ctype = type(type_name, (ctypes.Structure,), {"_fields_": type_fields})
+        return ctype(**kwargs)
 
     @classmethod
     def get_subtype(cls, key):
@@ -290,6 +328,22 @@ class Struct(Aggregate):
             return cls._kwargs[cls.keys[key]]
         else:
             return cls._kwargs[key]
+
+    # def __getattribute__(self, name):
+    #     keys = object.__getattribute__(self, "keys")
+    #     if name in keys:
+    #         cval = object.__getattribute__(self, "_cval")
+    #         return getattr(cval, name)
+    #     else:
+    #         return object.__getattribute__(self, name)
+    #
+    # def __setattr__(self, name, value):
+    #     keys = object.__getattribute__(self, "keys")
+    #     if name in keys:
+    #         cval = object.__getattribute__(self, "_cval")
+    #         setattr(cval, name, value)
+    #     else:
+    #         object.__setattr__(self, name, value)
 
 
 # The base types that can be used to create composite types
@@ -301,22 +355,27 @@ base_types = dict(Vector=Vector, Matrix=Matrix, Array=Array, Struct=Struct)
 
 class void(SpirVType):
     is_abstract = False
+    _ctype = ctypes.c_void_p
 
 
 class boolean(Scalar):
     is_abstract = False
+    _ctype = ctypes.c_bool
 
 
 class f16(Float):
     is_abstract = False
+    # _ctype = ctypes.c_float16 ??  maybe use uin16 and map f16 onto that data?
 
 
 class f32(Float):
     is_abstract = False
+    _ctype = ctypes.c_float
 
 
 class f64(Float):
     is_abstract = False
+    _ctype = ctypes.c_double
 
 
 # For now, we simply have 3 signed ints,
@@ -325,18 +384,22 @@ class f64(Float):
 
 class u8(Int):
     is_abstract = False
+    _ctype = ctypes.c_uint8
 
 
 class i16(Int):
     is_abstract = False
+    _ctype = ctypes.c_int16
 
 
 class i32(Int):
     is_abstract = False
+    _ctype = ctypes.c_int32
 
 
 class i64(Int):
     is_abstract = False
+    _ctype = ctypes.c_int64
 
 
 # Types that are at the leaf of a composite type
