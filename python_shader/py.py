@@ -244,7 +244,8 @@ class PyBytecode2Bytecode:
         i = self._next()
         name = self._co.co_names[i]
         ob = self._stack.pop()
-        raise NotImplementedError(f"{ob}.{name} load")
+        self.emit(op.co_load_attr, name)
+        self._stack.append(name)
 
     def _op_store_attr(self):
         i = self._next()

@@ -333,6 +333,22 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         else:
             raise NotImplementedError()
 
+    def co_load_attr(self, name):
+        ob = self._stack.pop()
+
+        if isinstance(ob, VariableAccessId):
+            # Only valid for structs that have a field with that name
+            if not issubclass(ob.type, _types.Struct):
+                raise TypeError("Attribute access is only allowed on structs.")
+            if name not in ob.type.keys:
+                raise TypeError(f"Attribute {name} invalid for {ob.type.__name__}.")
+            # Create new variable access for this attr op
+            index = ob.type.keys.index(name)
+            ac = ob.index(self.obtain_constant(index), index)
+            self._stack.append(ac)
+        else:
+            raise NotImplementedError()
+
     def co_load_constant(self, value):
         id = self.obtain_constant(value)
         self._stack.append(id)
@@ -352,26 +368,117 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         val2 = self._stack.pop()
         val1 = self._stack.pop()
 
-        if val1.type is not val2.type:
-            raise TypeError(
-                f"Cannot {op} values of different types ({val1.type} and {val2.type})"
-            )
-        result_id, type_id = self.obtain_value(val1.type)
+        # The ids that will be in the instruction, can be reset
+        id1, id2 = val1, val2
 
-        if issubclass(val1.type, _types.Float):
-            M = {
-                "add": cc.OpFAdd,
-                "sub": cc.OpFSub,
-                "mul": cc.OpFMul,
-                "div": cc.OpFDiv,
-            }
-            self.gen_func_instruction(M[op], type_id, result_id, val1, val2)
-        elif issubclass(val1.type, _types.Int):
-            M = {"add": cc.OpIAdd, "subtract": cc.OpISub, "multiply": cc.OpIMul}
-            self.gen_func_instruction(M[op], type_id, result_id, val1, val2)
+        # Predefine some types
+        scalar_or_vector = _types.Scalar, _types.Vector
+        FOPS = dict(add=cc.OpFAdd, sub=cc.OpFSub, mul=cc.OpFMul, div=cc.OpFDiv)
+        IOPS = dict(add=cc.OpIAdd, sub=cc.OpISub, mul=cc.OpIMul)
+
+        # Get reference types
+        type1 = val1.type
+        reftype1 = type1
+        if issubclass(type1, (_types.Vector, _types.Matrix)):
+            reftype1 = type1.subtype
+        type2 = val2.type
+        reftype2 = type2
+        if issubclass(type2, (_types.Vector, _types.Matrix)):
+            reftype2 = type2.subtype
+
+        tn1 = type1.__name__
+        tn2 = type2.__name__
+
+        if reftype1 is not reftype2:
+            # Let's start by excluding cases where the subtypes differ.
+            raise TypeError(f"Cannot {op} two values with different (sub)types: {tn1} and {tn2}")
+
+        elif type1 is type2 and issubclass(type1, scalar_or_vector):
+            # Types are equal and scalar or vector. Covers a lot of cases.
+            result_id, type_id = self.obtain_value(type1)
+            if issubclass(reftype1, _types.Float):
+                opcode = FOPS[op]
+            elif issubclass(reftype1, _types.Int):
+                opcode = IOPS[op]
+            else:
+                raise TypeError("Cannot {op} values of type {tn1}.")
+
+        elif issubclass(type1, _types.Scalar) and issubclass(type2, _types.Vector):
+            # Convenience - add/mul vectors with scalars
+            if not issubclass(reftype1, _types.Float):
+                raise TypeError(f"Scalar {op} Vector only supported for float subtype.")
+            result_id, type_id = self.obtain_value(type2)  # result is vector
+            if op == "mul":
+                opcode = cc.OpVectorTimesScalar
+                id1, id2 = val2, val1  # swap to put vector first
+            else:
+                opcode = FOPS[op]
+                val3 = self._vector_packing(type2, [val1] * type2.length)
+                id1, id2 = val1, val3
+
+        elif issubclass(type1, _types.Vector) and issubclass(type2, _types.Scalar):
+            # Convenience - add/mul vectors with scalars, opposite order
+            if not issubclass(reftype1, _types.Float):
+                raise TypeError(f"Vector {op} Scalar only supported for float subtype.")
+            result_id, type_id = self.obtain_value(type1)  # result is vector
+            if op == "mul":
+                opcode = cc.OpVectorTimesScalar
+                id1, id2 = val1, val2
+            else:
+                opcode = FOPS[op]
+                val3 = self._vector_packing(type1, [val2] * type1.length)
+                id1, id2 = val1, val3
+
+        elif op != "mul":
+            # The remaining cases are all limited to multiplication
+            raise TypeError(f"Cannot {op} {tn1} and {tn2}, multiply only.")
+
+        elif not issubclass(reftype1, _types.Float):
+            # The remaining cases are all limited to float types
+            raise TypeError(f"Cannot {op} {tn1} and {tn2}, float only.")
+
+        # With that out of the way, the remaining cases are quite short to write.
+
+        elif issubclass(type1, _types.Matrix) and issubclass(type2, _types.Matrix):
+            # Multiply two matrices
+            if type1.cols != type2.rows:
+                raise TypeError(f"Cannot {op} two matrices with incompatible shapes.")
+            type3 = _types.Matrix(type2.cols, type1.rows, type1.subtype)
+            result_id, type_id = self.obtain_value(type3)
+            opcode = cc.OpMatrixTimesMatrix
+
+        elif issubclass(type1, _types.Matrix) and issubclass(type2, _types.Scalar):
+            # Matrix times vector
+            result_id, type_id = self.obtain_value(type1)  # Result is a matrix
+            opcode = cc.OpMatrixTimesScalar
+            id1, id2 = val1, val2
+
+        elif issubclass(type1, _types.Matrix) and issubclass(type2, _types.Scalar):
+            # Matrix times vector, opposite order
+            result_id, type_id = self.obtain_value(type2)  # Result is a matrix
+            opcode = cc.OpMatrixTimesScalar
+            id1, id2 = val2, val1  # reverse
+
+        elif issubclass(type1, _types.Matrix) and issubclass(type2, _types.Vector):
+            # Matrix times Vector
+            if type2.length != type1.cols:
+                raise TypeError(f"Incompatible shape for {tn1} x {tn2}")
+            type3 = _types.Vector(type1.rows, type1.subtype)
+            result_id, type_id = self.obtain_value(type3)
+            opcode = cc.OpMatrixTimesVector
+
+        elif issubclass(type1, _types.Vector) and issubclass(type2, _types.Matrix):
+            # Vector times Matrix
+            if type1.length != type2.rows:
+                raise TypeError(f"Incompatible shape for {tn1} x {tn2}")
+            type3 = _types.Vector(type2.cols, type2.subtype)
+            result_id, type_id = self.obtain_value(type3)
+            opcode = cc.OpVectorTimesMatrix
+
         else:
-            raise TypeError(f"Cannot {op} values of type {val1.type}.")
+            raise TypeError(f"Cannot {op} values of {tn1} and {tn2}.")
 
+        self.gen_func_instruction(opcode, type_id, result_id, id1, id2)
         self._stack.append(result_id)
 
     # %% Helper methods

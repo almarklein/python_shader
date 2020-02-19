@@ -106,6 +106,11 @@ class OpCodeDefinitions:
         """
         raise NotImplementedError()
 
+    def co_load_attr(self, name):
+        """ Implements TOS = TOS.name.
+        """
+        raise NotImplementedError()
+
     def co_load_constant(self, value):
         """ Load a constant value onto the stack.
         The value can be a float, int, bool. Tuple for vec?

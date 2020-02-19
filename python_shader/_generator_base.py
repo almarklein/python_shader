@@ -497,8 +497,12 @@ class BaseSpirVGenerator:
                 "types", cc.OpTypeVector, type_id, sub_type_id, the_type.length
             )
         elif issubclass(the_type, _types.Matrix):
-            raise NotImplementedError()
-            # OpTypeMatrix
+            sub_vector_type = _types.Vector(the_type.rows, the_type.subtype)
+            column_type_id = self.obtain_type_id(sub_vector_type)
+            type_id = TypeId(the_type)
+            self.gen_instruction(
+                "types", cc.OpTypeMatrix, type_id, column_type_id, the_type.cols
+            )
         elif issubclass(the_type, _types.Array):
             count = the_type.length
             sub_type_id = self.obtain_type_id(the_type.subtype)
