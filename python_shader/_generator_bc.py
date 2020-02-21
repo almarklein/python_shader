@@ -30,7 +30,7 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         self._output = {}
         self._uniform = {}
         self._buffer = {}
-        self._locationmap = {}  # (kind, location) -> name
+        self._slotmap = {}  # (namespaceidentifier, slot) -> name
         self._image = {}  # differentiate between texture and sampler?
 
         # Resulting values may be given a name so we can pick them up
@@ -129,34 +129,45 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
 
     # %% IO
 
-    def co_resource(self, name, kind, location, typename):
+    def co_resource(self, name, kind, slot, typename):
+
+        bindgroup = 0
+        if isinstance(slot, tuple):
+            bindgroup, slot = slot
 
         # Triage over input kind
         if kind == "input":
             storage_class, iodict = cc.StorageClass_Input, self._input
+            # This is also called "shaderLocation" or "slot" in wgpu
             location_or_binding = cc.Decoration_Location
         elif kind == "output":
             storage_class, iodict = cc.StorageClass_Output, self._output
             location_or_binding = cc.Decoration_Location
-        elif kind == "uniform":  # location == binding
+        elif kind == "uniform":  # slot == binding
             storage_class, iodict = cc.StorageClass_Uniform, self._uniform
             location_or_binding = cc.Decoration_Binding
-        elif kind == "buffer":  # location == binding
+        elif kind == "buffer":  # slot == binding
             # note: this should be cc.StorageClass_StorageBuffer in SpirV 1.4+
             storage_class, iodict = cc.StorageClass_Uniform, self._buffer
             location_or_binding = cc.Decoration_Binding
         else:
             raise RuntimeError(f"Invalid IO kind {kind}")
 
-        # Check if location is taken
-        locationmap_key = (kind, location)
-        if locationmap_key in self._locationmap:
-            other_name = self._locationmap[locationmap_key]
+        # Check if slot is taken.
+        if kind in ("input", "output"):
+            # Locations must be unique per kind.
+            namespace_id = kind
+        else:
+            # Bindings must be unique within a bind group.
+            namespace_id = "bindgroup-" + str(bindgroup)
+        slotmap_key = (namespace_id, slot)
+        if slotmap_key in self._slotmap:
+            other_name = self._slotmap[slotmap_key]
             raise TypeError(
-                f"Location {location} for {kind} {name} already taken by {other_name}."
+                f"The {namespace_id} {slot} for {name} already taken by {other_name}."
             )
         else:
-            self._locationmap[locationmap_key] = name
+            self._slotmap[slotmap_key] = name
 
         # Get the root variable
         if kind in ("input", "output"):
@@ -191,30 +202,32 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
                 "annotations", cc.OpDecorate, var_id, cc.Decoration_BufferBlock
             )
 
-        # Define location of variable
-        if kind in ("buffer", "image"):
+        # Define slot of variable
+        if kind in ("buffer", "image", "uniform"):
+            assert isinstance(slot, int)
             # Default to descriptor set zero
             self.gen_instruction(
-                "annotations", cc.OpDecorate, var_id, cc.Decoration_DescriptorSet, 0
+                "annotations",
+                cc.OpDecorate,
+                var_id,
+                cc.Decoration_DescriptorSet,
+                bindgroup,
             )
             self.gen_instruction(
-                "annotations", cc.OpDecorate, var_id, cc.Decoration_Binding, location
+                "annotations", cc.OpDecorate, var_id, cc.Decoration_Binding, slot
             )
-        elif isinstance(location, int):
-            # todo: is it location_or_binding always LOCATION, also for uniforms?
-            # todo: I think input also needs DescriptorSet for vertex shader, right?
-            # or ... is a vertex buffer defined as kind "buffer", not input?
+        elif isinstance(slot, int):
             self.gen_instruction(
-                "annotations", cc.OpDecorate, var_id, location_or_binding, location
+                "annotations", cc.OpDecorate, var_id, location_or_binding, slot
             )
-        elif isinstance(location, str):
+        elif isinstance(slot, str):
             # Builtin input or output
             try:
-                location = cc.builtins[location]
+                slot = cc.builtins[slot]
             except KeyError:
-                raise NameError(f"Not a known builtin io variable: {location}")
+                raise NameError(f"Not a known builtin io variable: {slot}")
             self.gen_instruction(
-                "annotations", cc.OpDecorate, var_id, cc.Decoration_BuiltIn, location
+                "annotations", cc.OpDecorate, var_id, cc.Decoration_BuiltIn, slot
             )
 
         # Store internal info to derefererence the variables
@@ -336,17 +349,38 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
     def co_load_attr(self, name):
         ob = self._stack.pop()
 
-        if isinstance(ob, VariableAccessId):
-            # Only valid for structs that have a field with that name
-            if not issubclass(ob.type, _types.Struct):
-                raise TypeError("Attribute access is only allowed on structs.")
+        if isinstance(ob, VariableAccessId) and issubclass(ob.type, _types.Struct):
+            # Struct attribute access
             if name not in ob.type.keys:
                 raise TypeError(f"Attribute {name} invalid for {ob.type.__name__}.")
             # Create new variable access for this attr op
             index = ob.type.keys.index(name)
             ac = ob.index(self.obtain_constant(index), index)
             self._stack.append(ac)
+        elif issubclass(ob.type, _types.Vector):
+            indices = []
+            for c in name:
+                if c in "xr":
+                    indices.append(0)
+                elif c in "yg":
+                    indices.append(1)
+                elif c in "zb":
+                    indices.append(2)
+                elif c in "wa":
+                    indices.append(3)
+                else:
+                    raise AttributeError(name)
+            # elements = []
+            # for i in indices:
+            #     elements.append(ob.index(self.obtain_constant(i)))
+            result_type = _types.Vector(len(indices), ob.type.subtype)
+            result_id, type_id = self.obtain_value(result_type)
+            self.gen_func_instruction(
+                cc.OpVectorShuffle, type_id, result_id, ob, ob, *indices
+            )
+            self._stack.append(result_id)
         else:
+            # todo: not implemented for non VariableAccessId
             raise NotImplementedError()
 
     def co_load_constant(self, value):
@@ -391,7 +425,9 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
 
         if reftype1 is not reftype2:
             # Let's start by excluding cases where the subtypes differ.
-            raise TypeError(f"Cannot {op} two values with different (sub)types: {tn1} and {tn2}")
+            raise TypeError(
+                f"Cannot {op} two values with different (sub)types: {tn1} and {tn2}"
+            )
 
         elif type1 is type2 and issubclass(type1, scalar_or_vector):
             # Types are equal and scalar or vector. Covers a lot of cases.

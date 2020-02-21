@@ -80,13 +80,12 @@ class PyBytecode2Bytecode:
                 raise TypeError(f"Python-shader arg {argname} is not decorated.")
             elif isinstance(resource, _types.BaseShaderResource):
                 kind = resource.kind
-                location = resource.slot
+                slot = resource.slot
                 subtype = resource.subtype
-                # todo: terminology: use location, binding, or slot?
             elif isinstance(resource, tuple) and len(resource) == 3:
-                kind, location, subtype = resource
+                kind, slot, subtype = resource
                 assert isinstance(kind, str)
-                assert isinstance(location, (int, str))
+                assert isinstance(slot, (int, str, tuple))
                 assert isinstance(subtype, (type, str))
             else:
                 raise TypeError(
@@ -102,7 +101,7 @@ class PyBytecode2Bytecode:
                     f"Python-shader arg {argname} has unknown resource kind '{kind}')."
                 )
             # Emit and store in our dict
-            self.emit(op.co_resource, kind + "." + argname, kind, location, subtype)
+            self.emit(op.co_resource, kind + "." + argname, kind, slot, subtype)
             resource_dict[argname] = subtype
 
         self._convert()
