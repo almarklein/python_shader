@@ -117,6 +117,11 @@ class VariableAccessId(ValueId):
             return VariableAccessId(
                 self.variable, self.storage_class, self.type.subtype, *indices
             )
+        elif issubclass(self.type, _types.Vector):
+            assert field is None
+            return VariableAccessId(
+                self.variable, self.storage_class, self.type.subtype, *indices
+            )
         else:
             raise RuntimeError(f"VariableAccessId cannot index into {self.type}")
 

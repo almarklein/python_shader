@@ -370,14 +370,21 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
                     indices.append(3)
                 else:
                     raise AttributeError(name)
-            # elements = []
-            # for i in indices:
-            #     elements.append(ob.index(self.obtain_constant(i)))
-            result_type = _types.Vector(len(indices), ob.type.subtype)
-            result_id, type_id = self.obtain_value(result_type)
-            self.gen_func_instruction(
-                cc.OpVectorShuffle, type_id, result_id, ob, ob, *indices
-            )
+            if len(indices) == 1:
+                if isinstance(ob, VariableAccessId):
+                    index_id = self.obtain_constant(indices[0])
+                    result_id = ob.index(index_id)
+                else:
+                    result_id, type_id = self.obtain_value(ob.type.subtype)
+                    self.gen_func_instruction(
+                        cc.OpCompositeExtract, type_id, result_id, ob, indices[0]
+                    )
+            else:
+                result_type = _types.Vector(len(indices), ob.type.subtype)
+                result_id, type_id = self.obtain_value(result_type)
+                self.gen_func_instruction(
+                    cc.OpVectorShuffle, type_id, result_id, ob, ob, *indices
+                )
             self._stack.append(result_id)
         else:
             # todo: not implemented for non VariableAccessId

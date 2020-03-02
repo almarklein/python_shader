@@ -73,10 +73,10 @@ class Wasl2Bytecode:
 
     def visit(self, node):
 
-        method_name = "visit_" + node.__class__.__name__
+        method_name = "visit_" + node.__class__.__name__.lower()
         getattr(self, method_name)(node)
 
-    def visit_Procedure(self, node):
+    def visit_procedure(self, node):
         for param in node.params:
             if param.mode == "input":
                 self.emit(bc.CO_INPUT, (param.name, param.location, param.type))
@@ -92,34 +92,34 @@ class Wasl2Bytecode:
         for node in node.body.expressions:
             self.visit(node)
 
-    def visit_Assignment(self, node):
+    def visit_assignment(self, node):
         self.visit(node.rhs)
         self.emit(bc.CO_STORE, node.lhs)
 
-    def visit_Sum(self, node):
+    def visit_sum(self, node):
         self.visit(node.lhs)
         for term in node.rhs:
             self.visit(term)
             1 / 0
 
-    def visit_Term(self, node):
+    def visit_term(self, node):
         self.visit(node.lhs)
         for term_rhs in node.rhs:
             self.visit(term_rhs.value)
             self.emit(bc.CO_BINARY_OP, term_rhs.op)
 
-    def visit_Identifier(self, node):
+    def visit_identifier(self, node):
         self.emit(bc.CO_LOAD, node.name)
 
-    def visit_IdentifierIndexed(self, node):
+    def visit_identifierindexed(self, node):
         self.emit(bc.CO_LOAD, node.name)
         self.visit(node.index)
         self.emit(bc.CO_INDEX, None)
 
-    def visit_Number(self, node):
+    def visit_iumber(self, node):
         self.emit(bc.CO_LOAD_CONSTANT, node.value)
 
-    def visit_CallExpr(self, node):
+    def visit_iallixpr(self, node):
         self.emit(bc.CO_LOAD, node.name)
         for arg in node.args:
             self.visit(arg)

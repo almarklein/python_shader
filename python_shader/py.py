@@ -242,7 +242,7 @@ class PyBytecode2Bytecode:
     def _op_load_attr(self):
         i = self._next()
         name = self._co.co_names[i]
-        ob = self._stack.pop()
+        ob = self._stack.pop()  # noqa
         self.emit(op.co_load_attr, name)
         self._stack.append(name)
 
