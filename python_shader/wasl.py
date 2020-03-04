@@ -116,10 +116,10 @@ class Wasl2Bytecode:
         self.visit(node.index)
         self.emit(bc.CO_INDEX, None)
 
-    def visit_iumber(self, node):
+    def visit_number(self, node):
         self.emit(bc.CO_LOAD_CONSTANT, node.value)
 
-    def visit_iallixpr(self, node):
+    def visit_callixpr(self, node):
         self.emit(bc.CO_LOAD, node.name)
         for arg in node.args:
             self.visit(arg)
