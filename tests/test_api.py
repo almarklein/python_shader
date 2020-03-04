@@ -65,6 +65,3 @@ def test_that_bytecode_generator_matches_opcode_definitions():
         assert name in cls1.__dict__, f"{name} is not a known opcode"
 
     assert count > 12  # Just make sure we're not skipping all
-
-
-test_that_bytecode_generator_matches_opcode_definitions()

@@ -72,10 +72,10 @@ class OpCodeDefinitions:
         """
         raise NotImplementedError()
 
-    def co_resource(self, name, kind, location, typename):
+    def co_resource(self, name, kind, slot, typename):
         """ Define a shader resource, to be available under the given name.
         Kind can be 'input', 'output', 'uniform', 'buffer', 'texture' or 'sampler'.
-        Location is typically an int defining the location/binding slot,
+        Slot is typically an int defining the location/binding slot,
         but can also be a string specifying a builtin (for input and output).
         """
         raise NotImplementedError()

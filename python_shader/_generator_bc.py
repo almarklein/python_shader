@@ -263,8 +263,8 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         elif name in self._buffer:
             ob = self._buffer[name]
             assert isinstance(ob, VariableAccessId)
-        elif name in _types.spirv_types_map:  # todo: use type_from_name instead?
-            ob = _types.spirv_types_map[name]
+        elif name in _types.gpu_types_map:  # todo: use type_from_name instead?
+            ob = _types.gpu_types_map[name]
         else:
             raise NameError(f"Using invalid variable: {name}")
         self._stack.append(ob)

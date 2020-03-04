@@ -5,7 +5,7 @@ from ._module import ShaderModule
 from .opcodes import OpCodeDefinitions as op
 from ._dis import dis
 from . import _types
-from ._types import spirv_types_map
+from ._types import gpu_types_map
 
 
 def python2shader(func):
@@ -259,7 +259,7 @@ class PyBytecode2Bytecode:
         args  # todo: not used?
         self._stack[-nargs:] = []
         func = self._stack.pop()
-        if func in spirv_types_map and spirv_types_map[func].is_abstract:
+        if func in gpu_types_map and gpu_types_map[func].is_abstract:
             # A type definition
             type_str = f"{func}({','.join(args)})"
             self._stack.append(type_str)

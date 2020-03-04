@@ -1,5 +1,5 @@
 """
-Types in SpirV:
+Types on the GPU (from SpirV spec):
 
 * Basic types are boolean, int, float. Latter two are numerics, all three are scalars.
 * Vector is two or more values of scalars (float, int, bool). For lengt > 4 need capabilities.
@@ -29,8 +29,21 @@ def _create_type(name, base, props):
     return _subtypes[name]
 
 
+def instantiate_gpu_type_as_ctypes_object(gputype, *args, **kwargs):
+    """ Instantiate a ctypes object with the type equivalent to the given GpuType.
+    """
+    if isinstance(gputype, str):
+        gputype = type_from_name(gputype)
+    if not isinstance(gputype, type) and issubclass(gputype, GpuType):
+        raise TypeError("Expected str or GpuType subclass.")
+    if hasattr(gputype, "_get_ctypes_object"):
+        return gputype._get_ctypes_object(*args, **kwargs)
+    else:
+        return gputype._ctype(*args, **kwargs)
+
+
 def type_from_name(name):
-    """ Get a SpirV type from its name.
+    """ Get a GpuType from its name.
     """
     original_name = name
     name = name.replace(" ", "").lower()
@@ -73,7 +86,7 @@ def _type_from_name(name, original_name):
             fields[key.strip()] = _type_from_name(subtypestr, original_name)
         return Struct(**fields)
     else:
-        raise TypeError(f"Invalid SpirV type string '{original_name}': '{name}'")
+        raise TypeError(f"Invalid GpuType string '{original_name}': '{name}'")
 
 
 def _select_between_braces(s, original_name):
@@ -93,15 +106,15 @@ def _select_between_braces(s, original_name):
         elif level == 1 and s[i] == ",":
             commas.append(i - 1)  # 1 offset because we drop the first char
     if level != 0:
-        raise TypeError(f"No end-brace in SpirV type string '{original_name}': '{s}'")
+        raise TypeError(f"No end-brace in GpuType string '{original_name}': '{s}'")
     return s[1:i], commas
 
 
 # %% Really abstract types
 
 
-class SpirVType:
-    """ The root base class of all SpirV types.
+class GpuType:
+    """ The root base class of all GPU types.
     """
 
     is_abstract = True
@@ -114,7 +127,7 @@ class SpirVType:
             )
 
 
-class Scalar(SpirVType):
+class Scalar(GpuType):
     """ Base class for scalar types (float, int, bool).
     """
 
@@ -134,7 +147,7 @@ class Int(Numeric):
     """
 
 
-class Composite(SpirVType):
+class Composite(GpuType):
     """ Base class for composite types (Vector, Matrix, Aggregates).
     """
 
@@ -166,7 +179,7 @@ class Vector(Composite):
             if not isinstance(subtype, type) and issubclass(subtype, Scalar):
                 raise TypeError("Vector subtype must be a Scalar type.")
             elif subtype.is_abstract:
-                raise TypeError("Vector subtype cannot be an abstract SpirV type.")
+                raise TypeError("Vector subtype cannot be an abstract GpuType.")
             if n < 2 or n > 4:
                 raise TypeError("Vector can have 2, 3 or 4 elements.")
             props = dict(subtype=subtype, length=n, is_abstract=False)
@@ -207,7 +220,7 @@ class Matrix(Composite):
             if not isinstance(subtype, type) and issubclass(subtype, Float):
                 raise TypeError("Matrix subtype must be a Float type.")
             elif subtype.is_abstract:
-                raise TypeError("Matrix subtype cannot be an abstract SpirV type.")
+                raise TypeError("Matrix subtype cannot be an abstract GpuType.")
             if cols < 2 or cols > 4:
                 raise TypeError("Matrix can have 2, 3 or 4 columns.")
             if rows < 2 or rows > 4:
@@ -234,7 +247,7 @@ class Matrix(Composite):
 
 class Array(Aggregate):
     """ Base class for Array types. Concrete types are templated based on
-    length and subtype. Subtype can be any SpirVType except void.
+    length and subtype. Subtype can be any GpuType except void.
     """
 
     subtype = None
@@ -253,12 +266,12 @@ class Array(Aggregate):
             else:
                 raise TypeError("Array specialization needs 2 args: Array(n, subtype)")
             # Validate
-            if not isinstance(subtype, type) and issubclass(subtype, SpirVType):
-                raise TypeError("Array subtype must be a SpirV type.")
+            if not isinstance(subtype, type) and issubclass(subtype, GpuType):
+                raise TypeError("Array subtype must be a GpuType.")
             elif issubclass(subtype, void):
                 raise TypeError("Array subtype cannot be void.")
             elif subtype.is_abstract:
-                raise TypeError("Array subtype cannot be an abstract SpirV type.")
+                raise TypeError("Array subtype cannot be an abstract GpuType.")
             props = dict(subtype=subtype, length=n, is_abstract=False)
             if n == 0:  # means it's length is unknown)
                 return _create_type(f"Array({subtype.__name__})", Array, props)
@@ -290,12 +303,12 @@ class Struct(Aggregate):
             n = len(kwargs)
             # Validate
             for key, subtype in kwargs.items():
-                if not isinstance(subtype, type) and issubclass(subtype, SpirVType):
-                    raise TypeError("Struct subtype must be a SpirV type.")
+                if not isinstance(subtype, type) and issubclass(subtype, GpuType):
+                    raise TypeError("Struct subtype must be a GpuType.")
                 elif issubclass(subtype, void):
                     raise TypeError("Struct subtype cannot be void.")
                 elif subtype.is_abstract:
-                    raise TypeError("Struct subtype cannot be an abstract SpirV type.")
+                    raise TypeError("Struct subtype cannot be an abstract GpuType.")
                 if not isinstance(
                     key, str
                 ):  # and key.isidentifier(): -> allow . in name?
@@ -353,7 +366,7 @@ base_types = dict(Vector=Vector, Matrix=Matrix, Array=Array, Struct=Struct)
 # %% Concrete leaf types
 
 
-class void(SpirVType):
+class void(GpuType):
     is_abstract = False
     _ctype = ctypes.c_void_p
 
@@ -474,10 +487,10 @@ _subtypes.update(convenience_types)
 
 
 # Types that can be referenced by name.
-spirv_types_map = {}
-spirv_types_map.update(leaf_types)
-spirv_types_map.update(base_types)  # Only the last level, e,g. not SpirVType
-spirv_types_map.update(convenience_types)
+gpu_types_map = {}
+gpu_types_map.update(leaf_types)
+gpu_types_map.update(base_types)  # Only the last level, e,g. not GpuType
+gpu_types_map.update(convenience_types)
 
 
 # %% IO types
@@ -502,10 +515,10 @@ class BaseShaderResource:
         ):
             raise TypeError("IOType slot must be a nonnegative int or nonempty str.")
         self.slot = slot
-        if not isinstance(subtype, type) and issubclass(subtype, SpirVType):
-            raise TypeError("IOType subtype must be a SpirV type.")
+        if not isinstance(subtype, type) and issubclass(subtype, GpuType):
+            raise TypeError("IOType subtype must be a GpuType.")
         elif subtype.is_abstract:
-            raise TypeError("IOType subtype cannot be an abstract SpirV type.")
+            raise TypeError("IOType subtype cannot be an abstract GpuType.")
         self.subtype = subtype
 
 

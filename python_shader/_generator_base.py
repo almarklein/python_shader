@@ -388,7 +388,7 @@ class BaseSpirVGenerator:
         assert isinstance(
             the_type, type
         ), f"obtain_value requires a type, not {the_type}"
-        assert issubclass(the_type, _types.SpirVType), f"not a spirv type: {the_type}"
+        assert issubclass(the_type, _types.GpuType), f"not a spirv type: {the_type}"
         type_id = self.obtain_type_id(the_type)
         value_id = ValueId(the_type)
         return value_id, type_id
@@ -455,7 +455,7 @@ class BaseSpirVGenerator:
         assert isinstance(
             the_type, type
         ), f"obtain_type_id requires a type, not {the_type}"
-        assert issubclass(the_type, _types.SpirVType), f"not a spirv type: {the_type}"
+        assert issubclass(the_type, _types.GpuType), f"not a spirv type: {the_type}"
         assert not the_type.is_abstract, f"not a concrete spirv type: {the_type}"
 
         # Already know this type?

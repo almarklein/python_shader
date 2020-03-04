@@ -15,7 +15,7 @@ def test_simple():
         assert types.type_from_name(t.__name__) is t
 
     for t in [types.boolean, types.void]:
-        assert isinstance(t, type) and issubclass(t, types.SpirVType)
+        assert isinstance(t, type) and issubclass(t, types.GpuType)
         assert types.type_from_name(t.__name__) is t
 
 
