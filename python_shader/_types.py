@@ -29,21 +29,8 @@ def _create_type(name, base, props):
     return _subtypes[name]
 
 
-def instantiate_gpu_type_as_ctypes_object(gputype, *args, **kwargs):
-    """ Instantiate a ctypes object with the type equivalent to the given GpuType.
-    """
-    if isinstance(gputype, str):
-        gputype = type_from_name(gputype)
-    if not isinstance(gputype, type) and issubclass(gputype, GpuType):
-        raise TypeError("Expected str or GpuType subclass.")
-    if hasattr(gputype, "_get_ctypes_object"):
-        return gputype._get_ctypes_object(*args, **kwargs)
-    else:
-        return gputype._ctype(*args, **kwargs)
-
-
 def type_from_name(name):
-    """ Get a GpuType from its name.
+    """ Get a ShaderType from its name.
     """
     original_name = name
     name = name.replace(" ", "").lower()
@@ -86,7 +73,7 @@ def _type_from_name(name, original_name):
             fields[key.strip()] = _type_from_name(subtypestr, original_name)
         return Struct(**fields)
     else:
-        raise TypeError(f"Invalid GpuType string '{original_name}': '{name}'")
+        raise TypeError(f"Invalid ShaderType string '{original_name}': '{name}'")
 
 
 def _select_between_braces(s, original_name):
@@ -106,14 +93,27 @@ def _select_between_braces(s, original_name):
         elif level == 1 and s[i] == ",":
             commas.append(i - 1)  # 1 offset because we drop the first char
     if level != 0:
-        raise TypeError(f"No end-brace in GpuType string '{original_name}': '{s}'")
+        raise TypeError(f"No end-brace in ShaderType string '{original_name}': '{s}'")
     return s[1:i], commas
+
+
+def shadertype_as_ctype(shadertype):
+    """ Get a ctypes type equivalent to the given ShaderType.
+    """
+    if isinstance(shadertype, str):
+        shadertype = type_from_name(shadertype)
+    if not isinstance(shadertype, type) and issubclass(shadertype, ShaderType):
+        raise TypeError("Expected str or ShaderType subclass.")
+    if hasattr(shadertype, "_as_ctype"):
+        return shadertype._as_ctype()
+    else:
+        return shadertype._ctype
 
 
 # %% Really abstract types
 
 
-class GpuType:
+class ShaderType:
     """ The root base class of all GPU types.
     """
 
@@ -123,11 +123,18 @@ class GpuType:
         if self.is_abstract:
             name = self.__class__.__name__
             raise RuntimeError(
-                f"{name} is an abstract class and cannot be instantiated"
+                f"Cannot instantiate {name} because it is an abstract class."
             )
+        else:
+            name = self.__class__.__name__
+            raise RuntimeError(f"Cannot instantiate ShaderType subclass {name} (yet).")
+
+    @classmethod
+    def _as_ctype(cls):
+        return cls._ctype
 
 
-class Scalar(GpuType):
+class Scalar(ShaderType):
     """ Base class for scalar types (float, int, bool).
     """
 
@@ -147,7 +154,7 @@ class Int(Numeric):
     """
 
 
-class Composite(GpuType):
+class Composite(ShaderType):
     """ Base class for composite types (Vector, Matrix, Aggregates).
     """
 
@@ -179,19 +186,17 @@ class Vector(Composite):
             if not isinstance(subtype, type) and issubclass(subtype, Scalar):
                 raise TypeError("Vector subtype must be a Scalar type.")
             elif subtype.is_abstract:
-                raise TypeError("Vector subtype cannot be an abstract GpuType.")
+                raise TypeError("Vector subtype cannot be an abstract ShaderType.")
             if n < 2 or n > 4:
                 raise TypeError("Vector can have 2, 3 or 4 elements.")
             props = dict(subtype=subtype, length=n, is_abstract=False)
             return _create_type(f"Vector({n},{subtype.__name__})", Vector, props)
         else:
-            # return super().__new__(cls, *args)
-            return cls._get_ctypes_object(*args)
+            return super().__new__(cls, *args)
 
     @classmethod
-    def _get_ctypes_object(cls, *args):
-        ctype = cls.subtype._ctype * cls.length
-        return ctype(*args)
+    def _as_ctype(cls):
+        return cls.subtype._ctype * cls.length
 
     # def __getitem__(self, i):
     #     return self._cval[i]
@@ -220,7 +225,7 @@ class Matrix(Composite):
             if not isinstance(subtype, type) and issubclass(subtype, Float):
                 raise TypeError("Matrix subtype must be a Float type.")
             elif subtype.is_abstract:
-                raise TypeError("Matrix subtype cannot be an abstract GpuType.")
+                raise TypeError("Matrix subtype cannot be an abstract ShaderType.")
             if cols < 2 or cols > 4:
                 raise TypeError("Matrix can have 2, 3 or 4 columns.")
             if rows < 2 or rows > 4:
@@ -230,13 +235,11 @@ class Matrix(Composite):
                 f"Matrix({cols},{rows},{subtype.__name__})", Matrix, props
             )
         else:
-            # return super().__new__(cls, *args)
-            return cls._get_ctypes_object(*args)
+            return super().__new__(cls, *args)
 
     @classmethod
-    def _get_ctypes_object(cls, *args):
-        ctype = cls.subtype._ctype * (cls.cols * cls.rows)  # todo: or  * (cols * rows)
-        return ctype(*args)
+    def _as_ctype(cls):
+        return cls.subtype._ctype * (cls.cols * cls.rows)  # todo: or  * (cols * rows)
 
     # def __getitem__(self, i):
     #     return self._cval[i]
@@ -247,7 +250,7 @@ class Matrix(Composite):
 
 class Array(Aggregate):
     """ Base class for Array types. Concrete types are templated based on
-    length and subtype. Subtype can be any GpuType except void.
+    length and subtype. Subtype can be any ShaderType except void.
     """
 
     subtype = None
@@ -266,26 +269,24 @@ class Array(Aggregate):
             else:
                 raise TypeError("Array specialization needs 2 args: Array(n, subtype)")
             # Validate
-            if not isinstance(subtype, type) and issubclass(subtype, GpuType):
-                raise TypeError("Array subtype must be a GpuType.")
+            if not isinstance(subtype, type) and issubclass(subtype, ShaderType):
+                raise TypeError("Array subtype must be a ShaderType.")
             elif issubclass(subtype, void):
                 raise TypeError("Array subtype cannot be void.")
             elif subtype.is_abstract:
-                raise TypeError("Array subtype cannot be an abstract GpuType.")
+                raise TypeError("Array subtype cannot be an abstract ShaderType.")
             props = dict(subtype=subtype, length=n, is_abstract=False)
             if n == 0:  # means it's length is unknown)
                 return _create_type(f"Array({subtype.__name__})", Array, props)
             else:
                 return _create_type(f"Array({n},{subtype.__name__})", Array, props)
         else:
-            # return super().__new__(cls, *args)
-            return cls._get_ctypes_object(*args)
+            return super().__new__(cls, *args)
 
     @classmethod
-    def _get_ctypes_object(cls, *args):
-        sub_ctype = cls.subtype._get_ctypes_object().__class__
-        ctype = sub_ctype * cls.length
-        return ctype(*args)
+    def _as_ctype(cls):
+        sub_ctype = cls.subtype._as_ctype()
+        return sub_ctype * cls.length
 
     # def __getitem__(self, i):
     #     return self._cval[i]
@@ -303,12 +304,12 @@ class Struct(Aggregate):
             n = len(kwargs)
             # Validate
             for key, subtype in kwargs.items():
-                if not isinstance(subtype, type) and issubclass(subtype, GpuType):
-                    raise TypeError("Struct subtype must be a GpuType.")
+                if not isinstance(subtype, type) and issubclass(subtype, ShaderType):
+                    raise TypeError("Struct subtype must be a ShaderType.")
                 elif issubclass(subtype, void):
                     raise TypeError("Struct subtype cannot be void.")
                 elif subtype.is_abstract:
-                    raise TypeError("Struct subtype cannot be an abstract GpuType.")
+                    raise TypeError("Struct subtype cannot be an abstract ShaderType.")
                 if not isinstance(
                     key, str
                 ):  # and key.isidentifier(): -> allow . in name?
@@ -322,18 +323,13 @@ class Struct(Aggregate):
             props.update(dict(length=n, keys=keys, _kwargs=kwargs, is_abstract=False))
             return _create_type(f"Struct({','.join(type_names)})", Struct, props)
         else:
-            # return super().__new__(cls, **kwargs)
-            return cls._get_ctypes_object(**kwargs)
+            return super().__new__(cls, **kwargs)
 
     @classmethod
-    def _get_ctypes_object(cls, **kwargs):
-        type_fields = [
-            (key, val._get_ctypes_object().__class__)
-            for key, val in cls._kwargs.items()
-        ]
+    def _as_ctype(cls):
+        type_fields = [(key, val._as_ctype()) for key, val in cls._kwargs.items()]
         type_name = "C_" + cls.__name__
-        ctype = type(type_name, (ctypes.Structure,), {"_fields_": type_fields})
-        return ctype(**kwargs)
+        return type(type_name, (ctypes.Structure,), {"_fields_": type_fields})
 
     @classmethod
     def get_subtype(cls, key):
@@ -366,7 +362,7 @@ base_types = dict(Vector=Vector, Matrix=Matrix, Array=Array, Struct=Struct)
 # %% Concrete leaf types
 
 
-class void(GpuType):
+class void(ShaderType):
     is_abstract = False
     _ctype = ctypes.c_void_p
 
@@ -489,7 +485,7 @@ _subtypes.update(convenience_types)
 # Types that can be referenced by name.
 gpu_types_map = {}
 gpu_types_map.update(leaf_types)
-gpu_types_map.update(base_types)  # Only the last level, e,g. not GpuType
+gpu_types_map.update(base_types)  # Only the last level, e,g. not ShaderType
 gpu_types_map.update(convenience_types)
 
 
@@ -515,10 +511,10 @@ class BaseShaderResource:
         ):
             raise TypeError("IOType slot must be a nonnegative int or nonempty str.")
         self.slot = slot
-        if not isinstance(subtype, type) and issubclass(subtype, GpuType):
-            raise TypeError("IOType subtype must be a GpuType.")
+        if not isinstance(subtype, type) and issubclass(subtype, ShaderType):
+            raise TypeError("IOType subtype must be a ShaderType.")
         elif subtype.is_abstract:
-            raise TypeError("IOType subtype cannot be an abstract GpuType.")
+            raise TypeError("IOType subtype cannot be an abstract ShaderType.")
         self.subtype = subtype
 
 

@@ -119,7 +119,7 @@ class Wasl2Bytecode:
     def visit_number(self, node):
         self.emit(bc.CO_LOAD_CONSTANT, node.value)
 
-    def visit_callixpr(self, node):
+    def visit_callexpr(self, node):
         self.emit(bc.CO_LOAD, node.name)
         for arg in node.args:
             self.visit(arg)
