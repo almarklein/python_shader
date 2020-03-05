@@ -10,7 +10,7 @@ import python_shader
 from python_shader import InputResource, BufferResource
 from python_shader import f32, i32, vec2, vec3, vec4, Array  # noqa
 
-import wgpu.backend.rs  # noqa
+import wgpu.backends.rs  # noqa
 from wgpu.utils import compute_with_buffers
 
 import pytest
