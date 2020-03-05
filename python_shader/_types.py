@@ -198,12 +198,6 @@ class Vector(Composite):
     def _as_ctype(cls):
         return cls.subtype._ctype * cls.length
 
-    # def __getitem__(self, i):
-    #     return self._cval[i]
-    #
-    # def __setitem__(self, i, value):
-    #     self._cval[i] = value
-
 
 class Matrix(Composite):
     """ Base class for Matrix types. Concrete types are templated based on
@@ -240,12 +234,6 @@ class Matrix(Composite):
     @classmethod
     def _as_ctype(cls):
         return cls.subtype._ctype * (cls.cols * cls.rows)  # todo: or  * (cols * rows)
-
-    # def __getitem__(self, i):
-    #     return self._cval[i]
-    #
-    # def __setitem__(self, i, value):
-    #     self._cval[i] = value
 
 
 class Array(Aggregate):
@@ -287,12 +275,6 @@ class Array(Aggregate):
     def _as_ctype(cls):
         sub_ctype = cls.subtype._as_ctype()
         return sub_ctype * cls.length
-
-    # def __getitem__(self, i):
-    #     return self._cval[i]
-    #
-    # def __setitem__(self, i, value):
-    #     self._cval[i] = value
 
 
 class Struct(Aggregate):
@@ -337,22 +319,6 @@ class Struct(Aggregate):
             return cls._kwargs[cls.keys[key]]
         else:
             return cls._kwargs[key]
-
-    # def __getattribute__(self, name):
-    #     keys = object.__getattribute__(self, "keys")
-    #     if name in keys:
-    #         cval = object.__getattribute__(self, "_cval")
-    #         return getattr(cval, name)
-    #     else:
-    #         return object.__getattribute__(self, name)
-    #
-    # def __setattr__(self, name, value):
-    #     keys = object.__getattribute__(self, "keys")
-    #     if name in keys:
-    #         cval = object.__getattribute__(self, "_cval")
-    #         setattr(cval, name, value)
-    #     else:
-    #         object.__setattr__(self, name, value)
 
 
 # The base types that can be used to create composite types
