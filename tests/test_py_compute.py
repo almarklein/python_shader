@@ -107,6 +107,7 @@ def test_copy_vec3():
     out = compute_with_buffers(inp_arrays, out_arrays, compute_shader, n=20)
 
     # NOPE, buffers alignments are rounded to vec4 ...
+    # https://stackoverflow.com/questions/38172696/
 
     # assert iters_equal(out[1], range(60))
     assert iters_equal(out[1][0::4], range(0, 60, 4))

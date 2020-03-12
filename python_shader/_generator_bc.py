@@ -5,6 +5,7 @@ Implements generating SpirV code from our bytecode.
 from ._generator_base import BaseSpirVGenerator, ValueId, VariableAccessId
 from . import _spirv_constants as cc
 from . import _types
+from . import stdlib
 
 from .opcodes import OpCodeDefinitions
 
@@ -30,8 +31,9 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         self._output = {}
         self._uniform = {}
         self._buffer = {}
+        self._sampler = {}
+        self._texture = {}
         self._slotmap = {}  # (namespaceidentifier, slot) -> name
-        self._image = {}  # differentiate between texture and sampler?
 
         # Resulting values may be given a name so we can pick them up
         self._aliases = {}
@@ -124,8 +126,34 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
                     raise TypeError("Scalar convert needs exactly one argument.")
                 result = self._convert_scalar(func, args[0])
             self._stack.append(result)
+        elif callable(func):
+            if func.__name__ == "sampler2D":
+                tex, sam = args
+                tex_type_id = self.obtain_type_id(tex.type)
+                restype = (cc.OpTypeSampledImage, tex_type_id)
+                result_id, type_id = self.obtain_value(restype)
+                self.gen_func_instruction(
+                    cc.OpSampledImage, type_id, result_id, tex, sam
+                )
+                self._stack.append(result_id)
+            elif func.__name__ == "texture":
+                samtex, coord = args
+                result_id, type_id = self.obtain_value(_types.vec4)
+                zero = self.obtain_constant(0.0)
+                self.gen_func_instruction(
+                    cc.OpImageSampleExplicitLod,
+                    type_id,
+                    result_id,
+                    samtex,
+                    coord,
+                    cc.ImageOperandsMask_Lod,
+                    zero,
+                )
+                self._stack.append(result_id)
+            else:
+                raise NotImplementedError(f"Unknown function: {func} ")
         else:
-            raise NotImplementedError()
+            raise TypeError(f"Not callable: {func}")
 
     # %% IO
 
@@ -134,6 +162,11 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         bindgroup = 0
         if isinstance(slot, tuple):
             bindgroup, slot = slot
+
+        # --> https://www.khronos.org/opengl/wiki/Layout_Qualifier_(GLSL)
+
+        # todo: should we check if the incoming code has the proper amount of skipping
+        # in input and output slots?
 
         # Triage over input kind
         if kind == "input":
@@ -149,6 +182,12 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         elif kind == "buffer":  # slot == binding
             # note: this should be cc.StorageClass_StorageBuffer in SpirV 1.4+
             storage_class, iodict = cc.StorageClass_Uniform, self._buffer
+            location_or_binding = cc.Decoration_Binding
+        elif kind == "sampler":
+            storage_class, iodict = cc.StorageClass_UniformConstant, self._sampler
+            location_or_binding = cc.Decoration_Binding
+        elif kind == "texture":
+            storage_class, iodict = cc.StorageClass_UniformConstant, self._texture
             location_or_binding = cc.Decoration_Binding
         else:
             raise RuntimeError(f"Invalid IO kind {kind}")
@@ -174,7 +213,7 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             var_name = "var-" + name
             var_type = _types.type_from_name(typename)
             subtypes = None
-        else:
+        elif kind in ("uniform", "buffer"):
             # Block - Consider the variable to be a struct
             var_name = "var-" + name
             var_type = _types.type_from_name(typename)
@@ -185,6 +224,30 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
                 subtypes = {name: var_type}
                 var_type = _types.Struct(**subtypes)
                 var_name = "var-" + var_type.__name__
+        elif kind == "sampler":
+            var_name = "var-" + name
+            var_type = (cc.OpTypeSampler,)
+            subtypes = None
+        elif kind == "texture":
+            var_name = "var-" + name
+            # todo: texture2DArray, depth, multisampling
+            stype = self.obtain_type_id(_types.f32)  # The resulting type when sampled
+            m = {
+                "1d": cc.Dim_Dim1D,
+                "2d": cc.Dim_Dim2D,
+                "3d": cc.Dim_Dim3D,
+                "cube": cc.Dim_Cube,
+            }
+            dim = m[typename.lower()]
+            depth = 0  # 0: no depth, 1: depth image, 2: unknown
+            arrayed = 0  # bool
+            ms = 0  # multisampling (bool)
+            sampled = 1  # 0: unknown, 1: only used with sampler, 2: no sampler
+            fmt = cc.ImageFormat_Unknown
+            var_type = (cc.OpTypeImage, stype, dim, depth, arrayed, ms, sampled, fmt)
+            subtypes = None
+        else:
+            assert False  # unreachable
 
         # Create VariableAccessId object
         var_access = self.obtain_variable(var_type, storage_class, var_name)
@@ -263,8 +326,16 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         elif name in self._buffer:
             ob = self._buffer[name]
             assert isinstance(ob, VariableAccessId)
+        elif name in self._sampler:
+            ob = self._sampler[name]
+            assert isinstance(ob, VariableAccessId)
+        elif name in self._texture:
+            ob = self._texture[name]
+            assert isinstance(ob, VariableAccessId)
         elif name in _types.gpu_types_map:  # todo: use type_from_name instead?
             ob = _types.gpu_types_map[name]
+        elif hasattr(stdlib, name):
+            ob = getattr(stdlib, name)
         else:
             raise NameError(f"Using invalid variable: {name}")
         self._stack.append(ob)

@@ -83,6 +83,25 @@ def test_cannot_assign_same_slot():
     assert "already taken" in str(err.value)
 
 
+# todo: is this API for textures ok? At least now force using "" there :)
+# todo: don't use stdlib attributes
+
+from python_shader import stdlib, f32, void
+
+
+def test_texture2d_1():
+    @python2shader_and_validate
+    def fragment_shader(
+        texcoord: ("input", 0, vec2),
+        outcolor: ("output", 0, vec4),
+        # tex: ("texture2d", (0, 1), f32),
+        tex: ("texture", (0, 1), "2d"),
+        sampler: ("sampler", (0, 2), void),  # todo: yuk void?
+    ):
+        samtex = stdlib.sampler2D(tex, sampler)
+        outcolor = stdlib.texture(samtex, texcoord)  # noqa
+
+
 # %% Utils for this module
 
 

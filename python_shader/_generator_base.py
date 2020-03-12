@@ -385,10 +385,6 @@ class BaseSpirVGenerator:
     def obtain_value(self, the_type, name=""):
         """ Create id for a new value. Returns (value_id, type_id).
         """
-        assert isinstance(
-            the_type, type
-        ), f"obtain_value requires a type, not {the_type}"
-        assert issubclass(the_type, _types.ShaderType), f"not a spirv type: {the_type}"
         type_id = self.obtain_type_id(the_type)
         value_id = ValueId(the_type)
         return value_id, type_id
@@ -449,20 +445,35 @@ class BaseSpirVGenerator:
         return VariableAccessId(var_id, storage_class, the_type, name=name)
 
     def obtain_type_id(self, the_type):
-        """ Get the id for the given type_name. Generates a type
+        """ Get the id for the given type. Generates a type
         definition instruction as needed.
         """
-        assert isinstance(
-            the_type, type
-        ), f"obtain_type_id requires a type, not {the_type}"
-        assert issubclass(the_type, _types.ShaderType), f"not a spirv type: {the_type}"
-        assert not the_type.is_abstract, f"not a concrete spirv type: {the_type}"
+        if isinstance(the_type, tuple):
+            if not (
+                the_type
+                and isinstance(the_type[0], cc.Enum)
+                and the_type[0].name.startswith("OpType")
+            ):
+                raise TypeError(
+                    "ShaderType can be tuple only if it specifies the OpTypeXYZ"
+                )
+            type_name = str(the_type)
+        else:
+            if not (
+                isinstance(the_type, type) and issubclass(the_type, _types.ShaderType)
+            ):
+                raise TypeError(f"not a ShaderType subclass: {the_type}")
+            assert not the_type.is_abstract, f"not a concrete spirv type: {the_type}"
+            type_name = the_type.__name__
 
         # Already know this type?
-        if the_type.__name__ in self._type_name_to_id:
-            return self._type_name_to_id[the_type.__name__]
+        if type_name in self._type_name_to_id:
+            return self._type_name_to_id[type_name]
 
-        if issubclass(the_type, _types.void):
+        if isinstance(the_type, tuple):
+            type_id = TypeId(the_type)  # all info is now on TypeId instance
+            self.gen_instruction("types", the_type[0], type_id, *the_type[1:])
+        elif issubclass(the_type, _types.void):
             type_id = TypeId(the_type)
             self.gen_instruction("types", cc.OpTypeVoid, type_id)
         elif issubclass(the_type, _types.boolean):
@@ -535,6 +546,5 @@ class BaseSpirVGenerator:
         else:
             raise NotImplementedError(the_type)
 
-        # todo: also OpTypeImage and OpTypeSampledImage
-        self._type_name_to_id[the_type.__name__] = type_id
+        self._type_name_to_id[type_name] = type_id
         return type_id

@@ -4,6 +4,7 @@ from dis import dis as pprint_bytecode
 from ._module import ShaderModule
 from .opcodes import OpCodeDefinitions as op
 from ._dis import dis
+from . import stdlib
 from . import _types
 from ._types import gpu_types_map
 
@@ -56,16 +57,22 @@ class PyBytecode2Bytecode:
         self._output = {}
         self._uniform = {}
         self._buffer = {}
+        self._texture = {}
+        self._sampler = {}
 
         # todo: odd, but name must be the same for vertex and fragment shader??
         entrypoint_name = "main"  # py_func.__name__
         self.emit(op.co_entrypoint, entrypoint_name, shader_type, {})
 
         KINDMAP = {
+            # todo: use / allow "in" and "out"
             "input": self._input,
             "output": self._output,
             "uniform": self._uniform,
             "buffer": self._buffer,
+            # todo: or are these uniforms with subtype texture?
+            "sampler": self._sampler,
+            "texture": self._texture,
         }
 
         # Parse function inputs
@@ -92,6 +99,7 @@ class PyBytecode2Bytecode:
                     f"Python-shader arg {argname} must be a resource object "
                     + f"(3-tuple or e.g. InputResource), not {type(resource)}."
                 )
+            kind = kind.lower()
             subtype = subtype.__name__ if isinstance(subtype, type) else subtype
             # Get dict to store ref in
             try:
@@ -159,7 +167,9 @@ class PyBytecode2Bytecode:
             method = getattr(self, method_name, None)
             if method is None:
                 pprint_bytecode(self._co)
-                raise RuntimeError(f"Cannot parse {opname} yet (no {method_name}()).")
+                raise RuntimeError(
+                    f"Cannot parse py's {opname} yet (no {method_name}())."
+                )
             else:
                 method()
 
@@ -200,6 +210,12 @@ class PyBytecode2Bytecode:
         elif name in self._buffer:
             self.emit(op.co_load_name, "buffer." + name)
             self._stack.append("buffer." + name)
+        elif name in self._sampler:
+            self.emit(op.co_load_name, "sampler." + name)
+            self._stack.append("sampler." + name)
+        elif name in self._texture:
+            self.emit(op.co_load_name, "texture." + name)
+            self._stack.append("texture." + name)
         else:
             # Normal load
             self.emit(op.co_load_name, name)
@@ -218,6 +234,10 @@ class PyBytecode2Bytecode:
             self.emit(op.co_store_name, "uniform." + name)
         elif name in self._buffer:
             self.emit(op.co_store_name, "buffer." + name)
+        elif name in self._sampler:
+            self.emit(op.co_store_name, "sampler." + name)
+        elif name in self._texture:
+            self.emit(op.co_store_name, "texture." + name)
         else:
             # Normal store
             self.emit(op.co_store_name, name)
@@ -236,8 +256,11 @@ class PyBytecode2Bytecode:
     def _op_load_global(self):
         i = self._next()
         name = self._co.co_names[i]
-        self.emit(op.co_load_name, name)
-        self._stack.append(name)
+        if name == "stdlib":
+            self._stack.append(stdlib)
+        else:
+            self.emit(op.co_load_name, name)
+            self._stack.append(name)
 
     def _op_load_attr(self):
         i = self._next()
@@ -245,6 +268,25 @@ class PyBytecode2Bytecode:
         ob = self._stack.pop()  # noqa
         self.emit(op.co_load_attr, name)
         self._stack.append(name)
+
+    def _op_load_method(self):
+        i = self._next()
+        attr_name = self._co.co_names[i]
+        ob = self._stack.pop()
+        if ob is stdlib:
+            self._stack.append(None)
+            self._stack.append("stdlib." + attr_name)
+            self.emit(op.co_load_name, attr_name)
+        else:
+            raise NotImplementedError(
+                "Cannot call functions from object, except from stdlib."
+            )
+
+    def _op_load_deref(self):
+        self._next()
+        # ext_ob_name = self._co.co_freevars[i]
+        # ext_ob = self._py_func.__closure__[i]
+        raise NotImplementedError("Shaders cannot be used as closures atm.")
 
     def _op_store_attr(self):
         i = self._next()
@@ -268,6 +310,20 @@ class PyBytecode2Bytecode:
             assert isinstance(func, str)
             self.emit(op.co_call, nargs)
             self._stack.append(None)
+
+    def _op_call_method(self):
+        nargs = self._next()
+        args = self._stack[-nargs:]
+        args  # todo: not used?
+        self._stack[-nargs:] = []
+
+        func = self._stack.pop()
+        ob = self._stack.pop()
+        assert isinstance(func, str)
+        assert ob is None
+
+        self.emit(op.co_call, nargs)
+        self._stack.append(None)
 
     def _op_binary_subscr(self):
         self._next()  # because always 1 arg even if dummy
