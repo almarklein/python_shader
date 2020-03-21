@@ -15,6 +15,23 @@ from .opcodes import OpCodeDefinitions
 # - expect input/output/uniform at the very start (or inside an entrypoint?)
 
 
+image_formats_that_need_no_ext = {
+    cc.ImageFormat_Rgba32f,
+    cc.ImageFormat_Rgba16f,
+    cc.ImageFormat_Rgba32i,
+    cc.ImageFormat_Rgba32ui,
+    cc.ImageFormat_Rgba16i,
+    cc.ImageFormat_Rgba16ui,
+    cc.ImageFormat_Rgba8,
+    cc.ImageFormat_Rgba8i,
+    cc.ImageFormat_Rgba8ui,
+    cc.ImageFormat_Rgba8Snorm,
+    cc.ImageFormat_R32f,
+    cc.ImageFormat_R32i,
+    cc.ImageFormat_R32ui,
+}
+
+
 class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
     """ A generator that operates on our own well-defined bytecode.
 
@@ -127,7 +144,24 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
                 result = self._convert_scalar(func, args[0])
             self._stack.append(result)
         elif callable(func):
-            if func.__name__ == "sampler2D":
+            if func.__name__ == "imageLoad":
+                # OpTypeImage
+                self._capabilities.add(cc.Capability_StorageImageReadWithoutFormat)
+                tex, coord = args
+                assert coord.type in (_types.i32, _types.ivec2, _types.ivec3)
+                result_id, type_id = self.obtain_value(_types.vec4)
+                self.gen_func_instruction(
+                    cc.OpImageRead, type_id, result_id, tex, coord,
+                )
+                self._stack.append(result_id)
+            elif func.__name__ == "imageStore":
+                self._capabilities.add(cc.Capability_StorageImageWriteWithoutFormat)
+                tex, coord, color = args
+                assert coord.type in (_types.i32, _types.ivec2, _types.ivec3)
+                assert color.type is _types.vec4
+                self.gen_func_instruction(cc.OpImageWrite, tex, coord, color)
+                self._stack.append(None)  # this call returns None, gets popped
+            elif func.__name__ == "sampler2D":
                 tex, sam = args
                 tex_type_id = self.obtain_type_id(tex.type)
                 restype = (cc.OpTypeSampledImage, tex_type_id)
@@ -139,7 +173,6 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             elif func.__name__ == "texture":
                 samtex, coord = args
                 result_id, type_id = self.obtain_value(_types.vec4)
-                zero = self.obtain_constant(0.0)
                 self.gen_func_instruction(
                     cc.OpImageSampleExplicitLod,
                     type_id,
@@ -147,7 +180,7 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
                     samtex,
                     coord,
                     cc.ImageOperandsMask_Lod,
-                    zero,
+                    self.obtain_constant(0.0),
                 )
                 self._stack.append(result_id)
             else:
@@ -242,8 +275,18 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             depth = 0  # 0: no depth, 1: depth image, 2: unknown
             arrayed = 0  # bool
             ms = 0  # multisampling (bool)
-            sampled = 1  # 0: unknown, 1: only used with sampler, 2: no sampler
+            sampled = 0  # 0: unknown, 1: only used with sampler, 2: no sampler
             fmt = cc.ImageFormat_Unknown
+
+            # TODO: DEBUUGING
+            # fmt = cc.ImageFormat_Rgba32f
+            # fmt = cc.ImageFormat_R8Snorm
+            # fmt = cc.ImageFormat_R8ui
+            sampled = 1  # todo: 1 for sampled, 2 for storage
+
+            if fmt and fmt not in image_formats_that_need_no_ext:
+                self._capabilities.add(cc.Capability_StorageImageExtendedFormats)
+
             var_type = (cc.OpTypeImage, stype, dim, depth, arrayed, ms, sampled, fmt)
             subtypes = None
         else:
