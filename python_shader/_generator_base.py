@@ -165,6 +165,20 @@ class VariableAccessId(ValueId):
     resolve = resolve_load
 
 
+class WordPlaceholder:
+    """ Object that holds an integer value (or 4 bytes), which value
+    can be changed as more of the code is parsed. This e.g. allows
+    specifying types with knowledge that we encounter later in the
+    program.
+    """
+
+    def __init__(self, initial_value):
+        self.value = initial_value
+
+    def __repr__(self):
+        return f"~{self.value}"
+
+
 class BaseSpirVGenerator:
     """ Base class that can be used by compiler implementations in the
     last compile step to generate the SpirV code. It has an internal
@@ -195,7 +209,7 @@ class BaseSpirVGenerator:
 
         self._ids = {0: None}  # maps id -> info. For objects, info is a type in _types
         self._constants = {}
-        self._type_name_to_id = {}
+        self._type_hash_to_id = {}
         self._capabilities = set()
         self.scope_stack = []  # stack of dicts: name -> id, type, type_id
         # todo: can we do without a stack, pass everything into funcs?
@@ -353,6 +367,8 @@ class BaseSpirVGenerator:
                 for word in instr_words:
                     if isinstance(word, AnyId):
                         words.append(word.id)
+                    elif isinstance(word, WordPlaceholder):
+                        words.append(word.value)
                     elif isinstance(word, str):
                         words.extend(str_to_words(word))
                     else:
@@ -457,18 +473,18 @@ class BaseSpirVGenerator:
                 raise TypeError(
                     "ShaderType can be tuple only if it specifies the OpTypeXYZ"
                 )
-            type_name = str(the_type)
+            type_hash = hash(the_type)
         else:
             if not (
                 isinstance(the_type, type) and issubclass(the_type, _types.ShaderType)
             ):
                 raise TypeError(f"not a ShaderType subclass: {the_type}")
             assert not the_type.is_abstract, f"not a concrete spirv type: {the_type}"
-            type_name = the_type.__name__
+            type_hash = the_type.__name__
 
         # Already know this type?
-        if type_name in self._type_name_to_id:
-            return self._type_name_to_id[type_name]
+        if type_hash in self._type_hash_to_id:
+            return self._type_hash_to_id[type_hash]
 
         if isinstance(the_type, tuple):
             type_id = TypeId(the_type)  # all info is now on TypeId instance
@@ -546,5 +562,5 @@ class BaseSpirVGenerator:
         else:
             raise NotImplementedError(the_type)
 
-        self._type_name_to_id[type_name] = type_id
+        self._type_hash_to_id[type_hash] = type_id
         return type_id

@@ -2,7 +2,12 @@
 Implements generating SpirV code from our bytecode.
 """
 
-from ._generator_base import BaseSpirVGenerator, ValueId, VariableAccessId
+from ._generator_base import (
+    BaseSpirVGenerator,
+    ValueId,
+    VariableAccessId,
+    WordPlaceholder,
+)
 from . import _spirv_constants as cc
 from . import _types
 from . import stdlib
@@ -146,8 +151,9 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         elif callable(func):
             if func.__name__ == "imageLoad":
                 # OpTypeImage
-                self._capabilities.add(cc.Capability_StorageImageReadWithoutFormat)
                 tex, coord = args
+                self._capabilities.add(cc.Capability_StorageImageReadWithoutFormat)
+                tex.depth.value, tex.sampled.value = 0, 2
                 if coord.type not in (_types.i32, _types.ivec2, _types.ivec3):
                     raise TypeError(
                         "Expected texture coords to be i32, ivec2 or ivec3."
@@ -159,8 +165,9 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
                 )
                 self._stack.append(result_id)
             elif func.__name__ == "imageStore":
-                self._capabilities.add(cc.Capability_StorageImageWriteWithoutFormat)
                 tex, coord, color = args
+                self._capabilities.add(cc.Capability_StorageImageWriteWithoutFormat)
+                tex.depth.value, tex.sampled.value = 0, 2
                 if coord.type not in (_types.i32, _types.ivec2, _types.ivec3):
                     raise TypeError(
                         "Expected texture coords to be i32, ivec2 or ivec3."
@@ -187,6 +194,7 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
                 self._stack.append(result_id)
             elif func.__name__ == "texture":  # -> sampling from the texture
                 samtex, coord = args
+                samtex.texture.depth.value, samtex.texture.sampled.value = 0, 1
                 sample_type = samtex.texture.sample_type
                 result_id, type_id = self.obtain_value(_types.Vector(4, sample_type))
                 self.gen_func_instruction(
@@ -280,19 +288,15 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             subtypes = None
         elif kind == "texture":
             var_name = "var-" + name
-            # todo: texture2DArray, depth, multisampling
             # Get a list of type info parts
             type_info = typename.lower().replace(",", " ").split()
-            # Get whether the texture is sampled - 0: unknown, 1: sampled, 2: storage
-            sampled = 2 if "storage" in type_info else 1
             # Get dimension of the texture, and whether it is arrayed
             arrayed = 0
             if "1d" in type_info or "1d-array" in type_info:
                 dim = cc.Dim_Dim1D
                 arrayed = 1 if "1d-array" in type_info else 0
                 self._capabilities.add(cc.Capability_Image1D)
-                if sampled:
-                    self._capabilities.add(cc.Capability_Sampled1D)
+                # self._capabilities.add(cc.Capability_Sampled1D)
             elif "2d" in type_info or "2d-array" in type_info:
                 dim = cc.Dim_Dim2D
                 arrayed = 1 if "2d-array" in type_info else 0
@@ -308,14 +312,9 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             fmt = cc.ImageFormat_Unknown
             sample_type = None  # can be set through format or specified explicitly
             for part in type_info:
-                # Try finding an explicitly defined format
                 if part.startswith("r"):
-                    part = (
-                        part.replace("uint", "ui")
-                        .replace("sint", "i")
-                        .replace("int", "i")
-                    )
-                    part = part.replace("float", "f")
+                    part = part.replace("uint", "ui").replace("sint", "i")
+                    part = part.replace("int", "i").replace("float", "f")
                     try:
                         fmt = getattr(cc, "ImageFormat_R" + part[1:])
                     except AttributeError:
@@ -332,12 +331,15 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
                 sample_type = _types.i32
             elif "f32" in type_info:
                 sample_type = _types.f32
-            if sample_type is None: # note that it can have been set from fmt
+            if sample_type is None:  # note that it can have been set from fmt
                 raise ValueError(
                     "Texture type info does not specify format nor sample type."
                 )
-            # Get depth, ms
-            depth = 1 if "depth" in type_info else 0  # can also be 2: unknown
+            # Get whether the texture is sampled - 0: unknown, 1: sampled, 2: storage
+            sampled = WordPlaceholder(0)  # -> to be set later
+            # Get depth, ms - 0: no, 1: yes, 2: unknown
+            depth = WordPlaceholder(2)
+            # Get multisampling
             ms = 1 if "ms" in type_info else 0
             # We now have all the info!
             stype = self.obtain_type_id(sample_type)
@@ -353,6 +355,8 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         # On textures, store some more info that we need when sampling
         if kind == "texture":
             var_access.sample_type = sample_type
+            var_access.sampled = sampled  # a word placeholder
+            var_access.depth = depth  # a word placeholder
 
         # Dectorate block for uniforms and buffers
         if kind == "uniform":
