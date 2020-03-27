@@ -285,18 +285,23 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             type_info = typename.lower().replace(",", " ").split()
             # Get whether the texture is sampled - 0: unknown, 1: sampled, 2: storage
             sampled = 2 if "storage" in type_info else 1
-            # Get dimension of the texture
-            if "1d" in type_info:
+            # Get dimension of the texture, and whether it is arrayed
+            arrayed = 0
+            if "1d" in type_info or "1d-array" in type_info:
                 dim = cc.Dim_Dim1D
+                arrayed = 1 if "1d-array" in type_info else 0
                 self._capabilities.add(cc.Capability_Image1D)
                 if sampled:
                     self._capabilities.add(cc.Capability_Sampled1D)
-            elif "2d" in type_info:
+            elif "2d" in type_info or "2d-array" in type_info:
                 dim = cc.Dim_Dim2D
-            elif "3d" in type_info:
+                arrayed = 1 if "2d-array" in type_info else 0
+            elif "3d" in type_info or "3d-array" in type_info:
                 dim = cc.Dim_Dim3D
-            elif "cube" in type_info:
+                arrayed = 1 if "3d-array" in type_info else 0
+            elif "cube" in type_info or "cube-array" in type_info:
                 dim = cc.Dim_Cube
+                arrayed = 1 if "cube-array" in type_info else 0
             else:
                 raise ValueError("Texture type info does not specify dimensionality.")
             # Get format
@@ -327,13 +332,12 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
                 sample_type = _types.i32
             elif "f32" in type_info:
                 sample_type = _types.f32
-            if sample_type is None:
+            if sample_type is None: # note that it can have been set from fmt
                 raise ValueError(
                     "Texture type info does not specify format nor sample type."
                 )
-            # Get depth, arrayed, ms
+            # Get depth, ms
             depth = 1 if "depth" in type_info else 0  # can also be 2: unknown
-            arrayed = 1 if "array" in type_info else 0
             ms = 1 if "ms" in type_info else 0
             # We now have all the info!
             stype = self.obtain_type_id(sample_type)
