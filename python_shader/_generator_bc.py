@@ -533,7 +533,9 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
     def co_load_attr(self, name):
         ob = self._stack.pop()
 
-        if isinstance(ob, VariableAccessId) and issubclass(ob.type, _types.Struct):
+        if not isinstance(getattr(ob, "type"), type):
+            raise AttributeError("Invalid attribute access")
+        elif isinstance(ob, VariableAccessId) and issubclass(ob.type, _types.Struct):
             # Struct attribute access
             if name not in ob.type.keys:
                 raise TypeError(f"Attribute {name} invalid for {ob.type.__name__}.")

@@ -266,8 +266,20 @@ class PyBytecode2Bytecode:
         i = self._next()
         name = self._co.co_names[i]
         ob = self._stack.pop()  # noqa
-        self.emit(op.co_load_attr, name)
-        self._stack.append(name)
+        if ob is stdlib:
+            func_name = "stdlib." + name
+            self._stack.append(func_name)
+            self.emit(op.co_load_name, func_name)
+        elif isinstance(ob, str) and ob.startswith("texture."):
+            func_name = "texture." + name
+            self._stack.append(ob)
+            self._stack.append(func_name)
+            self.emit(op.co_pop_top)
+            self.emit(op.co_load_name, func_name)
+            self.emit(op.co_load_name, ob)
+        else:
+            self.emit(op.co_load_attr, name)
+            self._stack.append(name)
 
     def _op_load_method(self):
         i = self._next()
@@ -313,8 +325,12 @@ class PyBytecode2Bytecode:
             # A type definition
             type_str = f"{func}({','.join(args)})"
             self._stack.append(type_str)
+        elif func.startswith("texture."):
+            ob = self._stack.pop()
+            assert ob.startswith("texture.")  # a texture object
+            self.emit(op.co_call, nargs + 1)
+            self._stack.append(None)
         else:
-            # Normal call
             assert isinstance(func, str)
             self.emit(op.co_call, nargs)
             self._stack.append(None)
@@ -330,12 +346,12 @@ class PyBytecode2Bytecode:
         assert isinstance(func, str)
         if func.startswith("texture."):
             assert ob.startswith("texture.")  # a texture object
-            nargs += 1
+            self.emit(op.co_call, nargs + 1)
+            self._stack.append(None)
         else:  # func.startswith("stdlib.")
             assert ob is None
-
-        self.emit(op.co_call, nargs)
-        self._stack.append(None)
+            self.emit(op.co_call, nargs)
+            self._stack.append(None)
 
     def _op_binary_subscr(self):
         self._next()  # because always 1 arg even if dummy
