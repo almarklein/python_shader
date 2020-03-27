@@ -148,8 +148,12 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
                 # OpTypeImage
                 self._capabilities.add(cc.Capability_StorageImageReadWithoutFormat)
                 tex, coord = args
-                assert coord.type in (_types.i32, _types.ivec2, _types.ivec3)
-                result_id, type_id = self.obtain_value(_types.vec4)
+                if coord.type not in (_types.i32, _types.ivec2, _types.ivec3):
+                    raise TypeError(
+                        "Expected texture coords to be i32, ivec2 or ivec3."
+                    )
+                vec_sample_type = _types.Vector(4, tex.sample_type)
+                result_id, type_id = self.obtain_value(vec_sample_type)
                 self.gen_func_instruction(
                     cc.OpImageRead, type_id, result_id, tex, coord,
                 )
@@ -157,8 +161,18 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             elif func.__name__ == "imageStore":
                 self._capabilities.add(cc.Capability_StorageImageWriteWithoutFormat)
                 tex, coord, color = args
-                assert coord.type in (_types.i32, _types.ivec2, _types.ivec3)
-                assert color.type is _types.vec4
+                if coord.type not in (_types.i32, _types.ivec2, _types.ivec3):
+                    raise TypeError(
+                        "Expected texture coords to be i32, ivec2 or ivec3."
+                    )
+                if tex.sample_type is _types.i32 and color.type is not _types.ivec4:
+                    raise TypeError(
+                        f"Expected texture value to be ivec4, not {color.type}"
+                    )
+                elif tex.sample_type is _types.f32 and color.type is not _types.vec4:
+                    raise TypeError(
+                        f"Expected texture value to be vec4, not {color.type}"
+                    )
                 self.gen_func_instruction(cc.OpImageWrite, tex, coord, color)
                 self._stack.append(None)  # this call returns None, gets popped
             elif func.__name__ == "sampler2D":
@@ -169,17 +183,20 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
                 self.gen_func_instruction(
                     cc.OpSampledImage, type_id, result_id, tex, sam
                 )
+                result_id.texture = tex
                 self._stack.append(result_id)
-            elif func.__name__ == "texture":
+            elif func.__name__ == "texture":  # -> sampling from the texture
                 samtex, coord = args
-                result_id, type_id = self.obtain_value(_types.vec4)
+                sample_type = samtex.texture.sample_type
+                result_id, type_id = self.obtain_value(_types.Vector(4, sample_type))
                 self.gen_func_instruction(
                     cc.OpImageSampleExplicitLod,
+                    # cc.OpImageSampleImplicitLod,
                     type_id,
                     result_id,
                     samtex,
                     coord,
-                    cc.ImageOperandsMask_Lod,
+                    cc.ImageOperandsMask_MaskNone | cc.ImageOperandsMask_Lod,
                     self.obtain_constant(0.0),
                 )
                 self._stack.append(result_id)
@@ -264,29 +281,62 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         elif kind == "texture":
             var_name = "var-" + name
             # todo: texture2DArray, depth, multisampling
-            stype = self.obtain_type_id(_types.f32)  # The resulting type when sampled
-            m = {
-                "1d": cc.Dim_Dim1D,
-                "2d": cc.Dim_Dim2D,
-                "3d": cc.Dim_Dim3D,
-                "cube": cc.Dim_Cube,
-            }
-            dim = m[typename.lower()]
-            depth = 0  # 0: no depth, 1: depth image, 2: unknown
-            arrayed = 0  # bool
-            ms = 0  # multisampling (bool)
-            sampled = 0  # 0: unknown, 1: only used with sampler, 2: no sampler
+            # Get a list of type info parts
+            type_info = typename.lower().replace(",", " ").split()
+            # Get whether the texture is sampled - 0: unknown, 1: sampled, 2: storage
+            sampled = 2 if "storage" in type_info else 1
+            # Get dimension of the texture
+            if "1d" in type_info:
+                dim = cc.Dim_Dim1D
+                self._capabilities.add(cc.Capability_Image1D)
+                if sampled:
+                    self._capabilities.add(cc.Capability_Sampled1D)
+            elif "2d" in type_info:
+                dim = cc.Dim_Dim2D
+            elif "3d" in type_info:
+                dim = cc.Dim_Dim3D
+            elif "cube" in type_info:
+                dim = cc.Dim_Cube
+            else:
+                raise ValueError("Texture type info does not specify dimensionality.")
+            # Get format
             fmt = cc.ImageFormat_Unknown
-
-            # TODO: DEBUUGING
-            # fmt = cc.ImageFormat_Rgba32f
-            # fmt = cc.ImageFormat_R8Snorm
-            # fmt = cc.ImageFormat_R8ui
-            sampled = 1  # todo: 1 for sampled, 2 for storage
-
+            sample_type = None  # can be set through format or specified explicitly
+            for part in type_info:
+                # Try finding an explicitly defined format
+                if part.startswith("r"):
+                    part = (
+                        part.replace("uint", "ui")
+                        .replace("sint", "i")
+                        .replace("int", "i")
+                    )
+                    part = part.replace("float", "f")
+                    try:
+                        fmt = getattr(cc, "ImageFormat_R" + part[1:])
+                    except AttributeError:
+                        continue
+                    if part.endswith(("f", "norm")):
+                        sample_type = _types.f32
+                    else:
+                        sample_type = _types.i32
+                    break
             if fmt and fmt not in image_formats_that_need_no_ext:
                 self._capabilities.add(cc.Capability_StorageImageExtendedFormats)
-
+            # Get sample type (type of each of the 4 components when sampling)
+            if "i32" in type_info:
+                sample_type = _types.i32
+            elif "f32" in type_info:
+                sample_type = _types.f32
+            if sample_type is None:
+                raise ValueError(
+                    "Texture type info does not specify format nor sample type."
+                )
+            # Get depth, arrayed, ms
+            depth = 1 if "depth" in type_info else 0  # can also be 2: unknown
+            arrayed = 1 if "array" in type_info else 0
+            ms = 1 if "ms" in type_info else 0
+            # We now have all the info!
+            stype = self.obtain_type_id(sample_type)
             var_type = (cc.OpTypeImage, stype, dim, depth, arrayed, ms, sampled, fmt)
             subtypes = None
         else:
@@ -295,6 +345,10 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         # Create VariableAccessId object
         var_access = self.obtain_variable(var_type, storage_class, var_name)
         var_id = var_access.variable
+
+        # On textures, store some more info that we need when sampling
+        if kind == "texture":
+            var_access.sample_type = sample_type
 
         # Dectorate block for uniforms and buffers
         if kind == "uniform":
