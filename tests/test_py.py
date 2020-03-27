@@ -19,7 +19,7 @@ script to get new hashes when needed:
 
 import python_shader
 from python_shader import InputResource, OutputResource, BufferResource
-from python_shader import i32, vec2, vec3, vec4, Array
+from python_shader import f32, i32, vec2, vec3, vec4, ivec3, ivec4, Array
 
 from pytest import mark, raises
 from testutils import can_use_vulkan_sdk, validate_module, run_test_and_print_new_hashes
@@ -83,23 +83,55 @@ def test_cannot_assign_same_slot():
     assert "already taken" in str(err.value)
 
 
-# todo: is this API for textures ok? At least now force using "" there :)
-# todo: don't use stdlib attributes
+def test_texture_2d_f32():
+    # This shader can be used with float and int-norm texture formats
 
-from python_shader import stdlib, f32, void
-
-
-def test_texture2d_1():
     @python2shader_and_validate
     def fragment_shader(
         texcoord: ("input", 0, vec2),
         outcolor: ("output", 0, vec4),
-        # tex: ("texture2d", (0, 1), f32),
-        tex: ("texture", (0, 1), "2d"),
-        sampler: ("sampler", (0, 2), void),  # todo: yuk void?
+        tex: ("texture", (0, 1), "2d f32"),
+        sampler: ("sampler", (0, 2), ""),
     ):
-        samtex = stdlib.sampler2D(tex, sampler)
-        outcolor = stdlib.texture(samtex, texcoord)  # noqa
+        outcolor = tex.sample(sampler, texcoord)  # noqa
+
+
+def test_texture_1d_i32():
+    # This shader can be used with non-norm integer texture formats
+
+    @python2shader_and_validate
+    def fragment_shader(
+        texcoord: ("input", 0, f32),
+        outcolor: ("output", 0, vec4),
+        tex: ("texture", (0, 1), "1d i32"),
+        sampler: ("sampler", (0, 2), ""),
+    ):
+        outcolor = vec4(tex.sample(sampler, texcoord))  # noqa
+
+
+def test_texture_3d_r16i():
+    # This shader explicitly specifies r16i format
+
+    @python2shader_and_validate
+    def fragment_shader(
+        texcoord: ("input", 0, vec3),
+        outcolor: ("output", 0, vec4),
+        tex: ("texture", (0, 1), "3d r16i"),
+        sampler: ("sampler", (0, 2), ""),
+    ):
+        outcolor = vec4(tex.sample(sampler, texcoord))  # noqa
+
+
+def test_texture_compute_2d_rg32i():
+    # compute shaders always need the format speci
+
+    @python2shader_and_validate
+    def compute_shader(
+        index: ("input", "GlobalInvocationId", ivec3), tex: ("texture", 0, "2d rg32i"),
+    ):
+        color = tex.read(index.xy)
+        color = ivec4(color.x + 1, color.y + 2, color.z + 3, color.a + 4)
+        tex.write(index.xy, color)
 
 
 # %% Utils for this module

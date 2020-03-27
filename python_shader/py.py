@@ -271,15 +271,23 @@ class PyBytecode2Bytecode:
 
     def _op_load_method(self):
         i = self._next()
-        attr_name = self._co.co_names[i]
+        method_name = self._co.co_names[i]
         ob = self._stack.pop()
         if ob is stdlib:
+            func_name = "stdlib." + method_name
             self._stack.append(None)
-            self._stack.append("stdlib." + attr_name)
-            self.emit(op.co_load_name, attr_name)
+            self._stack.append(func_name)
+            self.emit(op.co_load_name, func_name)
+        elif isinstance(ob, str) and ob.startswith("texture."):
+            func_name = "texture." + method_name
+            self._stack.append(ob)
+            self._stack.append(func_name)
+            self.emit(op.co_pop_top)
+            self.emit(op.co_load_name, func_name)
+            self.emit(op.co_load_name, ob)
         else:
             raise NotImplementedError(
-                "Cannot call functions from object, except from stdlib."
+                "Cannot call functions from object, except from texture and stdlib."
             )
 
     def _op_load_deref(self):
@@ -320,7 +328,11 @@ class PyBytecode2Bytecode:
         func = self._stack.pop()
         ob = self._stack.pop()
         assert isinstance(func, str)
-        assert ob is None
+        if func.startswith("texture."):
+            assert ob.startswith("texture.")  # a texture object
+            nargs += 1
+        else:  # func.startswith("stdlib.")
+            assert ob is None
 
         self.emit(op.co_call, nargs)
         self._stack.append(None)

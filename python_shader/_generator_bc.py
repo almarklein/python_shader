@@ -10,7 +10,6 @@ from ._generator_base import (
 )
 from . import _spirv_constants as cc
 from . import _types
-from . import stdlib
 
 from .opcodes import OpCodeDefinitions
 
@@ -56,6 +55,9 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         self._sampler = {}
         self._texture = {}
         self._slotmap = {}  # (namespaceidentifier, slot) -> name
+
+        # We keep track of sampler for each combination of texture and sampler
+        self._texture_samplers = {}
 
         # Resulting values may be given a name so we can pick them up
         self._aliases = {}
@@ -148,9 +150,12 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
                     raise TypeError("Scalar convert needs exactly one argument.")
                 result = self._convert_scalar(func, args[0])
             self._stack.append(result)
-        elif callable(func):
-            if func.__name__ == "imageLoad":
-                # OpTypeImage
+
+        elif isinstance(func, str) and func.startswith(("stdlib.", "texture.")):
+            _, _, funcname = func.partition(".")
+
+            # OpTypeImage
+            if funcname in ("imageLoad", "read"):
                 tex, coord = args
                 self._capabilities.add(cc.Capability_StorageImageReadWithoutFormat)
                 tex.depth.value, tex.sampled.value = 0, 2
@@ -164,7 +169,7 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
                     cc.OpImageRead, type_id, result_id, tex, coord,
                 )
                 self._stack.append(result_id)
-            elif func.__name__ == "imageStore":
+            elif funcname in ("imageStore", "write"):
                 tex, coord, color = args
                 self._capabilities.add(cc.Capability_StorageImageWriteWithoutFormat)
                 tex.depth.value, tex.sampled.value = 0, 2
@@ -182,27 +187,16 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
                     )
                 self.gen_func_instruction(cc.OpImageWrite, tex, coord, color)
                 self._stack.append(None)  # this call returns None, gets popped
-            elif func.__name__ == "sampler2D":
-                tex, sam = args
-                tex_type_id = self.obtain_type_id(tex.type)
-                restype = (cc.OpTypeSampledImage, tex_type_id)
-                result_id, type_id = self.obtain_value(restype)
-                self.gen_func_instruction(
-                    cc.OpSampledImage, type_id, result_id, tex, sam
-                )
-                result_id.texture = tex
-                self._stack.append(result_id)
-            elif func.__name__ == "texture":  # -> sampling from the texture
-                samtex, coord = args
-                samtex.texture.depth.value, samtex.texture.sampled.value = 0, 1
-                sample_type = samtex.texture.sample_type
+            elif funcname == "sample":  # -> from a texture
+                tex, sam, coord = args
+                tex.depth.value, tex.sampled.value = 0, 1
+                sample_type = tex.sample_type
                 result_id, type_id = self.obtain_value(_types.Vector(4, sample_type))
                 self.gen_func_instruction(
-                    cc.OpImageSampleExplicitLod,
-                    # cc.OpImageSampleImplicitLod,
+                    cc.OpImageSampleExplicitLod,  # or cc.OpImageSampleImplicitLod,
                     type_id,
                     result_id,
-                    samtex,
+                    self.get_texture_sampler(tex, sam),
                     coord,
                     cc.ImageOperandsMask_MaskNone | cc.ImageOperandsMask_Lod,
                     self.obtain_constant(0.0),
@@ -410,6 +404,20 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
                     raise NameError(f"{kind} {subname} already exists")
                 iodict[subname] = var_access.index(index_id, i)
 
+    def get_texture_sampler(self, texture, sampler):
+        """ texture and sampler are bot VariableAccessId.
+        """
+        key = (id(texture), id(sampler))
+        if key not in self._texture_samplers:
+            tex_type_id = self.obtain_type_id(texture.type)
+            restype = (cc.OpTypeSampledImage, tex_type_id)
+            result_id, type_id = self.obtain_value(restype)
+            self.gen_func_instruction(
+                cc.OpSampledImage, type_id, result_id, texture, sampler
+            )
+            self._texture_samplers[key] = result_id
+        return self._texture_samplers[key]
+
     # %% Basics
 
     def co_pop_top(self):
@@ -439,8 +447,8 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             assert isinstance(ob, VariableAccessId)
         elif name in _types.gpu_types_map:  # todo: use type_from_name instead?
             ob = _types.gpu_types_map[name]
-        elif hasattr(stdlib, name):
-            ob = getattr(stdlib, name)
+        elif name.startswith(("stdlib.", "texture.")):
+            ob = name
         else:
             raise NameError(f"Using invalid variable: {name}")
         self._stack.append(ob)
