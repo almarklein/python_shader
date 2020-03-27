@@ -8,22 +8,6 @@ import struct
 from . import _spirv_constants as cc
 from . import _types
 
-# todo: add debug info, most notably line numbers, but can also do source code and object names!
-# todo: SpirV supports specialization: setting constants at runtime, can be useful?
-
-
-# Storage class members, used in OpTypePointer, OpTypeForwardPointer, Opvariable, OpGenericCastToPtrExplicit
-STORAGE_CLASSES = dict(
-    input=cc.StorageClass_Input,
-    output=cc.StorageClass_Output,
-    uniform=cc.StorageClass_Uniform,
-    buffer=cc.StorageClass_StorageBuffer,
-    image=cc.StorageClass_Image,
-    # uniform_constant=cc.StorageClass_UniformConstant,
-    # private=cc.StorageClass_Private,  # a constant within this module
-    # function=cc.StorageClass_Function,  # scoped to the current function invokation
-)
-
 
 def str_to_words(s):
     # In SpirV, words are 32bit. Op counting is per word, not per immediate or per byte.
@@ -211,8 +195,6 @@ class BaseSpirVGenerator:
         self._constants = {}
         self._type_hash_to_id = {}
         self._capabilities = set()
-        self.scope_stack = []  # stack of dicts: name -> id, type, type_id
-        # todo: can we do without a stack, pass everything into funcs?
 
         # Section 2.4 of the Spir-V spec specifies the Logical Layout of a Module
         self._sections = {

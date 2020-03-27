@@ -60,17 +60,15 @@ class PyBytecode2Bytecode:
         self._texture = {}
         self._sampler = {}
 
-        # todo: odd, but name must be the same for vertex and fragment shader??
+        # todo: allow user to specify name otherwise?
         entrypoint_name = "main"  # py_func.__name__
         self.emit(op.co_entrypoint, entrypoint_name, shader_type, {})
 
         KINDMAP = {
-            # todo: use / allow "in" and "out"
             "input": self._input,
             "output": self._output,
             "uniform": self._uniform,
             "buffer": self._buffer,
-            # todo: or are these uniforms with subtype texture?
             "sampler": self._sampler,
             "texture": self._texture,
         }
@@ -318,7 +316,6 @@ class PyBytecode2Bytecode:
     def _op_call_function(self):
         nargs = self._next()
         args = self._stack[-nargs:]
-        args  # todo: not used?
         self._stack[-nargs:] = []
         func = self._stack.pop()
         if func in gpu_types_map and gpu_types_map[func].is_abstract:
@@ -338,7 +335,7 @@ class PyBytecode2Bytecode:
     def _op_call_method(self):
         nargs = self._next()
         args = self._stack[-nargs:]
-        args  # todo: not used?
+        args  # not used
         self._stack[-nargs:] = []
 
         func = self._stack.pop()

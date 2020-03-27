@@ -233,7 +233,7 @@ class Matrix(Composite):
 
     @classmethod
     def _as_ctype(cls):
-        return cls.subtype._ctype * (cls.cols * cls.rows)  # todo: or  * (cols * rows)
+        return cls.subtype._ctype * (cls.cols * cls.rows)  # C-contiguous
 
 
 class Array(Aggregate):

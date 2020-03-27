@@ -445,12 +445,18 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         elif name in self._texture:
             ob = self._texture[name]
             assert isinstance(ob, VariableAccessId)
-        elif name in _types.gpu_types_map:  # todo: use type_from_name instead?
-            ob = _types.gpu_types_map[name]
         elif name.startswith(("stdlib.", "texture.")):
             ob = name
+        elif name in _types.gpu_types_map:  # todo: use type_from_name instead?
+            ob = _types.gpu_types_map[name]
         else:
-            raise NameError(f"Using invalid variable: {name}")
+            # Well, it could be a more special type ... try to convert!
+            try:
+                ob = _types.type_from_name(name)
+            except Exception:
+                ob = None
+            if ob is None:
+                raise NameError(f"Using invalid variable: {name}")
         self._stack.append(ob)
 
     def co_store_name(self, name):
@@ -481,7 +487,8 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
 
         elif issubclass(container.type, _types.Array):
 
-            # todo: maybe ... the variable for a constant should be created only once ... instead of every time it gets indexed
+            # todo: maybe ... the variable for a constant should be created only once ...
+            # ... instead of every time it gets indexed
             # Put the array into a variable
             var_access = self.obtain_variable(container.type, cc.StorageClass_Function)
             container_variable = var_access.variable

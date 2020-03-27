@@ -4,9 +4,6 @@ the functions, read their docs, and keep flake8 happy.
 """
 
 
-# todo: rename texture -> image?
-
-
 NI = "Only works in the shader."
 
 
