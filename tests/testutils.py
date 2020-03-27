@@ -114,7 +114,7 @@ def _determine_can_use_vulkan_sdk():
 
 
 def _determine_can_use_wgpu_lib():
-    code = "import wgpu.utils; wgpu.utils.create_device()"
+    code = "import wgpu.utils; wgpu.utils.get_default_device()"
     try:
         subprocess.check_output(
             [sys.executable, "-c", code,]
