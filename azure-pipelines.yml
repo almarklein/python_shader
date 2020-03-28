@@ -47,8 +47,8 @@ jobs:
     inputs:
       targetType: inline
       script: |
-        python -m pip install -U pip wheel
-        pip install -q -U pytest pytest-cov
+        python -m pip install -U pip
+        pip install -q -U pytest pytest-cov wheel
         pip install pip install git+https://github.com/almarklein/wgpu-py.git@progress
   - task: Bash@3
     displayName: Install more development requirements
