@@ -16,7 +16,7 @@ def read(texture, tex_coords):  # noqa: N802
 
 
 def write(texture, tex_coords, color):  # noqa: N802
-    """ Load a pixel from a texture. The tex_coords must be i32, ivec2
+    """ Safe a pixel value to a texture. The tex_coords must be i32, ivec2
     or ivec3. Color must be vec4. Can also be used as a method of a
     texture object.
     """
