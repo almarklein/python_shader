@@ -48,8 +48,7 @@ jobs:
       targetType: inline
       script: |
         python -m pip install -U pip wheel
-        pip install -q -U pytest pytest-cov
-        pip install git+https://github.com/almarklein/wgpu-py.git@progress
+        pip install -q -U pytest pytest-cov wgpu-py
   - task: Bash@3
     displayName: Install more development requirements
     condition: eq(variables['PYTHON_SHADER_TEST_FULL'], 'true')
