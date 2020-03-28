@@ -153,8 +153,7 @@ HASHES = {
     "test_texture_2d_f32.fragment_shader": ("91424c7a5253087f", "d31253816d239475"),
     "test_texture_1d_i32.fragment_shader": ("ccb700086b9676d6", "a3bb96b87afa94b2"),
     "test_texture_3d_r16i.fragment_shader": ("4b7fd0d410a5ea46", "ef6296c81906eec4"),
-    "test_texcomp_2d_rg32i.compute_shader": ("acf2d8a9c1c111dc", "72e582d70b4fd540",
-    ),
+    "test_texcomp_2d_rg32i.compute_shader": ("acf2d8a9c1c111dc", "72e582d70b4fd540",),
 }
 
 
