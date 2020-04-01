@@ -241,7 +241,7 @@ class PyBytecode2Bytecode:
             self.emit(op.co_load_constant, ob)
             self._stack.append(ob)
         elif ob is None:
-            self._stack.append(None)  # todo: for the final return ...
+            self._stack.append(None)  # Probably for the function return value
         else:
             raise NotImplementedError("Only float/int/bool constants supported.")
 

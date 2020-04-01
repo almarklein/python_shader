@@ -447,8 +447,8 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             assert isinstance(ob, VariableAccessId)
         elif name.startswith(("stdlib.", "texture.")):
             ob = name
-        elif name in _types.gpu_types_map:  # todo: use type_from_name instead?
-            ob = _types.gpu_types_map[name]
+        elif name in _types.gpu_types_map:
+            ob = _types.gpu_types_map[name]  # A common type
         else:
             # Well, it could be a more special type ... try to convert!
             try:
@@ -487,7 +487,7 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
 
         elif issubclass(container.type, _types.Array):
 
-            # todo: maybe ... the variable for a constant should be created only once ...
+            # todo: maybe ... the variable should be created only once ...
             # ... instead of every time it gets indexed
             # Put the array into a variable
             var_access = self.obtain_variable(container.type, cc.StorageClass_Function)
