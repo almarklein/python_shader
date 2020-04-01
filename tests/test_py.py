@@ -18,8 +18,7 @@ script to get new hashes when needed:
 """
 
 import python_shader
-from python_shader import InputResource, OutputResource, BufferResource, stdlib
-from python_shader import f32, i32, vec2, vec3, vec4, ivec3, ivec4, Array
+from python_shader import stdlib, f32, i32, vec2, vec3, vec4, ivec3, ivec4, Array
 
 from pytest import mark, raises
 from testutils import can_use_vulkan_sdk, validate_module, run_test_and_print_new_hashes
@@ -34,9 +33,9 @@ def test_null_shader():
 def test_triangle_shader():
     @python2shader_and_validate
     def vertex_shader(
-        index: InputResource("VertexId", i32),
-        pos: OutputResource("Position", vec4),
-        color: OutputResource(0, vec3),
+        index: ("input", "VertexId", i32),
+        pos: ("output", "Position", vec4),
+        color: ("output", 0, vec3),
     ):
         positions = [vec2(+0.0, -0.5), vec2(+0.5, +0.5), vec2(-0.5, +0.7)]
         p = positions[index]
@@ -45,7 +44,7 @@ def test_triangle_shader():
 
     @python2shader_and_validate
     def fragment_shader(
-        in_color: InputResource(0, vec3), out_color: OutputResource(0, vec4),
+        in_color: ("input", 0, vec3), out_color: ("output", 0, vec4),
     ):
         out_color = vec4(in_color, 1.0)  # noqa
 
@@ -63,18 +62,18 @@ def test_no_duplicate_constants():
 def test_compute_shader():
     @python2shader_and_validate
     def compute_shader(
-        index: InputResource("GlobalInvocationId", i32),
-        data1: BufferResource(0, Array(i32)),
-        data2: BufferResource(1, Array(i32)),
+        index: ("input", "GlobalInvocationId", i32),
+        data1: ("buffer", 0, Array(i32)),
+        data2: ("buffer", 1, Array(i32)),
     ):
         data2[index] = data1[index]
 
 
 def test_cannot_assign_same_slot():
     def compute_shader(
-        index: InputResource("GlobalInvocationId", i32),
-        data1: BufferResource(0, Array(i32)),
-        data2: BufferResource(0, Array(i32)),
+        index: ("input", "GlobalInvocationId", i32),
+        data1: ("buffer", 0, Array(i32)),
+        data2: ("buffer", 0, Array(i32)),
     ):
         data2[index] = data1[index]
 

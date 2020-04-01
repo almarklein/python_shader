@@ -8,7 +8,6 @@ import ctypes
 
 import python_shader
 
-from python_shader import InputResource, BufferResource
 from python_shader import f32, i32, vec2, vec3, vec4, Array  # noqa
 
 import wgpu.backends.rs  # noqa
@@ -22,9 +21,9 @@ from testutils import validate_module, run_test_and_print_new_hashes
 def test_add_sub():
     @python2shader_and_validate
     def compute_shader(
-        index: InputResource("GlobalInvocationId", i32),
-        data1: BufferResource(0, Array(f32)),
-        data2: BufferResource(1, Array(vec2)),
+        index: ("input", "GlobalInvocationId", i32),
+        data1: ("buffer", 0, Array(f32)),
+        data2: ("buffer", 1, Array(vec2)),
     ):
         a = data1[index]
         data2[index] = vec2(a + 1.0, a - 1.0)
@@ -45,9 +44,9 @@ def test_add_sub():
 def test_mul_div():
     @python2shader_and_validate
     def compute_shader(
-        index: InputResource("GlobalInvocationId", i32),
-        data1: BufferResource(0, Array(f32)),
-        data2: BufferResource(1, Array(vec2)),
+        index: ("input", "GlobalInvocationId", i32),
+        data1: ("buffer", 0, Array(f32)),
+        data2: ("buffer", 1, Array(vec2)),
     ):
         a = data1[index]
         data2[index] = vec2(a * 2.0, a / 2.0)

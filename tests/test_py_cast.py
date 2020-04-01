@@ -7,7 +7,6 @@ import ctypes
 
 import python_shader
 from python_shader import RES_INPUT, RES_BUFFER
-from python_shader import InputResource, BufferResource
 from python_shader import f32, f64, u8, i16, i32, i64  # noqa
 from python_shader import bvec2, ivec2, ivec3, vec2, vec3, vec4, Array  # noqa
 
@@ -43,9 +42,9 @@ def test_cast_i32_f32():
 def test_cast_u8_f32():
     @python2shader_and_validate
     def compute_shader(
-        index: InputResource("GlobalInvocationId", i32),
-        data1: BufferResource(0, Array(u8)),
-        data2: BufferResource(1, Array(f32)),
+        index: ("input", "GlobalInvocationId", i32),
+        data1: ("buffer", 0, Array(u8)),
+        data2: ("buffer", 1, Array(f32)),
     ):
         data2[index] = f32(data1[index])
 
@@ -62,9 +61,9 @@ def test_cast_u8_f32():
 def test_cast_f32_i32():
     @python2shader_and_validate
     def compute_shader(
-        index: InputResource("GlobalInvocationId", i32),
-        data1: BufferResource(0, Array(f32)),
-        data2: BufferResource(1, Array(i32)),
+        index: ("input", "GlobalInvocationId", i32),
+        data1: ("buffer", 0, Array(f32)),
+        data2: ("buffer", 1, Array(i32)),
     ):
         data2[index] = i32(data1[index])
 
@@ -79,9 +78,9 @@ def test_cast_f32_i32():
 def test_cast_f32_f32():
     @python2shader_and_validate
     def compute_shader(
-        index: InputResource("GlobalInvocationId", i32),
-        data1: BufferResource(0, Array(f32)),
-        data2: BufferResource(1, Array(f32)),
+        index: ("input", "GlobalInvocationId", i32),
+        data1: ("buffer", 0, Array(f32)),
+        data2: ("buffer", 1, Array(f32)),
     ):
         data2[index] = f32(data1[index])
 
@@ -96,9 +95,9 @@ def test_cast_f32_f32():
 def test_cast_f32_f64():
     @python2shader_and_validate
     def compute_shader(
-        index: InputResource("GlobalInvocationId", i32),
-        data1: BufferResource(0, Array(f32)),
-        data2: BufferResource(1, Array(f64)),
+        index: ("input", "GlobalInvocationId", i32),
+        data1: ("buffer", 0, Array(f32)),
+        data2: ("buffer", 1, Array(f64)),
     ):
         data2[index] = f64(data1[index])
 
@@ -113,9 +112,9 @@ def test_cast_f32_f64():
 def test_cast_i64_i16():
     @python2shader_and_validate
     def compute_shader(
-        index: InputResource("GlobalInvocationId", i32),
-        data1: BufferResource(0, Array(i64)),
-        data2: BufferResource(1, Array(i16)),
+        index: ("input", "GlobalInvocationId", i32),
+        data1: ("buffer", 0, Array(i64)),
+        data2: ("buffer", 1, Array(i16)),
     ):
         data2[index] = i16(data1[index])
 
@@ -133,9 +132,9 @@ def test_cast_i64_i16():
 def test_cast_i16_u8():
     @python2shader_and_validate
     def compute_shader(
-        index: InputResource("GlobalInvocationId", i32),
-        data1: BufferResource(0, Array(i16)),
-        data2: BufferResource(1, Array(u8)),
+        index: ("input", "GlobalInvocationId", i32),
+        data1: ("buffer", 0, Array(i16)),
+        data2: ("buffer", 1, Array(u8)),
     ):
         data2[index] = u8(data1[index])
 
@@ -154,9 +153,9 @@ def test_cast_vec_ivec2_vec2():
     # This triggers the direct number-vector conversion
     @python2shader_and_validate
     def compute_shader(
-        index: InputResource("GlobalInvocationId", i32),
-        data1: BufferResource(0, Array(ivec2)),
-        data2: BufferResource(1, Array(vec2)),
+        index: ("input", "GlobalInvocationId", i32),
+        data1: ("buffer", 0, Array(ivec2)),
+        data2: ("buffer", 1, Array(vec2)),
     ):
         data2[index] = vec2(data1[index])
 
@@ -174,8 +173,7 @@ def test_cast_vec_any_vec4():
     # Look how all args in a vector are converted :)
     @python2shader_and_validate
     def compute_shader(
-        index: InputResource("GlobalInvocationId", i32),
-        data2: BufferResource(1, Array(vec4)),
+        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(vec4)),
     ):
         data2[index] = vec4(7.0, 3, ivec2(False, 2.7))
 
@@ -192,9 +190,9 @@ def test_cast_vec_any_vec4():
 def test_cast_vec_ivec3_vec3():
     @python2shader_and_validate
     def compute_shader(
-        index: InputResource("GlobalInvocationId", i32),
-        data1: BufferResource(0, Array(ivec3)),
-        data2: BufferResource(1, Array(vec3)),
+        index: ("input", "GlobalInvocationId", i32),
+        data1: ("buffer", 0, Array(ivec3)),
+        data2: ("buffer", 1, Array(vec3)),
     ):
         data2[index] = vec3(data1[index])
 
@@ -215,9 +213,9 @@ def test_cast_ivec2_bvec2():
     # This triggers the per-element vector conversion
     @python2shader_and_validate
     def compute_shader(
-        index: InputResource("GlobalInvocationId", i32),
-        data1: BufferResource(0, Array(ivec2)),
-        data2: BufferResource(1, Array(ivec2)),
+        index: ("input", "GlobalInvocationId", i32),
+        data1: ("buffer", 0, Array(ivec2)),
+        data2: ("buffer", 1, Array(ivec2)),
     ):
         tmp = bvec2(data1[index])
         data2[index] = ivec2(tmp)  # ext visible storage cannot be bool

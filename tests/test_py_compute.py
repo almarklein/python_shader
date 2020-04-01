@@ -7,7 +7,6 @@ With this we can validate arithmetic, control flow etc.
 import ctypes
 
 import python_shader
-from python_shader import InputResource, BufferResource
 from python_shader import f32, i32, ivec2, ivec3, ivec4, vec2, vec3, vec4, Array  # noqa
 
 import wgpu.backends.rs  # noqa
@@ -21,8 +20,7 @@ from testutils import validate_module, run_test_and_print_new_hashes
 def test_index():
     @python2shader_and_validate
     def compute_shader(
-        index: InputResource("GlobalInvocationId", i32),
-        data2: BufferResource(1, Array(i32)),
+        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(i32)),
     ):
         data2[index] = index
 
@@ -38,9 +36,9 @@ def test_index():
 def test_copy():
     @python2shader_and_validate
     def compute_shader(
-        index: InputResource("GlobalInvocationId", i32),
-        data1: BufferResource(0, Array(i32)),
-        data2: BufferResource(1, Array(i32)),
+        index: ("input", "GlobalInvocationId", i32),
+        data1: ("buffer", 0, Array(i32)),
+        data2: ("buffer", 1, Array(i32)),
     ):
         data2[index] = data1[index]
 
@@ -56,10 +54,10 @@ def test_copy():
 def test_copy_vec2():
     @python2shader_and_validate
     def compute_shader(
-        index: InputResource("GlobalInvocationId", i32),
-        data1: BufferResource(0, Array(vec2)),
-        data2: BufferResource(1, Array(vec2)),
-        data3: BufferResource(2, Array(ivec2)),
+        index: ("input", "GlobalInvocationId", i32),
+        data1: ("buffer", 0, Array(vec2)),
+        data2: ("buffer", 1, Array(vec2)),
+        data3: ("buffer", 2, Array(ivec2)),
     ):
         data2[index] = data1[index].xy
         data3[index] = ivec2(index, index)
@@ -78,10 +76,10 @@ def test_copy_vec2():
 def test_copy_vec3():
     @python2shader_and_validate
     def compute_shader(
-        index: InputResource("GlobalInvocationId", i32),
-        data1: BufferResource(0, Array(vec3)),
-        data2: BufferResource(1, Array(vec3)),
-        data3: BufferResource(2, Array(ivec3)),
+        index: ("input", "GlobalInvocationId", i32),
+        data1: ("buffer", 0, Array(vec3)),
+        data2: ("buffer", 1, Array(vec3)),
+        data3: ("buffer", 2, Array(ivec3)),
     ):
         data2[index] = data1[index].xyz
         data3[index] = ivec3(index, index, index)
@@ -127,10 +125,10 @@ def test_copy_vec3():
 def test_copy_vec4():
     @python2shader_and_validate
     def compute_shader(
-        index: InputResource("GlobalInvocationId", i32),
-        data1: BufferResource(0, Array(vec4)),
-        data2: BufferResource(1, Array(vec4)),
-        data3: BufferResource(2, Array(ivec4)),
+        index: ("input", "GlobalInvocationId", i32),
+        data1: ("buffer", 0, Array(vec4)),
+        data2: ("buffer", 1, Array(vec4)),
+        data3: ("buffer", 2, Array(ivec4)),
     ):
         data2[index] = data1[index].xyzw
         data3[index] = ivec4(index, index, index, index)

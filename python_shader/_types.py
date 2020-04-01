@@ -447,7 +447,6 @@ _subtypes.update(convenience_types)
 
 # %% How to expose it all
 
-
 # Types that can be referenced by name.
 gpu_types_map = {}
 gpu_types_map.update(leaf_types)
@@ -455,60 +454,11 @@ gpu_types_map.update(base_types)  # Only the last level, e,g. not ShaderType
 gpu_types_map.update(convenience_types)
 
 
-# %% IO types
-
-
-# todo: remove or revive? (was part of experimental IO syntax)
+# %% Shader resource enum
 
 RES_INPUT = "input"
 RES_OUTPUT = "output"
 RES_UNIFORM = "uniform"
 RES_BUFFER = "buffer"
-
-
-class BaseShaderResource:
-
-    kind = ""
-
-    def __init__(self, slot, subtype):
-        if not (
-            (isinstance(slot, int) and slot >= 0)
-            or (isinstance(slot, str) and len(slot) > 0)
-        ):
-            raise TypeError("IOType slot must be a nonnegative int or nonempty str.")
-        self.slot = slot
-        if not isinstance(subtype, type) and issubclass(subtype, ShaderType):
-            raise TypeError("IOType subtype must be a ShaderType.")
-        elif subtype.is_abstract:
-            raise TypeError("IOType subtype cannot be an abstract ShaderType.")
-        self.subtype = subtype
-
-
-class InputResource(BaseShaderResource):
-
-    kind = "input"
-
-
-class OutputResource(BaseShaderResource):
-
-    kind = "output"
-
-
-class UniformResource(BaseShaderResource):
-
-    kind = "uniform"
-
-
-class BufferResource(BaseShaderResource):
-
-    kind = "buffer"
-
-
-class TextureResource(BaseShaderResource):
-
-    kind = "texture"
-
-
-class SamplerResource(BaseShaderResource):
-
-    kind = "sampler"
+RES_SAMPLER = "sampler"
+RES_TEXTURE = "texture"

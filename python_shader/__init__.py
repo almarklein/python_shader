@@ -21,8 +21,7 @@ from ._types import mat2, mat3, mat4
 from ._types import Vector, Matrix, Array, Struct
 
 from ._types import shadertype_as_ctype
-from ._types import RES_INPUT, RES_OUTPUT, RES_UNIFORM, RES_BUFFER
-from ._types import InputResource, OutputResource, UniformResource
-from ._types import BufferResource, TextureResource, SamplerResource
+from ._types import RES_INPUT, RES_OUTPUT
+from ._types import RES_UNIFORM, RES_BUFFER, RES_SAMPLER, RES_TEXTURE
 
 from . import dev

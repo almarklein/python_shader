@@ -5,7 +5,6 @@ from ._module import ShaderModule
 from .opcodes import OpCodeDefinitions as op
 from ._dis import dis
 from . import stdlib
-from . import _types
 from ._types import gpu_types_map
 
 
@@ -80,13 +79,8 @@ class PyBytecode2Bytecode:
             if argname not in py_func.__annotations__:
                 raise TypeError("Shader arguments must be annotated.")
             resource = py_func.__annotations__.get(argname, None)
-            # todo: Allow only one: either 3-tuple or Resource object
             if resource is None:
                 raise TypeError(f"Python-shader arg {argname} is not decorated.")
-            elif isinstance(resource, _types.BaseShaderResource):
-                kind = resource.kind
-                slot = resource.slot
-                subtype = resource.subtype
             elif isinstance(resource, tuple) and len(resource) == 3:
                 kind, slot, subtype = resource
                 assert isinstance(kind, str)
@@ -94,8 +88,8 @@ class PyBytecode2Bytecode:
                 assert isinstance(subtype, (type, str))
             else:
                 raise TypeError(
-                    f"Python-shader arg {argname} must be a resource object "
-                    + f"(3-tuple or e.g. InputResource), not {type(resource)}."
+                    f"Python-shader arg {argname} must be a 3-tuple, "
+                    + f"not {type(resource)}."
                 )
             kind = kind.lower()
             subtype = subtype.__name__ if isinstance(subtype, type) else subtype
