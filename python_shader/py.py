@@ -1,6 +1,7 @@
 import inspect
 from dis import dis as pprint_bytecode
 
+from ._coreutils import ShaderError
 from ._module import ShaderModule
 from .opcodes import OpCodeDefinitions as op
 from ._dis import dis
@@ -243,7 +244,7 @@ class PyBytecode2Bytecode:
         elif ob is None:
             self._stack.append(None)  # Probably for the function return value
         else:
-            raise NotImplementedError("Only float/int/bool constants supported.")
+            raise ShaderError("Only float/int/bool constants supported.")
 
     def _op_load_global(self):
         i = self._next()
@@ -290,7 +291,7 @@ class PyBytecode2Bytecode:
             self.emit(op.co_load_name, func_name)
             self.emit(op.co_load_name, ob)
         else:
-            raise NotImplementedError(
+            raise ShaderError(
                 "Cannot call functions from object, except from texture and stdlib."
             )
 
@@ -298,14 +299,14 @@ class PyBytecode2Bytecode:
         self._next()
         # ext_ob_name = self._co.co_freevars[i]
         # ext_ob = self._py_func.__closure__[i]
-        raise NotImplementedError("Shaders cannot be used as closures atm.")
+        raise ShaderError("Shaders cannot be used as closures atm.")
 
     def _op_store_attr(self):
         i = self._next()
         name = self._co.co_names[i]
         ob = self._stack.pop()
         value = self._stack.pop()  # noqa
-        raise NotImplementedError(f"{ob}.{name} store")
+        raise ShaderError(f"{ob}.{name} store")
 
     def _op_call_function(self):
         nargs = self._next()
@@ -363,7 +364,7 @@ class PyBytecode2Bytecode:
 
     def _op_build_tuple(self):
         # todo: but I want to be able to do ``x, y = y, x`` !
-        raise SyntaxError("No tuples in SpirV-ish Python")
+        raise ShaderError("No tuples in SpirV-ish Python yet")
 
         n = self._next()
         res = [self._stack.pop() for i in range(n)]
@@ -373,7 +374,7 @@ class PyBytecode2Bytecode:
             self._stack.append(res)
             # No emit, in the SpirV bytecode we pop the subscript indices off the stack.
         else:
-            raise NotImplementedError("Tuples are not supported.")
+            raise ShaderError("Tuples are not supported.")
 
     def _op_build_list(self):
         # Litaral list
@@ -384,11 +385,11 @@ class PyBytecode2Bytecode:
         self.emit(op.co_load_array, n)
 
     def _op_build_map(self):
-        raise SyntaxError("Dict not allowed in Shader-Python")
+        raise ShaderError("Dict not allowed in Shader-Python")
 
     def _op_build_const_key_map(self):
         # The version of BUILD_MAP specialized for constant keys. Py3.6+
-        raise SyntaxError("Dict not allowed in Shader-Python")
+        raise ShaderError("Dict not allowed in Shader-Python")
 
     def _op_binary_add(self):
         self._next()

@@ -1,10 +1,18 @@
 """
 Implements the base class for generating SpirV code.
+
+Notes on exceptions for code that parses/converts/compiles shading code:
+
+* Raise ShaderError when the user-provided code cannot be compiled.
+* Raise RuntimeError when the parser/compiler is in an unexpected state.
+* Raise NotImplementedError only to indicate that it's an abstract method.
+* Always provide an error message.
 """
 
 import io
 import struct
 
+from ._coreutils import ShaderError
 from . import _spirv_constants as cc
 from . import _types
 
@@ -107,7 +115,7 @@ class VariableAccessId(ValueId):
                 self.variable, self.storage_class, self.type.subtype, *indices
             )
         else:
-            raise RuntimeError(f"VariableAccessId cannot index into {self.type}")
+            raise ShaderError(f"VariableAccessId cannot index into {self.type}")
 
     def resolve_chain(self, gen):
         """ Generate OpAccessChain instruction and return pointer id object for result.
@@ -407,7 +415,7 @@ class BaseSpirVGenerator:
         elif isinstance(value, bool):
             the_type = _types.boolean
         else:
-            raise NotImplementedError()
+            raise RuntimeError(f"Cannot get a constant for {value}")
         # Make sure that we have it
         key = the_type.__name__, value
         if key not in self._constants:
@@ -452,7 +460,7 @@ class BaseSpirVGenerator:
                 and isinstance(the_type[0], cc.Enum)
                 and the_type[0].name.startswith("OpType")
             ):
-                raise TypeError(
+                raise RuntimeError(
                     "ShaderType can be tuple only if it specifies the OpTypeXYZ"
                 )
             type_hash = hash(the_type)
@@ -460,7 +468,7 @@ class BaseSpirVGenerator:
             if not (
                 isinstance(the_type, type) and issubclass(the_type, _types.ShaderType)
             ):
-                raise TypeError(f"not a ShaderType subclass: {the_type}")
+                raise RuntimeError(f"not a ShaderType subclass: {the_type}")
             assert not the_type.is_abstract, f"not a concrete spirv type: {the_type}"
             type_hash = the_type.__name__
 
@@ -491,7 +499,7 @@ class BaseSpirVGenerator:
                 self._capabilities.add(cc.Capability_Int64)
                 self.gen_instruction("types", cc.OpTypeInt, type_id, 64, 1)
             else:
-                raise TypeError(f"Unknown integer type: {the_type}")
+                raise RuntimeError(f"Unknown integer type: {the_type}")
         elif issubclass(the_type, _types.Float):
             type_id = TypeId(the_type)
             if issubclass(the_type, _types.f16):
@@ -503,7 +511,7 @@ class BaseSpirVGenerator:
                 self._capabilities.add(cc.Capability_Float64)
                 self.gen_instruction("types", cc.OpTypeFloat, type_id, 64)
             else:
-                raise TypeError(f"Unknown float type: {the_type}")
+                raise RuntimeError(f"Unknown float type: {the_type}")
         elif issubclass(the_type, _types.Vector):
             sub_type_id = self.obtain_type_id(the_type.subtype)
             type_id = TypeId(the_type)
@@ -542,7 +550,7 @@ class BaseSpirVGenerator:
             ]
             self.gen_instruction("types", cc.OpTypeStruct, type_id, *subtype_ids)
         else:
-            raise NotImplementedError(the_type)
+            raise RuntimeError(f"Unknown GPU type {the_type}")
 
         self._type_hash_to_id[type_hash] = type_id
         return type_id

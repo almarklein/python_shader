@@ -7,7 +7,7 @@ Write modern GPU shaders in Python!
 __version__ = "0.3.4"
 version_info = tuple(map(int, __version__.split(".")))
 
-
+from ._coreutils import ShaderError
 from ._module import ShaderModule
 from .py import python2shader
 

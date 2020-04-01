@@ -77,7 +77,7 @@ def test_cannot_assign_same_slot():
     ):
         data2[index] = data1[index]
 
-    with raises(TypeError) as err:
+    with raises(python_shader.ShaderError) as err:
         python_shader.python2shader(compute_shader).to_spirv()
     assert "already taken" in str(err.value)
 
