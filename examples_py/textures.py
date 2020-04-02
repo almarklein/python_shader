@@ -2,7 +2,7 @@
 Shaders that use textures.
 """
 
-from python_shader import python2shader, f32, ivec3, vec2, vec4
+from python_shader import python2shader, ivec3, vec2, vec4
 
 
 # Take two values from a 2-element 2D texture, and store into a a scalar 2D

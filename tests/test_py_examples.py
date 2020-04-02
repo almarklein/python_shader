@@ -11,7 +11,7 @@ import importlib.util
 import python_shader
 
 import pytest
-from testutils import can_use_vulkan_sdk, validate_module, run_test_and_print_new_hashes
+from testutils import validate_module, run_test_and_print_new_hashes
 
 EXAMPLES_DIR = os.path.abspath(os.path.join(__file__, "..", "..", "examples_py"))
 
@@ -49,8 +49,6 @@ shader_modules = get_python_shader_examples()
 
 @pytest.mark.parametrize("shader_name", list(shader_modules.keys()))
 def test(shader_name):
-    if not can_use_vulkan_sdk:
-        pytest.skip("No Vulkan SDK")
     print("Testing shader", shader_name)
     shader = shader_modules[shader_name]
     validate_module(shader, HASHES)
