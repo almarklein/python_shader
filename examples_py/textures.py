@@ -1,5 +1,9 @@
 """
 Shaders that use textures.
+
+Note how in compute shaders the texture format must be specified fully.
+For vertex/fragment shaders, it is enough to specify whether the format
+results in integer of float components.
 """
 
 from python_shader import python2shader, ivec3, vec2, vec4

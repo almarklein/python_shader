@@ -2,8 +2,9 @@ from ._generator_bc import Bytecode2SpirVGenerator
 
 
 class ShaderModule:
-    """ Representation of a shader module. Is basically a wrapper around the
-    source input and the bytes representing the actual SpirV code.
+    """ Representation of a shader module. It is basically a wrapper
+    around the source input and the bytes representing the actual SpirV
+    code.
     """
 
     def __init__(self, input, bytecode, description):

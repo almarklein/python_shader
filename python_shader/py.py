@@ -12,9 +12,9 @@ from ._types import gpu_types_map
 def python2shader(func):
     """ Convert a Python function to a ShaderModule object.
 
-    This function takes the bytecode of the given function and converts it to
-    a more standardized (and shader specific) bytecode. From there it be
-    converted to binary SpirV. All in dependency-free pure Python.
+    Takes the bytecode of the given function and converts it to our
+    internal bytecode. From there it can be converted to binary SpirV.
+    All in dependency-free pure Python.
     """
 
     if not inspect.isfunction(func):
