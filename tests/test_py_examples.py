@@ -51,11 +51,19 @@ shader_modules = get_python_shader_examples()
 def test(shader_name):
     if not can_use_vulkan_sdk:
         pytest.skip("No Vulkan SDK")
+    print("Testing shader", shader_name)
     shader = shader_modules[shader_name]
     validate_module(shader, HASHES)
 
 
-HASHES = {}
+HASHES = {
+    "compute.compute_shader_copy": ("7b03b3564a72be3c", "46f084870ce2681b"),
+    "compute.compute_shader_multiply": ("96c9e08803f51d91", "19f6fec2dca68839"),
+    "textures.compute_shader_tex_add": ("d8fd12dbb01d1ef7", "e81ae2994c71064c"),
+    "textures.fragment_shader_tex": ("927569ad5a038680", "e4d9b4ebfda9f897"),
+    "triangle.vertex_shader": ("535c85e75318f7e9", "53d4b596bc25b5a0"),
+    "triangle.fragment_shader": ("c54813968ded4543", "6febd7dab6d72c8d"),
+}
 
 
 if __name__ == "__main__":
