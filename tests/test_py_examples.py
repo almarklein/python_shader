@@ -9,8 +9,9 @@ import types
 import importlib.util
 
 import python_shader
-import pytest
 
+import pytest
+from testutils import can_use_vulkan_sdk, validate_module, run_test_and_print_new_hashes
 
 EXAMPLES_DIR = os.path.abspath(os.path.join(__file__, "..", "..", "examples_py"))
 
@@ -25,15 +26,16 @@ def get_python_shader_examples():
             continue
         # Load module
         filename = os.path.join(EXAMPLES_DIR, fname)
-        modname = "example_py." + fname[:-3]
+        modname = fname[:-3]
         spec = importlib.util.spec_from_file_location(modname, filename)
         m = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(m)
         # Collect shader module objects from the module
         for val in m.__dict__.values():
             if isinstance(val, python_shader.ShaderModule):
-                key = fname + ":" + val.input.__name__
-                shader_modules[key] = val
+                fullname = modname + "." + val.input.__qualname__
+                val.input.__qualname__ = fullname
+                shader_modules[fullname] = val
             elif isinstance(val, types.FunctionType):
                 funcname = val.__name__
                 if "_shader" in funcname:
@@ -47,11 +49,14 @@ shader_modules = get_python_shader_examples()
 
 @pytest.mark.parametrize("shader_name", list(shader_modules.keys()))
 def test(shader_name):
+    if not can_use_vulkan_sdk:
+        pytest.skip("No Vulkan SDK")
     shader = shader_modules[shader_name]
-    python_shader.dev.validate(shader)
+    validate_module(shader, HASHES)
+
+
+HASHES = {}
 
 
 if __name__ == "__main__":
-    for shader_name, shader in shader_modules.items():
-        print("Validating", shader_name)
-        python_shader.dev.validate(shader)
+    run_test_and_print_new_hashes(globals())

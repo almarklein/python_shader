@@ -50,6 +50,8 @@ def validate_module(shader_module, hashes):
         # us to generate the hashes once, and then on CI we make sure
         # that any Python function results in the exact same bytecode
         # and SpirV on different platforms and Python versions.
+        if key not in hashes:
+            assert False, f"No hash found for {key}"
         if hashes[key][0] != hash_bc:
             code = inspect.getsource(func)
             assert False, f"Bytecode for {key} does not match:\n{code}\n{text_bc}"
@@ -73,9 +75,16 @@ def run_test_and_print_new_hashes(ns):
 
     # Run tests
     for funcname, func in ns.items():
-        if funcname.startswith("test_") and callable(func):
-            print(f"Running {funcname} ...")
-            func()
+        if funcname.startswith("test") and callable(func):
+            for mark in getattr(func, "pytestmark", []):
+                if mark.name == "parametrize":
+                    for arg in mark.args[1]:
+                        print(f"Running {funcname} {arg}...")
+                        func(arg)
+                    break
+            else:
+                print(f"Running {funcname} ...")
+                func()
 
     new_hashes.pop("overwrite_hashes")
 
