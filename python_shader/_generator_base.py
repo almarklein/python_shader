@@ -249,6 +249,32 @@ class BaseSpirVGenerator:
             cc.MemoryModel_Simple,
         )
 
+        # Remove duplicate types. This is required because some types are not
+        # "complete" until the shader has been fully parsed. In particular the
+        # OpTypeImage.
+        type_instructions = self._sections["types"]
+        seen_type_defs = {}
+        to_remove = []
+        for i in range(len(type_instructions)):
+            words = type_instructions[i]
+            if words[0] not in (cc.OpTypeImage,):
+                continue
+            # Resolve WordPlaceholder's
+            words = tuple(
+                w.value if isinstance(w, WordPlaceholder) else w for w in words
+            )
+            type_instructions[i] = words
+            # Get hash of the parts except the TypeId itself, see if we already have it.
+            # If so, replace id with the id of the other, and remove from list.
+            h = hash(words[:1] + words[2:])
+            if h in seen_type_defs:
+                words[1].id = seen_type_defs[h][1].id
+                to_remove.append(i)
+            else:
+                seen_type_defs[h] = words
+        for i in reversed(to_remove):
+            type_instructions.pop(i)
+
         # Define capabilities. We "collect" these as certain features are used.
         self.gen_instruction("capabilities", cc.OpCapability, cc.Capability_Shader)
         for capability_op in sorted(self._capabilities):
