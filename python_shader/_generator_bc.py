@@ -758,7 +758,7 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             if issubclass(arg_el_type, _types.Float):
                 self.gen_func_instruction(cc.OpFConvert, type_id, result_id, arg)
             elif issubclass(arg_el_type, _types.Int):
-                op = cc.OpConvertSToF if argtname.startswith("u") else cc.OpConvertUToF
+                op = cc.OpConvertUToF if argtname.startswith("u") else cc.OpConvertSToF
                 self.gen_func_instruction(op, type_id, result_id, arg)
             elif issubclass(arg_el_type, _types.boolean):
                 zero = self.obtain_constant(0.0, out_el_type)
