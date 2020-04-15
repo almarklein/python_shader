@@ -11,8 +11,10 @@ def iters_equal(iter1, iter2):
     """ Assert that the given iterators are equal.
     """
     iter1, iter2 = list(iter1), list(iter2)
-    assert len(iter1) == len(iter2)
-    assert all(iter1[i] == iter2[i] for i in range(len(iter1)))
+    if len(iter1) != len(iter2):
+        return False
+    if not all(iter1[i] == iter2[i] for i in range(len(iter1))):
+        return False
     return True
 
 

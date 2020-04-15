@@ -111,15 +111,20 @@ def test_copy_vec3():
     assert iters_equal(out[1][0::4], range(0, 60, 4))
     assert iters_equal(out[1][1::4], range(1, 60, 4))
     assert iters_equal(out[1][2::4], range(2, 60, 4))
-    assert iters_equal(out[1][3::4], [0 for i in range(3, 60, 4)])
+    # Depending on your driver, this might or might not work
+    align_ok = iters_equal(out[1][3::4], range(3, 60, 4))
+    align_fail = iters_equal(out[1][3::4], [0 for i in range(3, 60, 4)])
+    assert align_ok or align_fail
 
-    # assert iters_equal(out[2][0::3], range(20))
-    # assert iters_equal(out[2][1::3], range(20))
-    # assert iters_equal(out[2][2::3], range(20))
-    assert iters_equal(out[2][0::4], range(15))
-    assert iters_equal(out[2][1::4], range(15))
-    assert iters_equal(out[2][2::4], range(15))
-    assert iters_equal(out[2][3::4], [0 for i in range(15)])
+    if align_ok:
+        assert iters_equal(out[2][0::3], range(20))
+        assert iters_equal(out[2][1::3], range(20))
+        assert iters_equal(out[2][2::3], range(20))
+    if align_fail:
+        assert iters_equal(out[2][0::4], range(15))
+        assert iters_equal(out[2][1::4], range(15))
+        assert iters_equal(out[2][2::4], range(15))
+        assert iters_equal(out[2][3::4], [0 for i in range(15)])
 
 
 def test_copy_vec4():
