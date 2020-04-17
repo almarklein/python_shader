@@ -2,6 +2,8 @@
 Implements generating SpirV code from our bytecode.
 """
 
+import ctypes
+
 from ._generator_base import (
     BaseSpirVGenerator,
     ValueId,
@@ -344,6 +346,7 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             assert False  # unreachable
 
         # Create VariableAccessId object
+        type_id = self.obtain_type_id(var_type)
         var_access = self.obtain_variable(var_type, storage_class, var_name)
         var_id = var_access.variable
 
@@ -355,8 +358,13 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
 
         # Dectorate block for uniforms and buffers
         if kind == "uniform":
+            assert issubclass(var_type, _types.Struct)
+            offset = 0
+            for i, key in enumerate(var_type.keys):
+                subtype = var_type.get_subtype(key)
+                offset += self._annotate_uniform_subtype(type_id, subtype, i, offset)
             self.gen_instruction(
-                "annotations", cc.OpDecorate, var_id, cc.Decoration_Block
+                "annotations", cc.OpDecorate, type_id, cc.Decoration_Block
             )
         elif kind == "buffer":
             # todo: according to docs, in SpirV 1.4+, BufferBlock is deprecated
@@ -404,6 +412,28 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
                 if subname in iodict:
                     raise ShaderError(f"{kind} {subname} already exists")
                 iodict[subname] = var_access.index(index_id, i)
+
+    def _annotate_uniform_subtype(self, type_id, subtype, i, offset):
+        """ Annotates the given uniform struct subtype and return its size in bytes.
+        """
+        a = "annotations"
+        if issubclass(subtype, _types.Matrix):
+            # Stride for col or row depending on what is major
+            stride = subtype.rows * ctypes.sizeof(subtype.subtype._ctype)
+            self.gen_instruction(
+                "annotations", cc.OpMemberDecorate, type_id, i, cc.Decoration_ColMajor,
+            )
+            self.gen_instruction(
+                a, cc.OpMemberDecorate, type_id, i, cc.Decoration_MatrixStride, stride,
+            )
+            self.gen_instruction(
+                a, cc.OpMemberDecorate, type_id, i, cc.Decoration_Offset, offset,
+            )
+        else:
+            self.gen_instruction(
+                a, cc.OpMemberDecorate, type_id, i, cc.Decoration_Offset, offset,
+            )
+        return ctypes.sizeof(subtype._as_ctype())
 
     def get_texture_sampler(self, texture, sampler):
         """ texture and sampler are bot VariableAccessId.
