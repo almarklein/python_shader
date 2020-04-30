@@ -374,7 +374,7 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             )
 
         # Define slot of variable
-        if kind in ("buffer", "texture", "uniform"):
+        if kind in ("buffer", "texture", "uniform", "sampler"):
             assert isinstance(slot, int)
             # Default to descriptor set zero
             self.gen_instruction(

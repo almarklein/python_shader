@@ -8,7 +8,7 @@ import subprocess
 
 
 def glsl2spirv(glsl_code, shader_type):
-    """ Compile GLSL to SPirV and return as bytes.
+    """ Compile GLSL to SpirV and return as bytes.
 
     Note: needs glslc from the Vulkan SDK!
     """
