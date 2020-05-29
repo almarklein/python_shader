@@ -65,6 +65,11 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         # Resulting values may be given a name so we can pick them up
         self._aliases = {}
 
+        # Labels for control flow
+        self._labels = {}
+        self._current_block_label = None
+        self._running_branch_pairs = []  # List of dicts with branch info
+
         # Parse
         for opcode, *args in bytecode:
             method = getattr(self, opcode.lower(), None)
@@ -73,6 +78,13 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
                 raise RuntimeError(f"Cannot parse {opcode} yet.")
             else:
                 method(*args)
+
+    def _get_label_id(self, label_value):
+        if label_value not in self._labels:
+            label_id = self.obtain_id(f"label-{label_value}")
+            label_id.resolve(self)
+            self._labels[label_value] = label_id
+        return self._labels[label_value]
 
     def co_func(self, name):
         raise ShaderError("No sub-functions yet")
@@ -132,6 +144,8 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         self.gen_func_instruction(cc.OpLabel, self.obtain_id("label"))
 
     def co_func_end(self):
+        if self._running_branch_pairs:
+            raise RuntimeError("Function ends with unresolved branch pairs!")
         # End function or entrypoint
         self.gen_func_instruction(cc.OpReturn)
         self.gen_func_instruction(cc.OpFunctionEnd)
@@ -454,6 +468,9 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
     def co_pop_top(self):
         self._stack.pop()
 
+    def co_dup_top(self):
+        self._stack.append(self._stack[-1])
+
     def co_load_name(self, name):
         # store a variable that is used in an inner scope.
         if name in self._aliases:
@@ -751,6 +768,135 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
 
         self.gen_func_instruction(opcode, type_id, result_id, id1, id2)
         self._stack.append(result_id)
+
+    def co_compare(self, cmp):
+        val2 = self._stack.pop()
+        val1 = self._stack.pop()
+
+        # Get reference type
+        if val1.type is not val2.type:
+            raise ShaderError("Cannot compare values that do not have the same type.")
+        if issubclass(val1.type, _types.Vector):
+            reftype = val1.type.subtype
+            result_type = _types.Vector(val1.type.length, _types.boolean)
+        else:
+            reftype = val1.type
+            result_type = _types.boolean
+
+        # Get what kind of comparison to do
+        opname_suffix_map = {
+            "<": "LessThan",
+            "<=": "LessThanEqual",
+            "==": "Equal",
+            "!=": "NotEqual",
+            ">": "GreaterThan",
+            ">=": "GreaterThanEqual",
+        }
+        opname_suffix = opname_suffix_map[cmp]
+
+        # Get the actual opcode
+        if issubclass(reftype, _types.Float):
+            opcode = getattr(cc, "OpFOrd" + opname_suffix)
+        elif issubclass(reftype, _types.Int):
+            prefix = "OpS" if "Than" in opname_suffix else "OpI"
+            opcode = getattr(cc, prefix + opname_suffix)
+        else:
+            raise ShaderError(f"Cannot compare values of {val1.type.__name__}.")
+
+        # Generate instruction
+        result_id, type_id = self.obtain_value(result_type)
+        self.gen_func_instruction(opcode, type_id, result_id, val1, val2)
+        self._stack.append(result_id)
+
+    # %% Control flow
+
+    def co_label(self, label):
+        # Update block id
+        self._current_block_label = label
+        main_label_id = self._get_label_id(label)
+        # Get what branch pairs merge here
+        merged_branch_pairs = []  # indices
+        for index, branch_pair_info in enumerate(self._running_branch_pairs):
+            if branch_pair_info["merge_at"] == label:
+                merged_branch_pairs.append(index)
+        # Prepare labels to merge branch pairs at.
+        # Only one branch pair is allowed to merge at each label, so
+        # we may need to add additional "hop labels".
+        hop_labels = [main_label_id]
+        while len(hop_labels) < len(merged_branch_pairs):
+            hop_labels.append(self.obtain_id())
+        # Remove merged branches and resolve the labels.
+        # Reversed, because we must merge sub-branches first, and because of pop.
+        for i in reversed(range(len(merged_branch_pairs))):
+            index = merged_branch_pairs[i]
+            label_id = hop_labels[i]
+            branch_pair_info = self._running_branch_pairs.pop(index)
+            if i > 0:  # Add a hop label
+                self.gen_func_instruction(cc.OpLabel, label_id)
+                self.gen_func_instruction(cc.OpBranch, hop_labels[i - 1])
+            for label_placeholder in branch_pair_info["current_blocks"][label]:
+                if label_placeholder.value != 0:
+                    continue  # Already set by nested branch-pair
+                label_placeholder.value = label_id.id
+            branch_pair_info["merge_label_placeholder"].value = label_id.id
+        # Generate the final label
+        self.gen_func_instruction(cc.OpLabel, main_label_id)
+
+    def co_branch(self, label):
+        # Initialize branch label. We use a placeholder if this is a jump for
+        # at least one branch pair, in which case the label is resolved in co_label.
+        branch_label = self._get_label_id(label)
+        branch_placeholder = WordPlaceholder(
+            0
+        )  # zero to detect unresolved placeholders
+        branch_placeholder_is_used = False
+        # Update all branch pairs for which this is a jump
+        old_label = self._current_block_label
+        for branch_pair_info in self._running_branch_pairs:
+            if old_label in branch_pair_info["current_blocks"]:
+                # Update the branches for this branch-pair
+                branch_pair_info["current_blocks"].pop(old_label)
+                branch_pair_info["current_blocks"].setdefault(label, [])
+                # Keep track of the branch label placeholder, to resolve later.
+                branch_pair_info["current_blocks"][label].append(branch_placeholder)
+                branch_placeholder_is_used = True
+                # If this jump merges the branches, mark what label it is.
+                if len(branch_pair_info["current_blocks"]) == 1:
+                    branch_pair_info["merge_at"] = label
+        # Generate instruction
+        if branch_placeholder_is_used:
+            self.gen_func_instruction(cc.OpBranch, branch_placeholder)
+        else:
+            self.gen_func_instruction(cc.OpBranch, branch_label)
+
+    def co_branch_conditional(self, true_label, false_label):
+        # Setup tracing for the two new branches. SpirV wants to know
+        # beforehand where the two branches meet, so we will need to
+        # update the OpSelectionMerge instruction when we find the merge
+        # point in co_label.
+        merge_label = WordPlaceholder(0)
+        branch_pair_info = {
+            "merge_label_placeholder": merge_label,
+            "current_blocks": {false_label: [], true_label: []},
+            "merge_at": None,
+        }
+        self._running_branch_pairs.append(branch_pair_info)
+        # Also update any "parent" branches
+        old_label = self._current_block_label
+        for branch_pair_info in self._running_branch_pairs:
+            if old_label in branch_pair_info["current_blocks"]:
+                branch_pair_info["current_blocks"].pop(old_label)
+                branch_pair_info["current_blocks"].setdefault(true_label, [])
+                branch_pair_info["current_blocks"].setdefault(false_label, [])
+        # Generate instructions
+        condition = self._stack.pop()
+        self.gen_func_instruction(cc.OpSelectionMerge, merge_label, 0)
+        self.gen_func_instruction(
+            cc.OpBranchConditional,
+            condition,
+            self._get_label_id(true_label),
+            self._get_label_id(false_label),
+        )
 
     # %% Helper methods
 

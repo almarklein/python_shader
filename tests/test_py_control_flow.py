@@ -18,74 +18,58 @@ from testutils import can_use_wgpu_lib
 from testutils import validate_module, run_test_and_print_new_hashes
 
 
-def test_add_sub():
+# todo: test_tertiary_op
+
+
+def test_if1():
     @python2shader_and_validate
     def compute_shader(
         index: ("input", "GlobalInvocationId", i32),
         data1: ("buffer", 0, Array(f32)),
-        data2: ("buffer", 1, Array(vec2)),
+        data2: ("buffer", 1, Array(f32)),
     ):
         a = data1[index]
-        data2[index] = vec2(a + 1.0, a - 1.0)
-
-    skip_if_no_wgpu()
-
-    values1 = [i - 5 for i in range(10)]
-
-    inp_arrays = {0: (ctypes.c_float * 10)(*values1)}
-    out_arrays = {1: ctypes.c_float * 20}
-    out = compute_with_buffers(inp_arrays, out_arrays, compute_shader)
-
-    res = list(out[1])
-    assert res[0::2] == [i + 1 for i in values1]
-    assert res[1::2] == [i - 1 for i in values1]
+        if index < 2:
+            if index == 0:
+                data2[index] = 40.0
+            else:
+                data2[index] = 42.0
+        else:
+            data2[index] = data1[index]
 
 
-def test_mul_div():
+def test_if2():
     @python2shader_and_validate
     def compute_shader(
         index: ("input", "GlobalInvocationId", i32),
         data1: ("buffer", 0, Array(f32)),
-        data2: ("buffer", 1, Array(vec2)),
+        data2: ("buffer", 1, Array(f32)),
     ):
         a = data1[index]
-        data2[index] = vec2(a * 2.0, a / 2.0)
+        if index == 0:
+            data2[index] = 42.0
+        elif index < 3:
+            val = data1[index]
+            if val == 2.0:
+                val = val + 1.0
+            data2[index] = val
+        elif index <= 4:
+            data2[index] = 42.0
+        elif index > 8:
+            data2[index] = 42.0
+        else:
+            data2[index] = data1[index]
 
     skip_if_no_wgpu()
 
-    values1 = [i - 5 for i in range(10)]
+    values1 = [i for i in range(10)]
 
     inp_arrays = {0: (ctypes.c_float * 10)(*values1)}
-    out_arrays = {1: ctypes.c_float * 20}
+    out_arrays = {1: ctypes.c_float * 10}
     out = compute_with_buffers(inp_arrays, out_arrays, compute_shader)
 
     res = list(out[1])
-    assert res[0::2] == [i * 2 for i in values1]
-    assert res[1::2] == [i / 2 for i in values1]
-
-
-def test_pow():
-    @python2shader_and_validate
-    def compute_shader(
-        index: ("input", "GlobalInvocationId", i32),
-        data1: ("buffer", 0, Array(f32)),
-        data2: ("buffer", 1, Array(vec3)),
-    ):
-        a = data1[index]
-        data2[index] = vec3(a ** 2, 0, 0)
-
-    skip_if_no_wgpu()
-
-    values1 = [i - 5 for i in range(10)]
-
-    inp_arrays = {0: (ctypes.c_float * 10)(*values1)}
-    out_arrays = {1: ctypes.c_float * 30}
-    out = compute_with_buffers(inp_arrays, out_arrays, compute_shader)
-
-    res = list(out[1])
-    assert res[0::3] == [i ** 2 for i in values1]
-    # todo: assert res[1::3] == [i ** 0.5 for i in values1]
-    # assert res[2::3] == [i ** 2.2 for i in values1]
+    assert res == [42, 1, 3, 42, 42, 5, 6, 7, 8, 42]
 
 
 # %% Utils for this module

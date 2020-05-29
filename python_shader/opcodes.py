@@ -85,6 +85,11 @@ class OpCodeDefinitions:
         """
         raise NotImplementedError()
 
+    def co_dup_top(self):
+        """ Duplicate the top of the stack.
+        """
+        raise NotImplementedError()
+
     def co_load_name(self, name):
         """ Load a local variable onto the stack.
         """
@@ -126,5 +131,26 @@ class OpCodeDefinitions:
     def co_binop(self, op):
         """ Implements TOS = TOS1 ?? TOS, where ?? is the given operation,
         which can be: add, sub, mul, div, ...
+        """
+        raise NotImplementedError()
+
+    def co_compare(self, cmp):
+        """ Comparison operation. cmp can be "<", "<=", "==", "!=", ">", ">=".
+        """
+        raise NotImplementedError()
+
+    def co_label(self, label):
+        """ Start a block with the given label.
+        The label must be a unique int or string.
+        """
+        raise NotImplementedError()
+
+    def co_branch(self, label):
+        """ Branch to the target label.
+        """
+        raise NotImplementedError()
+
+    def co_branch_conditional(self, true_label, false_label):
+        """ Branch to true_label if TOS is True, else branch to false_label.
         """
         raise NotImplementedError()

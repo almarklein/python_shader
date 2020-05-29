@@ -165,6 +165,7 @@ class WordPlaceholder:
     """
 
     def __init__(self, initial_value):
+        assert isinstance(initial_value, (int, bytes))
         self.value = initial_value
 
     def __repr__(self):

@@ -1,5 +1,6 @@
 import inspect
 from dis import dis as pprint_bytecode
+from dis import cmp_op
 
 from ._coreutils import ShaderError
 from ._module import ShaderModule
@@ -149,11 +150,19 @@ class PyBytecode2Bytecode:
         # Bytecode is a stack machine.
         self._stack = []
 
+        # Keep track of labels
+        self._labels = {}
+
         # Python variable names -> (SpirV object id, type_id)
         # self._aliases = {}
 
         # Parse
         while self._pointer < len(self._co.co_code):
+            if self._pointer in self._labels:
+                last_opcode = self._opcodes[-1][0]
+                if not last_opcode.startswith("co_branch"):
+                    self.emit(op.co_branch, self._labels[self._pointer])
+                self.emit(op.co_label, self._labels[self._pointer])
             opcode = self._next()
             opname = dis.opname[opcode]
             method_name = "_op_" + opname.lower()
@@ -173,6 +182,14 @@ class PyBytecode2Bytecode:
 
     def _peak_next(self):
         return self._co.co_code[self._pointer]
+
+    def _set_label(self, pointer_pos, label=None):
+        label = pointer_pos if label is None else label
+        if pointer_pos < self._pointer:
+            raise RuntimeError(
+                "Can (currently) not set labels for bytecode that has already been parsed"
+            )
+        self._labels[pointer_pos] = label
 
     # %%
 
@@ -418,3 +435,54 @@ class PyBytecode2Bytecode:
         self._stack.pop()
         self._stack.append(None)
         self.emit(op.co_binop, "div")
+
+    def _op_binary_power(self):
+        self._next()
+        exp = self._stack.pop()
+        self._stack.pop()  # base
+        self._stack.append(None)
+        if exp == 2:  # shortcut
+            self.emit(op.co_pop_top)
+            self.emit(op.co_dup_top)
+            self.emit(op.co_binop, "mul")
+        else:
+            self.emit(op.co_binop, "pow")
+
+    def _op_compare_op(self):
+        cmp = cmp_op[self._next()]
+        if cmp not in ("<", "<=", "==", "!=", ">", ">="):
+            raise ShaderError(f"Compare op {cmp} not supported in shaders.")
+        self._stack.pop()
+        self._stack.pop()
+        self._stack.append(None)
+        self.emit(op.co_compare, cmp)
+
+    def _op_jump_absolute(self):
+        target = self._next()
+        self._set_label(target)
+        self.emit(op.co_branch, target)
+
+    def _op_jump_forward(self):
+        delta = self._next()
+        target = self._pointer + delta
+        self._set_label(target)
+        self.emit(op.co_branch, target)
+
+    def _op_pop_jump_if_false(self):
+        target = self._next()
+        condition = self._stack.pop()  # noqa
+        self._set_label(self._pointer)  # Go here if condition is True
+        self._set_label(target)  # Go here if condition is False
+        self.emit(op.co_branch_conditional, self._pointer, target)
+        # todo: spirv supports hints on what branch is the most likely
+
+    def _op_pop_jump_if_true(self):
+        target = self._next()
+        condition = self._stack.pop()  # noqa
+        self._set_label(self._pointer)  # Go here if condition is False
+        self._set_label(target)  # Go here if condition is True
+        self.emit(op.co_branch_conditional, target, self._pointer)
+
+    # todo: these also exist, but I have yet to find out what code results in these code ops
+    # _op_jump_if_true_or_pop
+    # _op_jump_if_false_or_pop
