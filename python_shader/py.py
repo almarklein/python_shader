@@ -175,6 +175,103 @@ class PyBytecode2Bytecode:
             else:
                 method()
 
+        # Python bytecode can be a bit dirty/inconsistent with control flow.
+        # find jumps that immediately jump elsewhere and resolve these.
+        labels_to_replace = {}
+        for i in reversed(range(len(self._opcodes) - 1)):
+            if (
+                self._opcodes[i][0] == "co_label"
+                and self._opcodes[i + 1][0] == "co_branch"
+            ):
+                labels_to_replace[self._opcodes[i][1]] = self._opcodes[i + 1][1]
+                self._opcodes.pop(i)
+                self._opcodes.pop(i)
+        # Handle if there's more of these
+        for key in list(labels_to_replace):
+            while labels_to_replace[key] in labels_to_replace:
+                labels_to_replace[key] = labels_to_replace[labels_to_replace[key]]
+        # Resolve
+        for i in range(len(self._opcodes)):
+            if self._opcodes[i][0] == "co_branch":
+                if self._opcodes[i][1] in labels_to_replace:
+                    self._opcodes[i] = (
+                        "co_branch",
+                        labels_to_replace[self._opcodes[i][1]],
+                    )
+            elif self._opcodes[i][0] == "co_branch_conditional":
+                if self._opcodes[i][1] in labels_to_replace:
+                    self._opcodes[i] = (
+                        "co_branch_conditional",
+                        labels_to_replace[self._opcodes[i][1]],
+                        self._opcodes[i][2],
+                    )
+                if self._opcodes[i][2] in labels_to_replace:
+                    self._opcodes[i] = (
+                        "co_branch_conditional",
+                        self._opcodes[i][1],
+                        labels_to_replace[self._opcodes[i][2]],
+                    )
+
+        # In `a or b` many languages don't evaluate `b` if `a` evualtes
+        # to truethy. This introduces more complex control flow, with
+        # multiple branches passing through the same block. SpirV does
+        # not allow this. Sadly for us, the bytecode has already
+        # resolved `or`'s into control flow ... so we have to detect
+        # the pattern.
+
+        def _get_block_to_resolve():
+            conditional_branches = {}
+            cur_block = None
+            cur_block_i = 0
+            for i in range(len(self._opcodes)):
+                opcode, *args = self._opcodes[i]
+                if opcode == "co_label":
+                    cur_block = args[0]
+                    cur_block_i = i
+                elif opcode == "co_branch_conditional":
+                    # Detect that this conditional branch is part of an earlier comparison
+                    if args[0] in conditional_branches:
+                        other, ii = conditional_branches[args[0]]
+                        if other == cur_block:
+                            return ii, cur_block_i, i
+                    elif args[1] in conditional_branches:
+                        other, ii = conditional_branches[args[1]]
+                        if other == cur_block:
+                            return ii, cur_block_i, i
+                    # Register this branch (note that this may overwrite keys, which is ok)
+                    conditional_branches[args[0]] = args[1], i
+                    conditional_branches[args[1]] = args[0], i
+
+        while True:
+            block = _get_block_to_resolve()
+            if not block:
+                break
+            i_ins, i_label, i_cond = block
+            # Get all the labels
+            labels1 = self._opcodes[i_ins][1:]  # this label and the common block
+            labels2 = self._opcodes[i_cond][1:]  # the common block and the else
+            # Rip out the current label
+            selection = self._opcodes[i_label + 1 : i_cond]
+            self._opcodes[i_label : i_cond + 1] = []
+            # Determine how to combine these
+            if labels1[0] == labels2[0]:  # comp1 is true or comp2 is true
+                selection.append(("co_binop", "or"))
+                selection.append(("co_branch_conditional", labels1[0], labels2[1]))
+            elif labels1[0] == labels2[1]:  # comp1 is true or comp2 is false
+                selection.append(("co_unary_op", "not"))
+                selection.append(("co_binop", "or"))
+                selection.append(("co_branch_conditional", labels1[0], labels2[0]))
+            elif labels1[1] == labels2[0]:  # comp1 is false or comp2 is true
+                selection.insert(0, ("co_unary_op", "not"))
+                selection.append(("co_binop", "or"))
+                selection.append(("co_branch_conditional", labels1[1], labels2[1]))
+            elif labels1[1] == labels2[1]:  # comp1 is false or comp2 is false
+                selection.append(("co_binop", "and"))
+                selection.append(("co_unary_op", "not"))
+                selection.append(("co_branch_conditional", labels1[1], labels2[0]))
+            # Put it back in with the parent label
+            self._opcodes[i_ins : i_ins + 1] = selection
+
     def _next(self):
         res = self._co.co_code[self._pointer]
         self._pointer += 1

@@ -53,7 +53,7 @@ def assemble(spirv_assembly_text):
     if not isinstance(spirv_assembly_text, str):
         raise TypeError("assemble() function expects a string.")
 
-    filename1 = os.path.join(tempfile.gettempdir(), f"x.spvtxt")
+    filename1 = os.path.join(tempfile.gettempdir(), "x.spvtxt")
     filename2 = os.path.join(tempfile.gettempdir(), "x.spv")
 
     spirv_assembly_text = "\n".join(

@@ -288,10 +288,7 @@ class BaseSpirVGenerator:
         insert_point = -1
         for i in range(len(func_instructions)):
             if func_instructions[i][0] == cc.OpFunction:
-                insert_point = -1
-            elif insert_point < 0:
-                if func_instructions[i][0] == cc.OpLabel:
-                    insert_point = i + 1
+                insert_point = i + 2
             elif func_instructions[i][0] == cc.OpVariable:
                 func_instructions.insert(insert_point, func_instructions.pop(i))
                 insert_point += 1
