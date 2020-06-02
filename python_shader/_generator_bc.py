@@ -62,13 +62,41 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         # We keep track of sampler for each combination of texture and sampler
         self._texture_samplers = {}
 
-        # Resulting values may be given a name so we can pick them up
-        self._aliases = {}
+        # Keep track what id a name was saved by. Some need to be stored in variables.
+        self._name_ids = {}  # name -> ValueId
+        self._name_variables = {}  # name -> VariableAccessId
 
         # Labels for control flow
         self._labels = {}
         self._root_branch = {"parent": None, "depth": 0, "label": "", "children": ()}
         self._current_branch = self._root_branch
+
+        # Pre-parse the bytecode, to detect what variables names need
+        # to be stored in a func-variable, and what can be used via the
+        # (faster and easier) SSA form.
+        cur_block_label = ""
+        saved_in_blocks = {}  # name -> set of labels
+        self._need_name_var_save = {}  # label -> set of names
+        self._need_name_var_load = {}  # label -> set of names
+        for opcode, *args in bytecode:
+            if opcode == "co_label":
+                cur_block_label = args[0]
+            elif opcode == "co_store_name":
+                name = args[0]
+                saved_in_blocks.setdefault(name, set()).add(cur_block_label)
+            elif opcode == "co_load_name":
+                name = args[0]
+                blocks_where_name_is_saved = saved_in_blocks.get(name, ())
+                if cur_block_label in blocks_where_name_is_saved:
+                    pass  # no need to use a variable
+                elif len(blocks_where_name_is_saved) <= 1:
+                    pass  # Saved once: fine! Or not saved, get error later.
+                else:
+                    s = self._need_name_var_load.setdefault(cur_block_label, set())
+                    s.add(name)
+                    for block_label in blocks_where_name_is_saved:
+                        s = self._need_name_var_save.setdefault(block_label, set())
+                        s.add(name)
 
         # Parse
         for opcode, *args in bytecode:
@@ -473,8 +501,16 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
 
     def co_load_name(self, name):
         # store a variable that is used in an inner scope.
-        if name in self._aliases:
-            ob = self._aliases[name]
+        if name in self._name_ids:
+            # First check if we need to load the name from a variable. If we do,
+            # load it. Thereafter we won't need to load it again (in this block).
+            current_label = self._current_branch["label"]
+            names_that_need_load = self._need_name_var_load.get(current_label, set())
+            if name in names_that_need_load:
+                ob = self._name_variables[name].resolve_load(self)
+                self._name_ids[name] = ob
+                names_that_need_load.discard(name)
+            ob = self._name_ids[name]
         elif name in self._input:
             ob = self._input[name]
             assert isinstance(ob, VariableAccessId)
@@ -520,7 +556,8 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         elif name in self._uniform:
             raise ShaderError("Cannot store to uniform")
 
-        self._aliases[name] = ob
+        # Store where the result can now be fetched by name (within this block)
+        self._name_ids[name] = ob
 
     def co_load_index(self):
         index = self._stack.pop()
@@ -845,6 +882,22 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
 
     # %% Control flow
 
+    def _store_variables_for_other_blocks(self, label):
+        # Before we wrap up the current block ...
+        # We may need to store variable to use in other blocks
+        for name in self._need_name_var_save.get(label, ()):
+            ob = self._name_ids[name]  # Get the last value
+            if name not in self._name_variables:
+                self._name_variables[name] = self.obtain_variable(
+                    ob.type, cc.StorageClass_Function, name
+                )
+            var_access = self._name_variables[name]
+            if ob.type is not var_access.type:
+                raise ShaderError(
+                    f"Name {name} used for different types {ob.type} and {var_access.type}"
+                )
+            var_access.resolve_store(self, ob)
+
     def co_label(self, label):
         # We enter a new block. This is where we resolve branch pairs that both
         # jumped to this block. If there are multiple such pairs, we need to
@@ -918,6 +971,8 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             branch["children"] = ()
 
     def co_branch(self, label):
+        # Before we leave this block ...
+        self._store_variables_for_other_blocks(self._current_branch["label"])
         # Initialize branch label. We use a placeholder because we may introduce
         # additional labels for merges, so the id may need to change.
         branch_label = self._get_label_id(label)
@@ -932,6 +987,8 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         self.gen_func_instruction(cc.OpBranch, branch_label_placeholder)
 
     def co_branch_conditional(self, true_label, false_label):
+        # Before we leave this block ...
+        self._store_variables_for_other_blocks(self._current_branch["label"])
         # Setup tracing for the two new branches. SpirV wants to know
         # beforehand where the two branches meet, so we will need to
         # update the OpSelectionMerge instruction when we find the merge
