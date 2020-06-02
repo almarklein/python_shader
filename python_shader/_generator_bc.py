@@ -514,6 +514,9 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         elif name in self._input:
             ob = self._input[name]
             assert isinstance(ob, VariableAccessId)
+            # We could make it quicker for next time, but we loose the deeper access
+            # ob = ob.resolve_load(self)
+            # self._name_ids[name] = ob
         elif name in self._output:
             ob = self._output[name]
             assert isinstance(ob, VariableAccessId)
