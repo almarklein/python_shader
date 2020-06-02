@@ -175,8 +175,17 @@ class PyBytecode2Bytecode:
             else:
                 method()
 
-        # Python bytecode can be a bit dirty/inconsistent with control flow.
-        # find jumps that immediately jump elsewhere and resolve these.
+        self._fix_empty_blocks()
+        self._fix_or_control_flow()
+
+    def _fix_empty_blocks(self):
+
+        # Sometimes Python bytecode contains an empty block (i.e. code
+        # jumpt to a location, from which it jumps to another location
+        # immediately). In such cases, the control flow can be
+        # incosistent, with some branches jumping to that empty block,
+        # and some skipping it. The code below finds such empty blocks
+        # and resolve them.
         labels_to_replace = {}
         for i in reversed(range(len(self._opcodes) - 1)):
             if (
@@ -212,12 +221,16 @@ class PyBytecode2Bytecode:
                         labels_to_replace[self._opcodes[i][2]],
                     )
 
-        # In `a or b` many languages don't evaluate `b` if `a` evualtes
+    def _fix_or_control_flow(self):
+
+        # In `a or b` many languages don't evaluate `b` if `a` evaluates
         # to truethy. This introduces more complex control flow, with
         # multiple branches passing through the same block. SpirV does
         # not allow this. Sadly for us, the bytecode has already
         # resolved `or`'s into control flow ... so we have to detect
-        # the pattern.
+        # the pattern. In `a and b`, `b` is not evaluated when `a`
+        # evaluates to falsy. But in this case the resulting control
+        # flow is fine, and we're probably unable to detect it reliably.
 
         def _get_block_to_resolve():
             conditional_branches = {}

@@ -158,5 +158,11 @@ class OpCodeDefinitions:
 
     def co_branch_conditional(self, true_label, false_label):
         """ Branch to true_label if TOS is True, else branch to false_label.
+
+        The control flow of the bytecode must be such that for each
+        pair of branches there is a unique label where they merge and
+        where no other branches pass through. The exception is that a
+        branch-pair, and their sub-branches (and theirs, etc.) can merge
+        at the same label (the compiler can resolve this).
         """
         raise NotImplementedError()
