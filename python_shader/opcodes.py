@@ -67,6 +67,12 @@ class OpCodeDefinitions:
         """
         raise NotImplementedError()
 
+    def co_return(self):
+        """ Return from a function. When the function is a fragment shader
+        entrypoint, this means discard.
+        """
+        raise NotImplementedError()
+
     def co_call(self, nargs):
         """ Call a function. WIP
         """

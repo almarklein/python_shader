@@ -160,7 +160,7 @@ class PyBytecode2Bytecode:
         while self._pointer < len(self._co.co_code):
             if self._pointer in self._labels:
                 last_opcode = self._opcodes[-1][0]
-                if not last_opcode.startswith("co_branch"):
+                if last_opcode not in ("co_branch", "co_branch_conditional"):
                     self.emit(op.co_branch, self._labels[self._pointer])
                 self.emit(op.co_label, self._labels[self._pointer])
             opcode = self._next()
@@ -312,7 +312,10 @@ class PyBytecode2Bytecode:
         self._next()
         result = self._stack.pop()
         assert result is None
-        # for now, there is no return in our-bytecode
+        if self._pointer == len(self._co.co_code):
+            pass
+        else:
+            self.emit(op.co_return)
 
     def _op_load_fast(self):
         # store a variable that is used in an inner scope.

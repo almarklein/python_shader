@@ -48,6 +48,7 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
 
     def _convert(self, bytecode):
 
+        self._execution_model_flag = None
         self._stack = []
 
         # External variables per storage class
@@ -128,6 +129,7 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             "geometry": cc.ExecutionModel_Geometry,
         }
         execution_model_flag = modelmap.get(shader_type.lower(), None)
+        self._execution_model_flag = execution_model_flag
         if execution_model_flag is None:
             raise ShaderError(f"Unknown execution model: {shader_type}")
 
@@ -177,6 +179,15 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         # End function or entrypoint
         self.gen_func_instruction(cc.OpReturn)
         self.gen_func_instruction(cc.OpFunctionEnd)
+
+    def co_return(self):
+        # A discard is only allowed in a fragment shader. Later we might
+        # add helper functions, in which case co_return has another
+        # function.
+        if self._execution_model_flag == cc.ExecutionModel_Fragment:
+            self.gen_func_instruction(cc.OpKill)
+        else:
+            raise ShaderError("Unexpected return/discard")
 
     def co_call(self, nargs):
 
@@ -986,8 +997,10 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         self._current_branch["branch_label_placeholder"] = branch_label_placeholder
         # Mark the end of the block (will be set again at co_label)
         self._current_branch = None
-        # Generate instruction
-        self.gen_func_instruction(cc.OpBranch, branch_label_placeholder)
+        # Generate instruction, but not if the last instruction already marked
+        # the end of a block.
+        if self._sections["functions"][-1][0] not in (cc.OpKill,):
+            self.gen_func_instruction(cc.OpBranch, branch_label_placeholder)
 
     def co_branch_conditional(self, true_label, false_label):
         # Before we leave this block ...

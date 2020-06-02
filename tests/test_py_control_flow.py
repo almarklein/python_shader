@@ -158,6 +158,20 @@ def test_if4():
     assert res == [100, 100, 2 + 11, 3 + 11, 4 + 11, 5 + 11, 6 + 12, 7 + 12, 201, 200]
 
 
+def test_discard():
+
+    # A fragment shader for drawing red dots
+    @python2shader_and_validate
+    def fragment_shader(in_coord: ("input", "PointCoord", vec2),):
+        r2 = ((in_coord.x - 0.5) * 2.0) ** 2 + ((in_coord.y - 0.5) * 2.0) ** 2
+        if r2 > 1.0:
+            return  # discard
+        out_color = vec4(1.0, 0.0, 0.0, 1.0)  # noqa - shader output
+
+    assert ("co_return",) in fragment_shader.to_bytecode()
+    assert "OpKill" in fragment_shader.gen.to_text()
+
+
 # %% Utils for this module
 
 
