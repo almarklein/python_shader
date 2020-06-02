@@ -268,18 +268,18 @@ class PyBytecode2Bytecode:
             self._opcodes[i_label : i_cond + 1] = []
             # Determine how to combine these
             if labels1[0] == labels2[0]:  # comp1 is true or comp2 is true
-                selection.append(("co_binop", "or"))
+                selection.append(("co_binary_op", "or"))
                 selection.append(("co_branch_conditional", labels1[0], labels2[1]))
             elif labels1[0] == labels2[1]:  # comp1 is true or comp2 is false
                 selection.append(("co_unary_op", "not"))
-                selection.append(("co_binop", "or"))
+                selection.append(("co_binary_op", "or"))
                 selection.append(("co_branch_conditional", labels1[0], labels2[0]))
             elif labels1[1] == labels2[0]:  # comp1 is false or comp2 is true
                 selection.insert(0, ("co_unary_op", "not"))
-                selection.append(("co_binop", "or"))
+                selection.append(("co_binary_op", "or"))
                 selection.append(("co_branch_conditional", labels1[1], labels2[1]))
             elif labels1[1] == labels2[1]:  # comp1 is false or comp2 is false
-                selection.append(("co_binop", "and"))
+                selection.append(("co_binary_op", "and"))
                 selection.append(("co_unary_op", "not"))
                 selection.append(("co_branch_conditional", labels1[1], labels2[0]))
             # Put it back in with the parent label
@@ -523,28 +523,28 @@ class PyBytecode2Bytecode:
         self._stack.pop()
         self._stack.pop()
         self._stack.append(None)
-        self.emit(op.co_binop, "add")
+        self.emit(op.co_binary_op, "add")
 
     def _op_binary_subtract(self):
         self._next()
         self._stack.pop()
         self._stack.pop()
         self._stack.append(None)
-        self.emit(op.co_binop, "sub")
+        self.emit(op.co_binary_op, "sub")
 
     def _op_binary_multiply(self):
         self._next()
         self._stack.pop()
         self._stack.pop()
         self._stack.append(None)
-        self.emit(op.co_binop, "mul")
+        self.emit(op.co_binary_op, "mul")
 
     def _op_binary_true_divide(self):
         self._next()
         self._stack.pop()
         self._stack.pop()
         self._stack.append(None)
-        self.emit(op.co_binop, "div")
+        self.emit(op.co_binary_op, "div")
 
     def _op_binary_power(self):
         self._next()
@@ -554,9 +554,9 @@ class PyBytecode2Bytecode:
         if exp == 2:  # shortcut
             self.emit(op.co_pop_top)
             self.emit(op.co_dup_top)
-            self.emit(op.co_binop, "mul")
+            self.emit(op.co_binary_op, "mul")
         else:
-            self.emit(op.co_binop, "pow")
+            self.emit(op.co_binary_op, "pow")
 
     def _op_compare_op(self):
         cmp = cmp_op[self._next()]

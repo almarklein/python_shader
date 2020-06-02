@@ -128,8 +128,7 @@ class OpCodeDefinitions:
         """
         raise NotImplementedError()
 
-    # todo: rename to co_binary_op or co_bin_op
-    def co_binop(self, op):
+    def co_binary_op(self, op):
         """ Implements TOS = TOS1 ?? TOS, where ?? is the given operation,
         which can be: add, sub, mul, div, and, or, ...
         """

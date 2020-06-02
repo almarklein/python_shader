@@ -715,7 +715,7 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         self.gen_func_instruction(opcode, type_id, result_id, val1)
         self._stack.append(result_id)
 
-    def co_binop(self, op):
+    def co_binary_op(self, op):
 
         val2 = self._stack.pop()
         val1 = self._stack.pop()
