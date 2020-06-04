@@ -18,9 +18,6 @@ from testutils import can_use_wgpu_lib
 from testutils import validate_module, run_test_and_print_new_hashes
 
 
-# todo: test_tertiary_op
-
-
 def test_if1():
     # Simple
     @python2shader_and_validate
@@ -156,6 +153,127 @@ def test_if4():
 
     res = list(out[1])
     assert res == [100, 100, 2 + 11, 3 + 11, 4 + 11, 5 + 11, 6 + 12, 7 + 12, 201, 200]
+
+
+def test_ternary1():
+    @python2shader_and_validate
+    def compute_shader(
+        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+    ):
+        data2[index] = 40.0 if index == 0 else 41.0
+
+    skip_if_no_wgpu()
+    out_arrays = {1: ctypes.c_float * 10}
+    out = compute_with_buffers({}, out_arrays, compute_shader)
+    res = list(out[1])
+    assert res == [40, 41, 41, 41, 41, 41, 41, 41, 41, 41]
+
+
+def test_ternary2():
+    @python2shader_and_validate
+    def compute_shader(
+        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+    ):
+        data2[index] = (
+            40.0
+            if index == 0
+            else ((41.0 if index == 1 else 42.0) if index < 3 else 43.0)
+        )
+
+    skip_if_no_wgpu()
+    out_arrays = {1: ctypes.c_float * 10}
+    out = compute_with_buffers({}, out_arrays, compute_shader)
+    res = list(out[1])
+    assert res == [40, 41, 42, 43, 43, 43, 43, 43, 43, 43]
+
+
+def test_ternary3():
+    @python2shader_and_validate
+    def compute_shader(
+        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+    ):
+        data2[index] = (
+            (10.0 * 4.0)
+            if index == 0
+            else ((39.0 + 2.0) if index == 1 else (50.0 - 8.0))
+        )
+
+    skip_if_no_wgpu()
+    out_arrays = {1: ctypes.c_float * 10}
+    out = compute_with_buffers({}, out_arrays, compute_shader)
+    res = list(out[1])
+    assert res == [40, 41, 42, 42, 42, 42, 42, 42, 42, 42]
+
+
+def test_ternary_with_control_flow1():
+    python_shader.py.OPT_CONVERT_TERNARY_TO_SELECT = False
+    try:
+
+        @python2shader_and_validate
+        def compute_shader(
+            index: ("input", "GlobalInvocationId", i32),
+            data2: ("buffer", 1, Array(f32)),
+        ):
+            data2[index] = 40.0 if index == 0 else 41.0
+
+    finally:
+        python_shader.py.OPT_CONVERT_TERNARY_TO_SELECT = True
+
+    skip_if_no_wgpu()
+    out_arrays = {1: ctypes.c_float * 10}
+    out = compute_with_buffers({}, out_arrays, compute_shader)
+    res = list(out[1])
+    assert res == [40, 41, 41, 41, 41, 41, 41, 41, 41, 41]
+
+
+def test_ternary_with_control_flow2():
+    python_shader.py.OPT_CONVERT_TERNARY_TO_SELECT = False
+    try:
+
+        @python2shader_and_validate
+        def compute_shader(
+            index: ("input", "GlobalInvocationId", i32),
+            data2: ("buffer", 1, Array(f32)),
+        ):
+            data2[index] = (
+                40.0
+                if index == 0
+                else ((41.0 if index == 1 else 42.0) if index < 3 else 43.0)
+            )
+
+    finally:
+        python_shader.py.OPT_CONVERT_TERNARY_TO_SELECT = True
+
+    skip_if_no_wgpu()
+    out_arrays = {1: ctypes.c_float * 10}
+    out = compute_with_buffers({}, out_arrays, compute_shader)
+    res = list(out[1])
+    assert res == [40, 41, 42, 43, 43, 43, 43, 43, 43, 43]
+
+
+def test_ternary_with_control_flow3():
+    python_shader.py.OPT_CONVERT_TERNARY_TO_SELECT = False
+    try:
+
+        @python2shader_and_validate
+        def compute_shader(
+            index: ("input", "GlobalInvocationId", i32),
+            data2: ("buffer", 1, Array(f32)),
+        ):
+            data2[index] = (
+                (10.0 * 4.0)
+                if index == 0
+                else ((39.0 + 2.0) if index == 1 else (50.0 - 8.0))
+            )
+
+    finally:
+        python_shader.py.OPT_CONVERT_TERNARY_TO_SELECT = True
+
+    skip_if_no_wgpu()
+    out_arrays = {1: ctypes.c_float * 10}
+    out = compute_with_buffers({}, out_arrays, compute_shader)
+    res = list(out[1])
+    assert res == [40, 41, 42, 42, 42, 42, 42, 42, 42, 42]
 
 
 def test_discard():

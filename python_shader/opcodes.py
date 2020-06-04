@@ -171,3 +171,6 @@ class OpCodeDefinitions:
         at the same label (the compiler can resolve this).
         """
         raise NotImplementedError()
+
+    def co_select(self):
+        raise NotImplementedError()
