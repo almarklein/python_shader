@@ -189,6 +189,17 @@ class PyBytecode2Bytecode:
         self._fix_or_control_flow()
 
     def fix_ternaries(self):
+
+        # The Python ternary operation (.. if xx else ..) results in a
+        # control flow using branches/jumps, and non-empty stacks at
+        # the end of certain blocks. The SpirV generator can (now)
+        # handle that (using Phi merge ops). Nevertheless, it would be
+        # nice to be able to do a branch-free select operation in
+        # Python, and the ternary op is a great candidate for that. The
+        # non-empty blocks make that we can detect the use of the
+        # ternary op, so that we can inline the branches and replace
+        # the co_branch_conditional with a co_select.
+
         def _extract_block(label):
             for i in range(0, len(self._opcodes)):
                 if self._opcodes[i] == ("co_label", label):
