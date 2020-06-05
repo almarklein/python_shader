@@ -18,6 +18,9 @@ from testutils import can_use_wgpu_lib
 from testutils import validate_module, run_test_and_print_new_hashes
 
 
+# %% if
+
+
 def test_if1():
     # Simple
     @python2shader_and_validate
@@ -155,6 +158,9 @@ def test_if4():
     assert res == [100, 100, 2 + 11, 3 + 11, 4 + 11, 5 + 11, 6 + 12, 7 + 12, 201, 200]
 
 
+# %% ternary
+
+
 def test_ternary1():
     @python2shader_and_validate
     def compute_shader(
@@ -274,6 +280,32 @@ def test_ternary_with_control_flow3():
     out = compute_with_buffers({}, out_arrays, compute_shader)
     res = list(out[1])
     assert res == [40, 41, 42, 42, 42, 42, 42, 42, 42, 42]
+
+
+# %% or / and
+
+
+# %% loops
+
+
+def test_loop1():
+    @python2shader_and_validate
+    def compute_shader(
+        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+    ):
+        val = 0.0
+        for i in range(index):
+            val = val + 1.0
+        data2[index] = val
+
+    skip_if_no_wgpu()
+    out_arrays = {1: ctypes.c_float * 10}
+    out = compute_with_buffers({}, out_arrays, compute_shader)
+    res = list(out[1])
+    assert res == [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+
+# %% discard
 
 
 def test_discard():

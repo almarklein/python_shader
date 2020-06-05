@@ -96,6 +96,11 @@ class OpCodeDefinitions:
         """
         raise NotImplementedError()
 
+    def co_rot_two(self):
+        """ Swap the two top elements on the stack.
+        """
+        raise NotImplementedError()
+
     def co_load_name(self, name):
         """ Load a local variable onto the stack.
         """
@@ -172,5 +177,14 @@ class OpCodeDefinitions:
         """
         raise NotImplementedError()
 
+    def co_branch_loop(self, iter_label, continue_label, merge_label):
+        """ Indicate the beginning of a loop (in a new block).
+        """
+        raise NotImplementedError()
+
     def co_select(self):
+        """ Select between two values based on a bool.
+        If TOS3, select TOS2, otherwise select TOS1. Push
+        the selected object on the stack.
+        """
         raise NotImplementedError()

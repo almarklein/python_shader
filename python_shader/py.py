@@ -64,6 +64,8 @@ class PyBytecode2Bytecode:
         self._texture = {}
         self._sampler = {}
 
+        self._loop_info = {}
+
         # todo: allow user to specify name otherwise?
         entrypoint_name = "main"  # py_func.__name__
         self.emit(op.co_entrypoint, entrypoint_name, shader_type, {})
@@ -369,6 +371,8 @@ class PyBytecode2Bytecode:
         return self._co.co_code[self._pointer]
 
     def _set_label(self, pointer_pos, label=None):
+        if pointer_pos in self._labels:
+            return
         label = pointer_pos if label is None else label
         if pointer_pos < self._pointer:
             raise RuntimeError(
@@ -456,6 +460,8 @@ class PyBytecode2Bytecode:
         name = self._co.co_names[i]
         if name == "stdlib":
             self._stack.append(stdlib)
+        elif name == "range":
+            self._stack.append(name)
         else:
             self.emit(op.co_load_name, name)
             self._stack.append(name)
@@ -527,6 +533,22 @@ class PyBytecode2Bytecode:
             assert ob.startswith("texture.")  # a texture object
             self.emit(op.co_call, nargs + 1)
             self._stack.append(None)
+        elif func == "range":
+            if self._loop_info.get("range_specified", -1) != 0:
+                raise ShaderError("Can only use range() to specify a for-loop")
+            self._loop_info["range_specified"] = 1
+            if len(args) == 1:
+                self.emit(op.co_load_constant, 0)
+                self.emit(op.co_rot_two)
+                self.emit(op.co_load_constant, 1)
+            elif len(args) == 2:
+                self.emit(op.co_load_constant, 1)
+            elif len(args) == 3:
+                pass
+            else:
+                raise ShaderError("range() must have 1, 2 or 3 args.")
+            self._stack.append("range")
+            # nothing to emit yet
         else:
             assert isinstance(func, str)
             self.emit(op.co_call, nargs)
@@ -687,6 +709,118 @@ class PyBytecode2Bytecode:
         self.emit(op.co_branch_conditional, target, self._pointer)
         self._detect_jump_is_for_ternary()
 
-    # todo: these also exist, but I have yet to find out what code results in these code ops
+    # todo: these also exist, and get triggered when a OR or AND is stored as a value
     # _op_jump_if_true_or_pop
     # _op_jump_if_false_or_pop
+
+    def _op_setup_loop(self):
+        # This is Python indicating that there is a loop, it indicates
+        # where control flow goes further. We will do most of the work
+        # in op_for_iter though, because we don't know enough yet.
+        delta = self._next()
+        self._loop_info = {
+            "merge_label": self._pointer + delta,
+            "range_specified": 0,
+        }
+
+    def _op_break_loop(self):
+        self._next()
+        raise NotImplementedError()
+
+    def _op_continue_loop(self):
+        target = self._next()  # for-iter
+        raise NotImplementedError()
+
+    def _op_get_iter(self):
+        self._next()
+        func = self._stack.pop()
+        if func != "range":
+            raise ShaderError("Can only use a loop with range()")
+        self._stack.append(func)
+        # Note: in op_call_function we've already made sure that there are three arg values on the stack
+
+    def _op_for_iter(self):
+        delta = self._next()
+        here = self._pointer - 2
+        target = self._pointer + delta
+        assert self._loop_info and self._loop_info["merge_label"] == target + 2
+
+        # Check that range is specified and prevent further use of range()
+        assert self._stack.pop() == "range"
+        assert self._loop_info["range_specified"] == 1, "Loop iter must be a range()"
+        self._loop_info["range_specified"] = 2
+
+        # Consume next codepoint - the storing of the iter value
+        next_op = self._next()
+        assert dis.opname[next_op] == "STORE_FAST"
+        iter_name = self._co.co_varnames[self._next()]
+        self._loop_info["iter_name"] = iter_name
+
+        # Now we have the info we need to setup the loop. We have
+        # several blocks to consider. But first define more labels.
+
+        # The header_label represents the "loop header". Any "back edge"
+        # (a jump back to the start) must go here (and not to
+        # iter_label). In Python, the body jumps to this (FOR_ITER)
+        # instruction, so we use it for the header_label.
+        self._loop_info["header_label"] = here - 1
+        # The iter_label is the block that follows it, containing a conditional branch.
+        self._loop_info["iter_label"] = here + 1
+        # The continue label is what a continue op jumps to. Since we
+        # increment the iter value in the iter_label block, we don't have
+        # a separate continue block and just jump to the loop start.
+        self._loop_info["continue_label"] = here
+        # The body_label represents the body pf the loop. It is what follows after
+        # the current Python bytecode instruction.
+        self._loop_info["body_label"] = self._pointer
+        # Make sure all labels exist
+        self._labels[here] = here
+        for key in ["body_label", "merge_label"]:
+            self._set_label(self._loop_info[key])
+
+        # Block 0 (the current block) - prepare iter variable
+        # Note that in the range() call, we've put three variables on the stack
+        self.emit(op.co_store_name, iter_name + "-step")
+        self.emit(op.co_store_name, iter_name + "-stop")
+        self.emit(op.co_store_name, iter_name + "-start")
+        self.emit(op.co_load_name, iter_name + "-start")
+        self.emit(op.co_store_name, iter_name)
+        self.emit(op.co_branch, self._loop_info["header_label"])
+        # Block 1 - the "header" of the loop
+        self.emit(op.co_label, self._loop_info["header_label"])
+        self.emit(
+            op.co_branch_loop,
+            self._loop_info["iter_label"],
+            self._loop_info["continue_label"],
+            self._loop_info["merge_label"],
+        )
+        # Block 2 - the block that decides whether to break from the loop
+        self.emit(op.co_label, self._loop_info["iter_label"])
+        self.emit(op.co_load_name, iter_name)
+        self.emit(op.co_load_name, iter_name + "-stop")
+        self.emit(op.co_compare, "<")
+        self.emit(
+            op.co_branch_conditional,
+            self._loop_info["body_label"],
+            self._loop_info["merge_label"],
+        )
+        # Block 3 - the body (can consist of more blocks
+        # ... that's what gets processed next
+        # Block 4 - the continue label (we emit that in _op_pop_block)
+
+    def _op_pop_block(self):
+        self._next()
+        assert self._loop_info.get("merge_label", -1) == self._pointer
+        iter_name = self._loop_info["iter_name"]
+
+        # todo: enforce that the step param is a constant and > 0
+
+        # Insert the continue block, which is where the iter value is incremented.
+        self.emit(op.co_label, self._loop_info["continue_label"])
+        self.emit(op.co_load_name, iter_name)
+        self.emit(op.co_load_name, iter_name + "-step")
+        self.emit(op.co_binary_op, "add")
+        self.emit(op.co_store_name, iter_name)
+        self.emit(op.co_branch, self._loop_info["header_label"])
+        # Exit the loop
+        self._loop_info = {}

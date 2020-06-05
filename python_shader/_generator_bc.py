@@ -91,14 +91,16 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
                 blocks_where_name_is_saved = saved_in_blocks.get(name, ())
                 if cur_block_label in blocks_where_name_is_saved:
                     pass  # no need to use a variable
-                elif len(blocks_where_name_is_saved) <= 1:
-                    pass  # Saved once: fine! Or not saved, get error later.
                 else:
                     s = self._need_name_var_load.setdefault(cur_block_label, set())
                     s.add(name)
-                    for block_label in blocks_where_name_is_saved:
-                        s = self._need_name_var_save.setdefault(block_label, set())
-                        s.add(name)
+        # Also mark the blocks where we need to save the variable
+        for names in self._need_name_var_load.values():
+            for name in names:
+                blocks_where_name_is_saved = saved_in_blocks.get(name, ())
+                for block_label in blocks_where_name_is_saved:
+                    s = self._need_name_var_save.setdefault(block_label, set())
+                    s.add(name)
 
         # Parse
         for opcode, *args in bytecode:
@@ -512,6 +514,12 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         ob = self._stack.pop()
         self._stack.append(ob)
         self._stack.append(ob)
+
+    def co_rot_two(self):
+        ob1 = self._stack.pop()
+        ob2 = self._stack.pop()
+        self._stack.append(ob1)
+        self._stack.append(ob2)
 
     def co_load_name(self, name):
         # store a variable that is used in an inner scope.
@@ -950,6 +958,21 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         #   block must also pass through the block where the branch-pair
         #   diverged (i.e.the header block).
 
+        # First we resolve any loops that end here
+        def _collect_loop_branches(branch):
+            if branch["children"]:
+                c1, c2 = branch["children"]
+                if branch.get("loop_merge_label", "") == label:
+                    return [branch]
+                return _collect_loop_branches(c1) + _collect_loop_branches(c2)
+            else:
+                return []
+
+        for branch in _collect_loop_branches(self._root_branch):
+            branch["children"] = []
+            branch.pop("loop_merge_label")
+            branch["label"] = label
+
         # Create a mapping to obtain parents of items in the CFG.
         # We don't use a 'parent' attribute on the items, because that makes
         # these dicts really hard to read during debugging.
@@ -1070,6 +1093,7 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
 
     def co_branch_conditional(self, true_label, false_label):
         condition = self._stack.pop()
+        current_label = self._current_branch["label"]
         # Before we leave this block ...
         self._before_moving_out_of_a_block()
         # Setup tracing for the two new branches. SpirV wants to know
@@ -1083,23 +1107,50 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             "depth": self._current_branch["depth"] + 1,
             "children": (),
             "label": true_label,
-            "prev_label": self._current_branch["label"],
+            "prev_label": current_label,
             "branch_label_placeholder": branch1_label,
         }
         new_branch2 = {
             "depth": self._current_branch["depth"] + 1,
             "children": (),
             "label": false_label,
-            "prev_label": self._current_branch["label"],
+            "prev_label": current_label,
             "branch_label_placeholder": branch2_label,
         }
         self._current_branch["children"] = new_branch1, new_branch2
         self._current_branch["merge_label_placeholder"] = merge_label
-        # Generate instructions
-        self.gen_func_instruction(cc.OpSelectionMerge, merge_label, 0)
+        # Also introduce OpSelectionMerge, unless we're in a OpLoopMerge
+        if self._current_branch.get("loop_iter_label", None) != current_label:
+            self.gen_func_instruction(cc.OpSelectionMerge, merge_label, 0)
+        # Generate the branch instruction
         self.gen_func_instruction(
             cc.OpBranchConditional, condition, branch1_label, branch2_label,
         )
+
+    def co_branch_loop(self, iter_label, continue_label, merge_label):
+        # Before we leave this block ...
+        self._before_moving_out_of_a_block()
+        # Get id's
+        iter_id = self._get_label_id(iter_label)
+        continue_id = self._get_label_id(continue_label)
+        merge_id = self._get_label_id(merge_label)
+        # note: here we can specify request for unroll, min/max iters (1.4+) etc.
+        self.gen_func_instruction(cc.OpLoopMerge, merge_id, continue_id, 0)
+
+        # Mark the current branch as a loop, ending at merge_label
+        self._current_branch["loop_merge_label"] = merge_label
+        self._current_branch["loop_iter_label"] = iter_label
+
+        # The rest is similar to co_branch()
+        branch_label_placeholder = WordPlaceholder(iter_id.id)
+        # Update the label for the currently running branch
+        self._current_branch["prev_label"] = self._current_branch["label"]
+        self._current_branch["label"] = iter_label
+        # Also update the label placeholder for the last jump
+        self._current_branch["branch_label_placeholder"] = branch_label_placeholder
+        # Mark the end of the block (will be set again at co_label)
+        self._current_branch = None
+        self.gen_func_instruction(cc.OpBranch, iter_id)
 
     def co_select(self):
         val2 = self._stack.pop()

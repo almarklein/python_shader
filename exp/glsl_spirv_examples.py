@@ -218,3 +218,25 @@ void main() {
 }
 """
 )
+
+# %% Loops
+
+print_glsl2spirv_comp(
+    """
+#version 450
+//layout(local_size_x = 1) in;
+
+layout(set = 0, binding = 0) buffer PrimeIndices {
+    uint[] data;
+};
+
+void main() {
+    uint index = gl_GlobalInvocationID.x;
+    uint val = 0;
+    for (int i=0; i<index; i++) {
+        val = val + 1;
+    }
+    data[index] = val;
+}
+"""
+)

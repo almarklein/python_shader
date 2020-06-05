@@ -336,7 +336,14 @@ class BaseSpirVGenerator:
                 for i in instruction[1:]:
                     if isinstance(i, AnyId):
                         i_str = i.display_name
-                        if instruction[0] == cc.OpDecorate:
+                        if instruction[0] in (
+                            cc.OpDecorate,
+                            cc.OpLoopMerge,
+                            cc.OpSelectionMerge,
+                            cc.OpBranch,
+                            cc.co_branch_conditional,
+                            cc.co_branch_loop,
+                        ):
                             pass
                         elif i.id not in seen_ids:
                             seen_ids.add(i.id)
