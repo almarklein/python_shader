@@ -341,8 +341,7 @@ class BaseSpirVGenerator:
                             cc.OpLoopMerge,
                             cc.OpSelectionMerge,
                             cc.OpBranch,
-                            cc.co_branch_conditional,
-                            cc.co_branch_loop,
+                            cc.OpBranchConditional,
                         ):
                             pass
                         elif i.id not in seen_ids:

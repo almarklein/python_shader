@@ -289,6 +289,8 @@ def test_ternary_with_control_flow3():
 
 
 def test_loop1():
+    # Simples form
+
     @python2shader_and_validate
     def compute_shader(
         index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
@@ -303,6 +305,72 @@ def test_loop1():
     out = compute_with_buffers({}, out_arrays, compute_shader)
     res = list(out[1])
     assert res == [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+
+def test_loop2():
+    # With a ternary in the body
+
+    @python2shader_and_validate
+    def compute_shader(
+        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+    ):
+        val = 0.0
+        for i in range(index):
+            val = val + (1.0 if i < 5 else 2.0)
+
+        data2[index] = val
+
+    skip_if_no_wgpu()
+    out_arrays = {1: ctypes.c_float * 10}
+    out = compute_with_buffers({}, out_arrays, compute_shader)
+    res = list(out[1])
+    assert res == [0, 1, 2, 3, 4, 5, 7, 9, 11, 13]
+
+
+def test_loop3():
+    # With an if in the body
+
+    @python2shader_and_validate
+    def compute_shader(
+        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+    ):
+        val = 0.0
+        for i in range(index):
+            if i < 5:
+                val = val + 1.0
+            else:
+                val = val + 2.0
+        data2[index] = val
+
+    skip_if_no_wgpu()
+    out_arrays = {1: ctypes.c_float * 10}
+    out = compute_with_buffers({}, out_arrays, compute_shader)
+    res = list(out[1])
+    assert res == [0, 1, 2, 3, 4, 5, 7, 9, 11, 13]
+
+
+def test_loop4():
+    # A loop in a loop
+
+    @python2shader_and_validate
+    def compute_shader(
+        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+    ):
+        val = 0.0
+        for i in range(index):
+            for j in range(3):
+                val = val + 10.0
+                for k in range(2):
+                    val = val + 2.0
+            for k in range(10):
+                val = val - 1.0
+        data2[index] = val
+
+    skip_if_no_wgpu()
+    out_arrays = {1: ctypes.c_float * 10}
+    out = compute_with_buffers({}, out_arrays, compute_shader)
+    res = list(out[1])
+    assert res == [0, 32, 64, 96, 128, 160, 192, 224, 256, 288]
 
 
 # %% discard

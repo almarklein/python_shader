@@ -938,6 +938,26 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             self._stack_for_phi[label] = self._stack.pop()
             assert not self._stack
 
+    def _apply_phi_op_on_branch_merge(self, branch):
+        child_labels = [b["prev_label"] for b in branch["children"]]
+        if (
+            child_labels[0] in self._stack_for_phi
+            or child_labels[1] in self._stack_for_phi
+        ):
+            obs = [self._stack_for_phi[x] for x in child_labels]
+            types = [ob.type for ob in obs]
+            type = obs[0].type
+            for ob in obs:
+                assert (
+                    ob.type is type
+                ), f"Phi stack has objects with different types: {types}"
+            result_id, type_id = self.obtain_value(type)
+            phi_op = [cc.OpPhi, type_id, result_id]
+            for child_label, ob in zip(child_labels, obs):
+                phi_op.extend([ob, self._get_label_id(child_label)])
+            self.gen_func_instruction(*phi_op)
+            self._stack.append(result_id)
+
     def co_label(self, label):
         # We enter a new block. This is where we resolve branch pairs that both
         # jumped to this block. If there are multiple such pairs, we need to
@@ -957,21 +977,6 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         #   unique block (i.e. label), and all control flow going through that
         #   block must also pass through the block where the branch-pair
         #   diverged (i.e.the header block).
-
-        # First we resolve any loops that end here
-        def _collect_loop_branches(branch):
-            if branch["children"]:
-                c1, c2 = branch["children"]
-                if branch.get("loop_merge_label", "") == label:
-                    return [branch]
-                return _collect_loop_branches(c1) + _collect_loop_branches(c2)
-            else:
-                return []
-
-        for branch in _collect_loop_branches(self._root_branch):
-            branch["children"] = []
-            branch.pop("loop_merge_label")
-            branch["label"] = label
 
         # Create a mapping to obtain parents of items in the CFG.
         # We don't use a 'parent' attribute on the items, because that makes
@@ -998,6 +1003,17 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
                     parent = parents[id(branch)]
                     siblings = parent["children"]
                     if siblings[0]["label"] == siblings[1]["label"]:
+                        # Merging what started at co_branch_conditional
+                        return parent
+                    elif parent.get("loop_merge_label", "") == label:
+                        # Merging what started at co_branch_loop Note that one child
+                        # branch is pointing to the continue label, not to here.
+                        parent.pop("loop_merge_label")
+                        parent.pop("loop_iter_label")
+                        parent.pop("loop_continue_label")
+                        parent["children"] = tuple(
+                            c for c in siblings if c in leaf_branches
+                        )
                         return parent
 
         branches2merge = []
@@ -1008,8 +1024,9 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
                 break
             new_leaf["label"] = new_leaf["children"][0]["label"]
             # new_leaf["children"] = () -> do further down, we need that info
-            leaf_branches.remove(new_leaf["children"][0])
-            leaf_branches.remove(new_leaf["children"][1])
+            for child in new_leaf["children"]:
+                if child in leaf_branches:
+                    leaf_branches.remove(child)
             leaf_branches.append(new_leaf)
             branches2merge.append(new_leaf)
 
@@ -1020,12 +1037,19 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             )
         self._current_branch = leaf_branches[0]
 
+        # Need an extra hop?
+        exta_hop = 0
+        parent = parents.get(id(self._current_branch), {})
+        if parent.get("loop_continue_label") == label:
+            exta_hop = 1
+
         # Get hop labels for all the merges.
         hop_labels = [label]
-        while len(hop_labels) < len(branches2merge):
+        while len(hop_labels) < len(branches2merge) + exta_hop:
             hop_labels.insert(-1, f"{label}-hop-{len(hop_labels)}")
 
         # Emit the code for the extra blocks, and update previous jump ids.
+        hop_label = None
         for i, branch in enumerate(branches2merge):
             # Mark the start of a new block
             hop_label = hop_labels[i]
@@ -1036,24 +1060,8 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
                 child["branch_label_placeholder"].value = label_id.id
             branch["merge_label_placeholder"].value = label_id.id
             # We may need to insert a Phi op
-            child_labels = [b["prev_label"] for b in branch["children"]]
-            if (
-                child_labels[0] in self._stack_for_phi
-                or child_labels[1] in self._stack_for_phi
-            ):
-                obs = [self._stack_for_phi[x] for x in child_labels]
-                types = [ob.type for ob in obs]
-                type = obs[0].type
-                for ob in obs:
-                    assert (
-                        ob.type is type
-                    ), f"Phi stack has objects with different types: {types}"
-                result_id, type_id = self.obtain_value(type)
-                phi_op = [cc.OpPhi, type_id, result_id]
-                for child_label, ob in zip(child_labels, obs):
-                    phi_op.extend([ob, self._get_label_id(child_label)])
-                self.gen_func_instruction(*phi_op)
-                self._stack.append(result_id)
+            if len(branch["children"]) == 2:
+                self._apply_phi_op_on_branch_merge(branch)
             # Do we need to hop to the next block?
             if hop_label is not label:
                 branch_label_placeholder = WordPlaceholder(
@@ -1062,10 +1070,11 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
                 branch["branch_label_placeholder"] = branch_label_placeholder
                 branch["prev_label"] = hop_label
                 self.gen_func_instruction(cc.OpBranch, branch_label_placeholder)
+            if i < len(branches2merge) - 1:
                 self._store_stack_for_phi_op(hop_label)
 
-        # If there were no branches to merge, we only add a label
-        if not branches2merge:
+        # If we did not create the main label yet, create it now
+        if hop_label != label:
             self.gen_func_instruction(cc.OpLabel, self._get_label_id(label))
 
         # Clean up
@@ -1100,7 +1109,6 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         # beforehand where the two branches meet, so we will need to
         # update the OpSelectionMerge instruction when we find the merge
         # point in co_label.
-        merge_label = WordPlaceholder(0)
         branch1_label = WordPlaceholder(self._get_label_id(true_label).id)
         branch2_label = WordPlaceholder(self._get_label_id(false_label).id)
         new_branch1 = {
@@ -1118,9 +1126,10 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             "branch_label_placeholder": branch2_label,
         }
         self._current_branch["children"] = new_branch1, new_branch2
-        self._current_branch["merge_label_placeholder"] = merge_label
         # Also introduce OpSelectionMerge, unless we're in a OpLoopMerge
         if self._current_branch.get("loop_iter_label", None) != current_label:
+            merge_label = WordPlaceholder(0)
+            self._current_branch["merge_label_placeholder"] = merge_label
             self.gen_func_instruction(cc.OpSelectionMerge, merge_label, 0)
         # Generate the branch instruction
         self.gen_func_instruction(
@@ -1134,12 +1143,15 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         iter_id = self._get_label_id(iter_label)
         continue_id = self._get_label_id(continue_label)
         merge_id = self._get_label_id(merge_label)
+        merge_placeholder = WordPlaceholder(merge_id.id)
         # note: here we can specify request for unroll, min/max iters (1.4+) etc.
-        self.gen_func_instruction(cc.OpLoopMerge, merge_id, continue_id, 0)
+        self.gen_func_instruction(cc.OpLoopMerge, merge_placeholder, continue_id, 0)
 
         # Mark the current branch as a loop, ending at merge_label
         self._current_branch["loop_merge_label"] = merge_label
         self._current_branch["loop_iter_label"] = iter_label
+        self._current_branch["loop_continue_label"] = continue_label
+        self._current_branch["merge_label_placeholder"] = merge_placeholder
 
         # The rest is similar to co_branch()
         branch_label_placeholder = WordPlaceholder(iter_id.id)
