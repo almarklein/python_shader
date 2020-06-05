@@ -70,7 +70,7 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
 
         # Labels for control flow
         self._labels = {}
-        self._root_branch = {"parent": None, "depth": 0, "label": "", "children": ()}
+        self._root_branch = {"depth": 0, "label": "", "children": ()}
         self._current_branch = self._root_branch
 
         # Pre-parse the bytecode, to detect what variables names need
@@ -950,10 +950,16 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         #   block must also pass through the block where the branch-pair
         #   diverged (i.e.the header block).
 
+        # Create a mapping to obtain parents of items in the CFG.
+        # We don't use a 'parent' attribute on the items, because that makes
+        # these dicts really hard to read during debugging.
+        parents = {}
+
         # First we collect the leaf branches that have jumped to this block
         def _collect_leaf_branches(branch):
             if branch["children"]:
                 c1, c2 = branch["children"]
+                parents[id(c1)] = parents[id(c2)] = branch
                 return _collect_leaf_branches(c1) + _collect_leaf_branches(c2)
             elif branch["label"] == label:
                 return [branch]
@@ -965,8 +971,8 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         # Then we merge branches, one by one, deeper ones first
         def _select_branch_to_merge():
             for branch in leaf_branches:
-                parent = branch["parent"]
-                if parent:
+                if branch["depth"] > 0:
+                    parent = parents[id(branch)]
                     siblings = parent["children"]
                     if siblings[0]["label"] == siblings[1]["label"]:
                         return parent
@@ -1074,7 +1080,6 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         branch1_label = WordPlaceholder(self._get_label_id(true_label).id)
         branch2_label = WordPlaceholder(self._get_label_id(false_label).id)
         new_branch1 = {
-            "parent": self._current_branch,
             "depth": self._current_branch["depth"] + 1,
             "children": (),
             "label": true_label,
@@ -1082,7 +1087,6 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             "branch_label_placeholder": branch1_label,
         }
         new_branch2 = {
-            "parent": self._current_branch,
             "depth": self._current_branch["depth"] + 1,
             "children": (),
             "label": false_label,
