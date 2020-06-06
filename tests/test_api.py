@@ -65,3 +65,12 @@ def test_that_bytecode_generator_matches_opcode_definitions():
         assert name in cls1.__dict__, f"{name} is not a known opcode"
 
     assert count > 12  # Just make sure we're not skipping all
+
+
+def test_some_internal_apis_too():
+    x = python_shader._generator_base.AnyId()
+    assert "?" in repr(x)
+    x.id = 23
+    assert "23" in repr(x)
+    x = python_shader._generator_base.AnyId("foo")
+    assert "foo" in repr(x)

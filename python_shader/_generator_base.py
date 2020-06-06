@@ -196,7 +196,7 @@ class BaseSpirVGenerator:
     def _convert(self, input):
         """ Subclasses should implement this.
         """
-        raise NotImplementedError()
+        raise NotImplementedError()  # noqa
 
     def _init(self):
 
@@ -437,13 +437,13 @@ class BaseSpirVGenerator:
             M = {"f32": "<f", "f64": "<d"}
             struct_type = M[the_type.__name__]
             bb = struct.pack(struct_type, value)
+        elif isinstance(value, bool):
+            the_type = _types.boolean
         elif isinstance(value, int):
             the_type = _types.i32 if the_type is None else the_type
             M = {"u8": "<B", "i16": "<h", "i32": "<i", "i64": "<q"}
             struct_type = M[the_type.__name__]
             bb = struct.pack(struct_type, value)
-        elif isinstance(value, bool):
-            the_type = _types.boolean
         else:
             raise RuntimeError(f"Cannot get a constant for {value}")
         # Make sure that we have it

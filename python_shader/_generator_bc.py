@@ -275,7 +275,7 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
     def co_resource(self, name, kind, slot, typename):
 
         bindgroup = 0
-        if isinstance(slot, tuple):
+        if isinstance(slot, (tuple, list)):
             bindgroup, slot = slot
 
         # --> https://www.khronos.org/opengl/wiki/Layout_Qualifier_(GLSL)
@@ -919,7 +919,8 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
     def _store_variables_for_other_blocks(self, label):
         # Before we wrap up the current block ...
         # We may need to store variable to use in other blocks
-        for name in self._need_name_var_save.get(label, ()):
+        # Sort the names to obtain consistent bytecode.
+        for name in sorted(self._need_name_var_save.get(label, ())):
             ob = self._name_ids[name]  # Get the last value
             if name not in self._name_variables:
                 self._name_variables[name] = self.obtain_variable(
@@ -962,7 +963,7 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             self.gen_func_instruction(*phi_op)
             self._stack.append(result_id)
 
-    def co_label(self, new_label):
+    def co_label(self, label):
         # We enter a new block. This is where we resolve branch pairs that both
         # jumped to this block. If there are multiple such pairs, we need to
         # introduce extra blocks, because at each label we can merge at most
@@ -981,6 +982,8 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         #   unique block (i.e. label), and all control flow going through that
         #   block must also pass through the block where the branch-pair
         #   diverged (i.e.the header block).
+
+        new_label = label
 
         # Get what loop we're in. If this label closes/merges the loop, pop it.
         loop_info = self._loop_stack[-1]

@@ -93,6 +93,9 @@ class PyBytecode2Bytecode:
                 assert isinstance(kind, str)
                 assert isinstance(slot, (int, str, tuple))
                 assert isinstance(subtype, (type, str))
+                slot = (
+                    list(slot) if isinstance(slot, tuple) else slot
+                )  # json consistency
             else:
                 raise TypeError(
                     f"Python-shader arg {argname} must be a 3-tuple, "
@@ -547,7 +550,9 @@ class PyBytecode2Bytecode:
             elif len(args) == 2:
                 self.emit(op.co_load_constant, 1)
             elif len(args) == 3:
-                pass
+                step = args[2]
+                if not (isinstance(step, int) and step > 0):
+                    raise ShaderError("range() step must be a constant int > 0")
             else:
                 raise ShaderError("range() must have 1, 2 or 3 args.")
             self._stack.append("range")
@@ -828,8 +833,6 @@ class PyBytecode2Bytecode:
         loop_info = self._loop_stack.pop(-1)
         # Check merge location
         assert loop_info.get("merge_label", -1) == self._pointer
-
-        # todo: enforce that the step param is a constant and > 0
 
         # Insert the continue block, which is where the iter value is incremented.
         iter_name = loop_info["iter_name"]

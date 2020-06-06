@@ -255,7 +255,7 @@ HASHES = {
     "test_cast_i64_i16.compute_shader": ("98c624bdac82fee1", "f1fbaeb20d9d021e"),
     "test_cast_i16_u8.compute_shader": ("59ebd918fd1aa309", "19bc9aaed0e9cf09"),
     "test_cast_vec_ivec2_vec2.compute_shader": ("a931ea5daaf91785", "dc4ff85d648045e3"),
-    "test_cast_vec_any_vec4.compute_shader": ("299d0362aaf7b891", "2a79bdfa20a60cfb"),
+    "test_cast_vec_any_vec4.compute_shader": ("299d0362aaf7b891", "44bd6b015b3d9667"),
     "test_cast_vec_ivec3_vec3.compute_shader": ("a15d164c451a3a9f", "5d988118bd2952ab"),
     "test_cast_ivec2_bvec2.compute_shader": ("3b09730bf55bbfef", "f1824ce347d142e0"),
 }

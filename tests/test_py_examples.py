@@ -56,11 +56,11 @@ def test(shader_name):
 
 HASHES = {
     "compute.compute_shader_copy": ("7b03b3564a72be3c", "46f084870ce2681b"),
-    "compute.compute_shader_multiply": ("96c9e08803f51d91", "8f197b15205b5a51"),
+    "compute.compute_shader_multiply": ("fec1050cd06b8c47", "8f197b15205b5a51"),
     "compute.compute_shader_tex_colorwap": ("782718030cb67298", "46604895ec75f8a3"),
-    "mesh.vertex_shader": ("588736d01ef1a3e1", "7af85329afdd2b25"),
+    "mesh.vertex_shader": ("db70e857c1a267fd", "7af85329afdd2b25"),
     "mesh.fragment_shader_flat": ("a1ee4f60c24c5693", "54f8b6c24c0822a8"),
-    "textures.compute_shader_tex_add": ("d8fd12dbb01d1ef7", "03d5f2079a960a24"),
+    "textures.compute_shader_tex_add": ("2e1aa94c325d393f", "03d5f2079a960a24"),
     "textures.fragment_shader_tex": ("927569ad5a038680", "adede1b40a7f1f6f"),
     "triangle.vertex_shader": ("535c85e75318f7e9", "53d4b596bc25b5a0"),
     "triangle.fragment_shader": ("c54813968ded4543", "6febd7dab6d72c8d"),

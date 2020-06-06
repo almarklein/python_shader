@@ -131,6 +131,28 @@ def test_if4():
     assert res == [100, 100, 2 + 11, 3 + 11, 4 + 11, 5 + 11, 6 + 12, 7 + 12, 201, 200]
 
 
+def test_if5():
+    @python2shader_and_validate
+    def compute_shader(
+        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+    ):
+        x = False
+        if index < 2:
+            data2[index] = 40.0
+        elif index < 4:
+            data2[index] = 41.0
+        elif index < 8:
+            x = True
+        else:
+            data2[index] = 43.0
+        if x:
+            data2[index] = 42.0
+
+    skip_if_no_wgpu()
+    res = generate_list_of_floats_from_shader(10, compute_shader)
+    assert res == [40, 40, 41, 41, 42, 42, 42, 42, 43, 43]
+
+
 # %% ternary
 
 
@@ -178,7 +200,7 @@ def test_ternary3():
     assert res == [40, 41, 42, 42, 42, 42, 42, 42, 42, 42]
 
 
-def test_ternary_with_control_flow1():
+def test_ternary_cf1():
     python_shader.py.OPT_CONVERT_TERNARY_TO_SELECT = False
     try:
 
@@ -197,7 +219,7 @@ def test_ternary_with_control_flow1():
     assert res == [40, 41, 41, 41, 41, 41, 41, 41, 41, 41]
 
 
-def test_ternary_with_control_flow2():
+def test_ternary_cf2():
     python_shader.py.OPT_CONVERT_TERNARY_TO_SELECT = False
     try:
 
@@ -220,7 +242,7 @@ def test_ternary_with_control_flow2():
     assert res == [40, 41, 42, 43, 43, 43, 43, 43, 43, 43]
 
 
-def test_ternary_with_control_flow3():
+def test_ternary_cf3():
     python_shader.py.OPT_CONVERT_TERNARY_TO_SELECT = False
     try:
 
@@ -250,7 +272,7 @@ def test_ternary_with_control_flow3():
 
 
 def test_loop1():
-    # Simples form
+    # Simplest form
 
     @python2shader_and_validate
     def compute_shader(
@@ -339,7 +361,6 @@ def test_loop5():
             if i == 7:
                 break
             val = val + 1.0
-
         data2[index] = val
 
     skip_if_no_wgpu()
@@ -361,12 +382,45 @@ def test_loop6():
             elif i == 7:
                 break
             val = val + 1.0
-
         data2[index] = val
 
     skip_if_no_wgpu()
     res = generate_list_of_floats_from_shader(10, compute_shader)
     assert res == [0, 1, 2, 3, 0, 5, 6, 7, 7, 7]
+
+
+def test_loop7():
+    # Use start and stop
+
+    @python2shader_and_validate
+    def compute_shader(
+        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+    ):
+        val = 0.0
+        for i in range(3, index):
+            val = val + 1.0
+        data2[index] = val
+
+    skip_if_no_wgpu()
+    res = generate_list_of_floats_from_shader(10, compute_shader)
+    assert res == [0, 0, 0, 0, 1, 2, 3, 4, 5, 6]
+
+
+def test_loop8():
+    # Use start and stop and step
+
+    @python2shader_and_validate
+    def compute_shader(
+        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+    ):
+        val = 0.0
+        for i in range(3, index, 2):
+            val = val + 1.0
+        data2[index] = val
+
+    skip_if_no_wgpu()
+    res = generate_list_of_floats_from_shader(10, compute_shader)
+    assert res == [0, 0, 0, 0, 1, 1, 2, 2, 3, 3]
 
 
 # %% discard
@@ -402,8 +456,26 @@ def skip_if_no_wgpu():
 
 
 HASHES = {
-    "test_add_sub.compute_shader": ("a34d4efe22c15a39", "2edf296df860a93d"),
-    "test_mul_div.compute_shader": ("efa94cce5c444ff1", "3b804bb4b7b52de0"),
+    "test_if1.compute_shader": ("425becc765f1b063", "df47945efe25f3e0"),
+    "test_if2.compute_shader": ("2fcd2b0ffdd74b00", "f931b5238c6a8593"),
+    "test_if3.compute_shader": ("eed2242bc723bc19", "5fd34c5a756c0128"),
+    "test_if4.compute_shader": ("9dcf1f3cfaff479d", "7f101ed4facfe1fd"),
+    "test_if5.compute_shader": ("35d6f557a5a3a23f", "0bd1a694b5cd4656"),
+    "test_ternary1.compute_shader": ("78a6f5034f5d9c25", "316086560fab4faf"),
+    "test_ternary2.compute_shader": ("876484851fd42095", "5d3cce752b4d7535"),
+    "test_ternary3.compute_shader": ("6e70f44cd9129c93", "4152284068243d3b"),
+    "test_ternary_cf1.compute_shader": ("5ddfcb0497e4e918", "6055b9b66cef6a45"),
+    "test_ternary_cf2.compute_shader": ("d071ee52ed031ae0", "0fc5a0f41eee5f0d"),
+    "test_ternary_cf3.compute_shader": ("713a15d1315973ee", "791e0c70f0fbbf92"),
+    "test_loop1.compute_shader": ("b215fe3bd3e6c477", "8c9c9af924e92f14"),
+    "test_loop2.compute_shader": ("cedec4cb07791806", "f23caa3999cec193"),
+    "test_loop3.compute_shader": ("37c530dfe134ae36", "57b06ed205152275"),
+    "test_loop4.compute_shader": ("9e043d5d9ee57521", "52fdcb999ecdfab0"),
+    "test_loop5.compute_shader": ("6a49b86a8fc42133", "b766a0d1362fa9c2"),
+    "test_loop6.compute_shader": ("9af1f424c735f4aa", "3e1d5e4038cbedc7"),
+    "test_loop7.compute_shader": ("0e3f7271a119d173", "bd741df0657431a7"),
+    "test_loop8.compute_shader": ("65d01cc971fa319d", "347b7c89df6fd5ac"),
+    "test_discard.fragment_shader": ("8d73bfc370da9504", "6d3182b0b5189d45"),
 }
 
 

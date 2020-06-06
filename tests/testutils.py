@@ -27,7 +27,9 @@ def validate_module(shader_module, hashes):
 
     # Get steps of code: Python, bytecode, spirv
     key = func.__qualname__.replace(".<locals>.", ".")
-    text_bc = python_shader.opcodes.bc2str(shader_module.to_bytecode())
+    bc = shader_module.to_bytecode()
+    text_bc = python_shader.opcodes.bc2str(bc)
+    assert bc == python_shader.opcodes.str2bc(text_bc)
     byte_sp = shader_module.to_spirv()
 
     # print(text_bc)
