@@ -49,8 +49,12 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
     def _convert(self, bytecode):
 
         self._execution_model_flag = None
+
         self._stack = []
         self._stack_for_phi = {}
+
+        # Track loops. The bottom of the stack is an empty dict, for convenience
+        self._loop_stack = [{}]
 
         # External variables per storage class
         self._input = {}
@@ -958,7 +962,7 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             self.gen_func_instruction(*phi_op)
             self._stack.append(result_id)
 
-    def co_label(self, label):
+    def co_label(self, new_label):
         # We enter a new block. This is where we resolve branch pairs that both
         # jumped to this block. If there are multiple such pairs, we need to
         # introduce extra blocks, because at each label we can merge at most
@@ -978,6 +982,11 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         #   block must also pass through the block where the branch-pair
         #   diverged (i.e.the header block).
 
+        # Get what loop we're in. If this label closes/merges the loop, pop it.
+        loop_info = self._loop_stack[-1]
+        if loop_info.get("merge_label") == new_label:
+            self._loop_stack.pop(-1)
+
         # Create a mapping to obtain parents of items in the CFG.
         # We don't use a 'parent' attribute on the items, because that makes
         # these dicts really hard to read during debugging.
@@ -989,7 +998,7 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
                 c1, c2 = branch["children"]
                 parents[id(c1)] = parents[id(c2)] = branch
                 return _collect_leaf_branches(c1) + _collect_leaf_branches(c2)
-            elif branch["label"] == label:
+            elif branch["label"] == new_label:
                 return [branch]
             else:
                 return []
@@ -1005,16 +1014,23 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
                     if siblings[0]["label"] == siblings[1]["label"]:
                         # Merging what started at co_branch_conditional
                         return parent
-                    elif parent.get("loop_merge_label", "") == label:
-                        # Merging what started at co_branch_loop Note that one child
-                        # branch is pointing to the continue label, not to here.
-                        parent.pop("loop_merge_label")
-                        parent.pop("loop_iter_label")
-                        parent.pop("loop_continue_label")
-                        parent["children"] = tuple(
-                            c for c in siblings if c in leaf_branches
-                        )
-                        return parent
+                    elif parent is loop_info.get("branch", None):
+                        # This is the main loop branch. Merge if we reached the merge label.
+                        # Note that one child branch is pointing to the continue label, not to here.
+                        # Don't AND this sub-if, the above elif excludes cases for the next elif.
+                        if loop_info.get("merge_label") == new_label:
+                            parent["children"] = tuple(
+                                c for c in siblings if c in leaf_branches
+                            )
+                            return parent
+                    elif branch["label"] == new_label:
+                        # This could be a break
+                        sibling_branch = siblings[int(branch is siblings[0])]
+                        if sibling_branch["label"] == loop_info.get("merge_label"):
+                            parent["children"] = tuple(
+                                c for c in siblings if c in leaf_branches
+                            )
+                            return parent
 
         branches2merge = []
         while True:
@@ -1033,20 +1049,19 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         # If all is well, we're now left with a single branch. Make it the current.
         if len(leaf_branches) != 1:
             raise ShaderError(
-                f"New block ({label}) should start with 1 unmerged branches, got {[b['label'] for b in leaf_branches]}"
+                f"New block ({new_label}) should start with 1 unmerged branches, got {[b['label'] for b in leaf_branches]}"
             )
         self._current_branch = leaf_branches[0]
 
         # Need an extra hop?
         exta_hop = 0
-        parent = parents.get(id(self._current_branch), {})
-        if parent.get("loop_continue_label") == label:
+        if new_label == self._loop_stack[-1].get("continue_label"):
             exta_hop = 1
 
         # Get hop labels for all the merges.
-        hop_labels = [label]
+        hop_labels = [new_label]
         while len(hop_labels) < len(branches2merge) + exta_hop:
-            hop_labels.insert(-1, f"{label}-hop-{len(hop_labels)}")
+            hop_labels.insert(-1, f"{new_label}-hop-{len(hop_labels)}")
 
         # Emit the code for the extra blocks, and update previous jump ids.
         hop_label = None
@@ -1063,7 +1078,7 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             if len(branch["children"]) == 2:
                 self._apply_phi_op_on_branch_merge(branch)
             # Do we need to hop to the next block?
-            if hop_label is not label:
+            if hop_label is not new_label:
                 branch_label_placeholder = WordPlaceholder(
                     self._get_label_id(hop_labels[i + 1]).id
                 )
@@ -1074,8 +1089,8 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
                 self._store_stack_for_phi_op(hop_label)
 
         # If we did not create the main label yet, create it now
-        if hop_label != label:
-            self.gen_func_instruction(cc.OpLabel, self._get_label_id(label))
+        if hop_label != new_label:
+            self.gen_func_instruction(cc.OpLabel, self._get_label_id(new_label))
 
         # Clean up
         for branch in branches2merge:
@@ -1126,8 +1141,8 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             "branch_label_placeholder": branch2_label,
         }
         self._current_branch["children"] = new_branch1, new_branch2
-        # Also introduce OpSelectionMerge, unless we're in a OpLoopMerge
-        if self._current_branch.get("loop_iter_label", None) != current_label:
+        # Introduce OpSelectionMerge, unless we've already emitted OpLoopMerge
+        if self._loop_stack[-1].get("branch") is not self._current_branch:
             merge_label = WordPlaceholder(0)
             self._current_branch["merge_label_placeholder"] = merge_label
             self.gen_func_instruction(cc.OpSelectionMerge, merge_label, 0)
@@ -1143,15 +1158,19 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         iter_id = self._get_label_id(iter_label)
         continue_id = self._get_label_id(continue_label)
         merge_id = self._get_label_id(merge_label)
-        merge_placeholder = WordPlaceholder(merge_id.id)
+        # Generate loop merge instruction
         # note: here we can specify request for unroll, min/max iters (1.4+) etc.
-        self.gen_func_instruction(cc.OpLoopMerge, merge_placeholder, continue_id, 0)
-
-        # Mark the current branch as a loop, ending at merge_label
-        self._current_branch["loop_merge_label"] = merge_label
-        self._current_branch["loop_iter_label"] = iter_label
-        self._current_branch["loop_continue_label"] = continue_label
+        merge_placeholder = WordPlaceholder(merge_id.id)
         self._current_branch["merge_label_placeholder"] = merge_placeholder
+        self.gen_func_instruction(cc.OpLoopMerge, merge_placeholder, continue_id, 0)
+        # Mark the current branch as a loop, ending at merge_label
+        loop_info = {
+            "merge_label": merge_label,
+            "iter_label": iter_label,
+            "continue_label": continue_label,
+            "branch": self._current_branch,
+        }
+        self._loop_stack.append(loop_info)
 
         # The rest is similar to co_branch()
         branch_label_placeholder = WordPlaceholder(iter_id.id)

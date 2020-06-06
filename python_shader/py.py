@@ -123,6 +123,9 @@ class PyBytecode2Bytecode:
                 raise RuntimeError(
                     f"Got {len(args)} args for {opcode}({', '.join(argnames)})"
                 )
+
+        if opcode == "co_branch":
+            assert not self._opcodes[-1][0].startswith("co_branch")
         self._opcodes.append((opcode, *args))
 
     def dump(self):
@@ -165,7 +168,11 @@ class PyBytecode2Bytecode:
             if self._pointer in self._labels:
                 label = self._labels[self._pointer]
                 last_opcode = self._opcodes[-1][0]
-                if last_opcode not in ("co_branch", "co_branch_conditional"):
+                if last_opcode not in (
+                    "co_branch",
+                    "co_branch_conditional",
+                    "co_branch_loop",
+                ):
                     self.emit(op.co_branch, label)
                     self._detect_jump_is_for_ternary()
                 self.emit(op.co_label, label)
@@ -685,6 +692,13 @@ class PyBytecode2Bytecode:
         delta = self._next()
         target = self._pointer + delta
         self._set_label(target)
+        if self._opcodes[-1][0].startswith("co_branch"):
+            # Is this a Python bug? Below is a snippet of seen Python bytecode.
+            # There are no jumps to 28. Maybe there *could* be? If so, we would
+            # emit a co_label, and this IF wouldn't triger (and all is well).
+            # 26 JUMP_ABSOLUTE           14
+            # 28 JUMP_FORWARD            10 (to 40)
+            return
         self.emit(op.co_branch, target)
         self._detect_jump_is_for_ternary()
 
@@ -722,11 +736,15 @@ class PyBytecode2Bytecode:
 
     def _op_break_loop(self):
         self._next()
-        raise NotImplementedError()
+        self.emit(op.co_branch, self._loop_stack[-1]["merge_label"])
 
     def _op_continue_loop(self):
-        target = self._next()  # for-iter
-        raise NotImplementedError()
+        # The Python bytecode seems to just contain the right jumps, and this
+        # method is never triggered. But that may differ per Python version.
+        target1 = self._next()  # for-iter
+        target2 = self._loop_stack[-1]["continue_label"]
+        assert target1 == target2
+        self.emit(op.co_branch, target2)
 
     def _op_get_iter(self):
         self._next()

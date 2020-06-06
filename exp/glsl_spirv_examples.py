@@ -234,6 +234,8 @@ void main() {
     uint index = gl_GlobalInvocationID.x;
     uint val = 0;
     for (int i=0; i<index; i++) {
+        if (i == 4) { continue; }
+        if (i == 7) { break; }
         val = val + 1;
     }
     data[index] = val;

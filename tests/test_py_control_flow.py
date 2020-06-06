@@ -326,6 +326,49 @@ def test_loop4():
     assert res == [0, 32, 64, 96, 128, 160, 192, 224, 256, 288]
 
 
+def test_loop5():
+    # Break - this one is interesting because the stop criterion is combined with the break
+    # This is a consequence of the logic to detect and simplify or-logic
+
+    @python2shader_and_validate
+    def compute_shader(
+        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+    ):
+        val = 0.0
+        for i in range(index):
+            if i == 7:
+                break
+            val = val + 1.0
+
+        data2[index] = val
+
+    skip_if_no_wgpu()
+    res = generate_list_of_floats_from_shader(10, compute_shader)
+    assert res == [0, 1, 2, 3, 4, 5, 6, 7, 7, 7]
+
+
+def test_loop6():
+    # Test both continue and break
+
+    @python2shader_and_validate
+    def compute_shader(
+        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+    ):
+        val = 0.0
+        for i in range(index):
+            if index == 4:
+                continue
+            elif i == 7:
+                break
+            val = val + 1.0
+
+        data2[index] = val
+
+    skip_if_no_wgpu()
+    res = generate_list_of_floats_from_shader(10, compute_shader)
+    assert res == [0, 1, 2, 3, 0, 5, 6, 7, 7, 7]
+
+
 # %% discard
 
 
