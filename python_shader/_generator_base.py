@@ -437,7 +437,7 @@ class BaseSpirVGenerator:
             M = {"f32": "<f", "f64": "<d"}
             struct_type = M[the_type.__name__]
             bb = struct.pack(struct_type, value)
-        elif isinstance(value, bool):
+        elif isinstance(value, bool):  # test before int because issubclass(bool, int)
             the_type = _types.boolean
         elif isinstance(value, int):
             the_type = _types.i32 if the_type is None else the_type

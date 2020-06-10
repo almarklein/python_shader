@@ -90,9 +90,7 @@ class PyBytecode2Bytecode:
                 assert isinstance(kind, str)
                 assert isinstance(slot, (int, str, tuple))
                 assert isinstance(subtype, (type, str))
-                slot = (
-                    list(slot) if isinstance(slot, tuple) else slot
-                )  # json consistency
+                slot = list(slot) if isinstance(slot, tuple) else slot  # json
             else:
                 raise TypeError(
                     f"Python-shader arg {argname} must be a 3-tuple, "
