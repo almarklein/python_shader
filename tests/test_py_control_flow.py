@@ -265,7 +265,96 @@ def test_ternary_cf3():
     assert res == [40, 41, 42, 42, 42, 42, 42, 42, 42, 42]
 
 
-# %% or / and
+# %% more or / and
+
+
+def test_andor1():
+    # Implicit conversion to truth values is not supported
+
+    def compute_shader(
+        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+    ):
+        if index < 5:
+            val = f32(index - 3) and 99.0
+        else:
+            val = f32(index - 6) and 99.0
+        data2[index] = val
+
+    with pytest.raises(python_shader.ShaderError):
+        python_shader.python2shader(compute_shader)
+
+
+def test_andor2():
+    # or a lot
+    @python2shader_and_validate
+    def compute_shader(
+        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+    ):
+        if index == 2 or index == 3 or index == 5:
+            data2[index] = 40.0
+        elif index == 2 or index == 6 or index == 7:
+            data2[index] = 41.0
+        else:
+            data2[index] = 43.0
+
+    skip_if_no_wgpu()
+    res = generate_list_of_floats_from_shader(10, compute_shader)
+    assert res == [43, 43, 40, 40, 43, 40, 41, 41, 43, 43]
+
+
+def test_andor3():
+    # and a lot
+    @python2shader_and_validate
+    def compute_shader(
+        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+    ):
+        mod = index % 2
+        if index < 4 and mod == 0:
+            data2[index] = 2.0
+        elif index > 5 and mod == 1:
+            data2[index] = 3.0
+        else:
+            data2[index] = 1.0
+
+    skip_if_no_wgpu()
+    res = generate_list_of_floats_from_shader(10, compute_shader)
+    assert res == [2, 1, 2, 1, 1, 1, 1, 3, 1, 3]
+
+
+def test_andor4():
+    # mix it up
+    @python2shader_and_validate
+    def compute_shader(
+        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+    ):
+        mod = index % 2
+        if index < 4 and mod == 0 or index == 5:
+            data2[index] = 2.0
+        elif index > 5 and mod == 1 or index == 4:
+            data2[index] = 3.0
+        else:
+            data2[index] = 1.0
+
+    skip_if_no_wgpu()
+    res = generate_list_of_floats_from_shader(10, compute_shader)
+    assert res == [2, 1, 2, 1, 3, 2, 1, 3, 1, 3]
+
+
+def test_andor5():
+    # in a ternary
+    @python2shader_and_validate
+    def compute_shader(
+        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+    ):
+        mod = index % 2
+        data2[index] = 40.0 if (index == 1 or index == 3) else 41.0
+        # if index < 5:
+        # else:
+        # data2[index] = 42.0 if (index > 7 and mod == 1) else 43.0
+
+    skip_if_no_wgpu()
+    res = generate_list_of_floats_from_shader(10, compute_shader)
+    assert res == [40, 41, 41, 41, 41, 41, 41, 41, 41, 41]
 
 
 # %% loops

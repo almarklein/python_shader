@@ -666,6 +666,13 @@ class PyBytecode2Bytecode:
         else:
             self.emit(op.co_binary_op, "pow")
 
+    def _op_binary_modulo(self):
+        self._next()
+        self._stack.pop()
+        self._stack.pop()
+        self._stack.append(None)
+        self.emit(op.co_binary_op, "mod")
+
     def _op_compare_op(self):
         cmp = cmp_op[self._next()]
         if cmp not in ("<", "<=", "==", "!=", ">", ">="):
@@ -739,9 +746,32 @@ class PyBytecode2Bytecode:
                 return loop_info["merge_label"]
         return target
 
-    # todo: these also exist, and get triggered when a OR or AND is stored as a value
-    # _op_jump_if_true_or_pop
-    # _op_jump_if_false_or_pop
+    def _op_jump_if_true_or_pop(self):
+        # This is xx OR yy, but only when a result is needed
+        # So not inside ``if xx or yy:``, but in ``if bool(xx or yy):``
+
+        # The xx is now on the stack. In the next instructions yy will be
+        # pushed on the stack, and at target, we continue. That's where we
+        # need to insert the OR.
+
+        # target = self._next()
+        # self._insert_at[target] = ("co_binary_op", "or")
+
+        # ... except that determining if an arbitrary object is true
+        # or false is not trivial. We could add something like co_bool,
+        # but maybe we should avoid that temptation, as it does not fit
+        # a strongly typed language well ...
+        raise ShaderError(
+            "Implicit bool conversions not supported. Maybe use ``x if y else z``?"
+        )
+
+    def _op_jump_if_false_or_pop(self):
+        # Same as _op_jump_if_true_or_pop, but for AND
+        # target = self._next()
+        # self._insert_at[target] = ("co_binary_op", "and")
+        raise ShaderError(
+            "Implicit bool conversions not supported. Maybe use ``x if y else z``?"
+        )
 
     def _op_setup_loop(self):
         # This is Python indicating that there is a loop, it indicates

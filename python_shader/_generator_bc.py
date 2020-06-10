@@ -751,8 +751,10 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
 
         # Predefine some types
         scalar_or_vector = _types.Scalar, _types.Vector
-        FOPS = dict(add=cc.OpFAdd, sub=cc.OpFSub, mul=cc.OpFMul, div=cc.OpFDiv)
-        IOPS = dict(add=cc.OpIAdd, sub=cc.OpISub, mul=cc.OpIMul)
+        FOPS = dict(
+            add=cc.OpFAdd, sub=cc.OpFSub, mul=cc.OpFMul, div=cc.OpFDiv, mod=cc.OpFMod
+        )
+        IOPS = dict(add=cc.OpIAdd, sub=cc.OpISub, mul=cc.OpIMul, mod=cc.OpSMod)
         LOPS = {"and": cc.OpLogicalAnd, "or": cc.OpLogicalOr}
 
         # Get reference types
