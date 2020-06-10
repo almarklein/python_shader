@@ -51,7 +51,7 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         self._execution_model_flag = None
 
         self._stack = []
-        self._stack_for_phi = {}
+        self._stack_for_phi = {}  # label -> []
 
         # Track loops. The bottom of the stack is an empty dict, for convenience
         self._loop_stack = [{}]
@@ -942,26 +942,39 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         # We move the remaining item off the stack and push it on a
         # special dict for the phi op.
         if self._stack:
-            self._stack_for_phi[label] = self._stack.pop()
-            assert not self._stack
+            self._stack_for_phi.setdefault(label, []).extend(self._stack)
+            self._stack = []
 
-    def _apply_phi_op_on_branch_merge(self, branch):
-        child_labels = [b["prev_label"] for b in branch["children"]]
-        if (
-            child_labels[0] in self._stack_for_phi
-            or child_labels[1] in self._stack_for_phi
-        ):
-            obs = [self._stack_for_phi[x] for x in child_labels]
-            types = [ob.type for ob in obs]
-            type = obs[0].type
-            for ob in obs:
+    def _collect_stack_from_previous_block(self, prev_label):
+        # Take over the remaining stack from the previous block (if this is not a merge block)
+        if prev_label in self._stack_for_phi:
+            self._stack.extend(self._stack_for_phi[prev_label])
+
+    def _collect_stack_from_previous_blocks(self, *prev_labels):
+        # Insert a phi op that selects a stack value based on the branch we came from
+        assert len(prev_labels) >= 2
+        if any(label in self._stack_for_phi for label in prev_labels):
+            assert all(label in self._stack_for_phi for label in prev_labels)
+            # All but the last item on the sub-stacks must be equal
+            substack = self._stack_for_phi[prev_labels[0]][:-1]
+            for label in prev_labels:
+                substack2 = self._stack_for_phi[label][:-1]
+                assert len(substack) == len(substack2)
+                assert all(ob is ob2 for ob, ob2 in zip(substack, substack2))
+            # We can simply copy this substack
+            self._stack.extend(substack)
+            # But for the last item we need a Phi op ...
+            top_obs = [self._stack_for_phi[x][-1] for x in prev_labels]
+            types = [ob.type for ob in top_obs]
+            type = top_obs[0].type
+            for ob in top_obs:
                 assert (
                     ob.type is type
                 ), f"Phi stack has objects with different types: {types}"
             result_id, type_id = self.obtain_value(type)
             phi_op = [cc.OpPhi, type_id, result_id]
-            for child_label, ob in zip(child_labels, obs):
-                phi_op.extend([ob, self._get_label_id(child_label)])
+            for label, ob in zip(prev_labels, top_obs):
+                phi_op.extend([ob, self._get_label_id(label)])
             self.gen_func_instruction(*phi_op)
             self._stack.append(result_id)
 
@@ -1081,7 +1094,9 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             branch["merge_label_placeholder"].value = label_id.id
             # We may need to insert a Phi op
             if len(branch["children"]) == 2:
-                self._apply_phi_op_on_branch_merge(branch)
+                self._collect_stack_from_previous_blocks(
+                    *[b["prev_label"] for b in branch["children"]]
+                )
             # Do we need to hop to the next block?
             if hop_label is not new_label:
                 branch_label_placeholder = WordPlaceholder(
@@ -1096,6 +1111,10 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         # If we did not create the main label yet, create it now
         if hop_label != new_label:
             self.gen_func_instruction(cc.OpLabel, self._get_label_id(new_label))
+
+        # Collect stack from previous block
+        if not branches2merge:
+            self._collect_stack_from_previous_block(self._current_branch["prev_label"])
 
         # Clean up
         for branch in branches2merge:
