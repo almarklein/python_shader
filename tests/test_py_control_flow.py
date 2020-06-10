@@ -423,6 +423,46 @@ def test_loop8():
     assert res == [0, 0, 0, 0, 1, 1, 2, 2, 3, 3]
 
 
+def test_while1():
+    # A simple while loop!
+
+    @python2shader_and_validate
+    def compute_shader(
+        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+    ):
+        val = 0.0
+        while val < f32(index):
+            val = val + 2.0
+        data2[index] = val
+
+    skip_if_no_wgpu()
+    res = generate_list_of_floats_from_shader(10, compute_shader)
+    assert res == [0, 2, 2, 4, 4, 6, 6, 8, 8, 10]
+
+
+def test_while2():
+    # Test while with continue and break
+
+    @python2shader_and_validate
+    def compute_shader(
+        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+    ):
+        val = 0.0
+        i = 0
+        while i < index:
+            if index == 4:
+                continue
+            elif i == 7:
+                break
+            val = val + 1.0
+            i = i + 1
+        data2[index] = val
+
+    skip_if_no_wgpu()
+    res = generate_list_of_floats_from_shader(10, compute_shader)
+    assert res == [0, 1, 2, 3, 0, 5, 6, 7, 7, 7]
+
+
 # %% discard
 
 
@@ -467,14 +507,16 @@ HASHES = {
     "test_ternary_cf1.compute_shader": ("5ddfcb0497e4e918", "6055b9b66cef6a45"),
     "test_ternary_cf2.compute_shader": ("d071ee52ed031ae0", "0fc5a0f41eee5f0d"),
     "test_ternary_cf3.compute_shader": ("713a15d1315973ee", "791e0c70f0fbbf92"),
-    "test_loop1.compute_shader": ("b215fe3bd3e6c477", "8c9c9af924e92f14"),
-    "test_loop2.compute_shader": ("cedec4cb07791806", "f23caa3999cec193"),
-    "test_loop3.compute_shader": ("37c530dfe134ae36", "57b06ed205152275"),
-    "test_loop4.compute_shader": ("9e043d5d9ee57521", "52fdcb999ecdfab0"),
-    "test_loop5.compute_shader": ("6a49b86a8fc42133", "b766a0d1362fa9c2"),
-    "test_loop6.compute_shader": ("9af1f424c735f4aa", "3e1d5e4038cbedc7"),
-    "test_loop7.compute_shader": ("0e3f7271a119d173", "bd741df0657431a7"),
-    "test_loop8.compute_shader": ("65d01cc971fa319d", "347b7c89df6fd5ac"),
+    "test_loop1.compute_shader": ("e6b2fbb992a727f4", "8c9c9af924e92f14"),
+    "test_loop2.compute_shader": ("e5b15e86683c234b", "f23caa3999cec193"),
+    "test_loop3.compute_shader": ("6daf801ca352d8bf", "57b06ed205152275"),
+    "test_loop4.compute_shader": ("d0a6263225e1c5e9", "52fdcb999ecdfab0"),
+    "test_loop5.compute_shader": ("7dcf26dbdad5d2c2", "b766a0d1362fa9c2"),
+    "test_loop6.compute_shader": ("0214ce5d9493dcb4", "3e1d5e4038cbedc7"),
+    "test_loop7.compute_shader": ("875d18a952bdc11a", "bd741df0657431a7"),
+    "test_loop8.compute_shader": ("a864ceb208046ec4", "347b7c89df6fd5ac"),
+    "test_while1.compute_shader": ("32a93264e56c9deb", "bbda0ee55cc3b891"),
+    "test_while2.compute_shader": ("d77a0278a61d0140", "5dd17ee5889df55e"),
     "test_discard.fragment_shader": ("8d73bfc370da9504", "6d3182b0b5189d45"),
 }
 

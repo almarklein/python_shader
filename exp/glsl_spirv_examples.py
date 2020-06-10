@@ -219,7 +219,7 @@ void main() {
 """
 )
 
-# %% Loops
+# %% for-loop
 
 print_glsl2spirv_comp(
     """
@@ -237,6 +237,28 @@ void main() {
         if (i == 4) { continue; }
         if (i == 7) { break; }
         val = val + 1;
+    }
+    data[index] = val;
+}
+"""
+)
+
+# %% while-loop
+
+print_glsl2spirv_comp(
+    """
+#version 450
+//layout(local_size_x = 1) in;
+
+layout(set = 0, binding = 0) buffer PrimeIndices {
+    uint[] data;
+};
+
+void main() {
+    uint index = gl_GlobalInvocationID.x;
+    uint val = 0;
+    while (val < index) {
+        val = val + 2;
     }
     data[index] = val;
 }
