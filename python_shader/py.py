@@ -10,9 +10,6 @@ from . import stdlib
 from ._types import gpu_types_map
 
 
-OPT_CONVERT_TERNARY_TO_SELECT = True
-
-
 def python2shader(func):
     """ Convert a Python function to a ShaderModule object.
 
@@ -163,8 +160,6 @@ class PyBytecode2Bytecode:
 
         # Keep track of labels
         self._labels = {}
-        self._labels_that_start_with_stack_item = set()
-        self._labels_that_leave_item_on_stack = set()
 
         # Parse
         while self._pointer < len(self._co.co_code):
@@ -177,12 +172,7 @@ class PyBytecode2Bytecode:
                     "co_branch_loop",
                 ):
                     self.emit(op.co_branch, label)
-                    self._detect_jump_is_for_ternary()
                 self.emit(op.co_label, label)
-                # Keep stack in shape
-                # assert not self._stack
-                if label in self._labels_that_start_with_stack_item:
-                    self._stack.append(None)
             opcode = self._next()
             opname = dis.opname[opcode]
             method_name = "_op_" + opname.lower()
@@ -196,74 +186,17 @@ class PyBytecode2Bytecode:
                 method()
 
         self._fix_empty_blocks()
-        if OPT_CONVERT_TERNARY_TO_SELECT:
-            self.fix_ternaries()
         self._fix_or_control_flow()
 
-    def fix_ternaries(self):
-
-        # The Python ternary operation (.. if xx else ..) results in a
-        # control flow using branches/jumps, and non-empty stacks at
-        # the end of certain blocks. The SpirV generator can (now)
-        # handle that (using Phi merge ops). Nevertheless, it would be
-        # nice to be able to do a branch-free select operation in
-        # Python, and the ternary op is a great candidate for that. The
-        # non-empty blocks make that we can detect the use of the
-        # ternary op, so that we can inline the branches and replace
-        # the co_branch_conditional with a co_select.
-
-        def _extract_block(label):
-            for i in range(0, len(self._opcodes)):
-                if self._opcodes[i] == ("co_label", label):
-                    break
-            i1 = i
-            for i in range(i1, len(self._opcodes)):
-                if self._opcodes[i][0] in (
-                    "co_branch",
-                    "co_branch_conditional",
-                    "co_return",
-                ):
-                    break
-            i2 = i
-            ops = self._opcodes[i1 : i2 + 1]
-            self._opcodes[i1 : i2 + 1] = []
-            return ops
-
-        i = 0
-        current_label = ""
-        while i < len(self._opcodes) - 1:
-            i += 1
-            if self._opcodes[i][0] == "co_label":
-                current_label = self._opcodes[i][1]
-            elif self._opcodes[i][0] == "co_branch_conditional":
-                targets = self._opcodes[i][1:]
-                if (
-                    targets[0] in self._labels_that_leave_item_on_stack
-                    and targets[1] in self._labels_that_leave_item_on_stack
-                ):
-                    ops = _extract_block(targets[0]), _extract_block(targets[1])
-                    merges = ops[0][-1][1], ops[1][-1][1]
-                    assert merges[0] == merges[1]
-                    assert merges[0] in self._labels_that_start_with_stack_item
-                    self._opcodes[i:i] = ops[0][1:-1]
-                    i += len(ops[0]) - 2
-                    self._opcodes[i:i] = ops[1][1:-1]
-                    i += len(ops[1]) - 2
-                    self._opcodes[i] = ("co_select",)
-                    self._opcodes.insert(i + 1, ("co_branch", merges[0]))
-                    self._labels_that_leave_item_on_stack.discard(targets[0])
-                    self._labels_that_leave_item_on_stack.discard(targets[1])
-                    self._labels_that_leave_item_on_stack.add(current_label)
-                    i = 0
-
-        for i in reversed(range(len(self._opcodes))):
-            if self._opcodes[i][0] == "co_branch":
-                label = self._opcodes[i][1]
-                if label in self._labels_that_start_with_stack_item:
-                    if self._opcodes[i + 1] == ("co_label", label):
-                        self._opcodes[i : i + 2] = []
-                    else:
-                        raise RuntimeError("Failed to resolve ternary control flow.")
+        # Note: at some point we tried to detect ternary ops (xx if yy else zz)
+        # and resolved them into op_select. This detection relied on the fact that
+        # a ternary op leaves an item at the stack in both its branches.
+        # However, this can also happen in: a = b + (c if d else e)
+        # In this statement b is put on the stack before entering the ternary,
+        # so we'd detect that as part of a ternary. Maybe this can be detected
+        # too, but things get complex quickly, and I did not feel confident in
+        # this approach anymore. We could consider giving at another shot later,
+        # if it matters significantly for performance.
 
     def _fix_empty_blocks(self):
 
@@ -682,23 +615,10 @@ class PyBytecode2Bytecode:
         self._stack.append(None)
         self.emit(op.co_compare, cmp)
 
-    def _detect_jump_is_for_ternary(self):
-        if self._stack:
-            for i in reversed(range(len(self._opcodes))):
-                if self._opcodes[i][0] == "co_label":
-                    break
-            assert self._opcodes[i][0] == "co_label"
-            source_label = self._opcodes[i][1]
-            merge_label = self._opcodes[-1][1]
-            self._labels_that_leave_item_on_stack.add(source_label)
-            self._labels_that_start_with_stack_item.add(merge_label)
-            self._stack.pop(-1)
-
     def _op_jump_absolute(self):
         target = self._next()
         self._set_label(target)
         self.emit(op.co_branch, target)
-        self._detect_jump_is_for_ternary()
 
     def _op_jump_forward(self):
         delta = self._next()
@@ -712,7 +632,6 @@ class PyBytecode2Bytecode:
             # 28 JUMP_FORWARD            10 (to 40)
             return
         self.emit(op.co_branch, target)
-        self._detect_jump_is_for_ternary()
 
     def _op_pop_jump_if_false(self):
         target = self._next()
@@ -722,7 +641,6 @@ class PyBytecode2Bytecode:
         self._set_label(target)  # Go here if condition is False
         self.emit(op.co_branch_conditional, self._pointer, target)
         # todo: spirv supports hints on what branch is the most likely
-        self._detect_jump_is_for_ternary()
 
     def _op_pop_jump_if_true(self):
         target = self._next()
@@ -731,7 +649,6 @@ class PyBytecode2Bytecode:
         self._set_label(self._pointer)  # Go here if condition is False
         self._set_label(target)  # Go here if condition is True
         self.emit(op.co_branch_conditional, target, self._pointer)
-        self._detect_jump_is_for_ternary()
 
     def _check_if_this_is_a_while_test(self, target):
         # While statements are much like if-statements, but we need to

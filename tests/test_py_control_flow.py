@@ -200,71 +200,6 @@ def test_ternary3():
     assert res == [40, 41, 42, 42, 42, 42, 42, 42, 42, 42]
 
 
-def test_ternary_cf1():
-    python_shader.py.OPT_CONVERT_TERNARY_TO_SELECT = False
-    try:
-
-        @python2shader_and_validate
-        def compute_shader(
-            index: ("input", "GlobalInvocationId", i32),
-            data2: ("buffer", 1, Array(f32)),
-        ):
-            data2[index] = 40.0 if index == 0 else 41.0
-
-    finally:
-        python_shader.py.OPT_CONVERT_TERNARY_TO_SELECT = True
-
-    skip_if_no_wgpu()
-    res = generate_list_of_floats_from_shader(10, compute_shader)
-    assert res == [40, 41, 41, 41, 41, 41, 41, 41, 41, 41]
-
-
-def test_ternary_cf2():
-    python_shader.py.OPT_CONVERT_TERNARY_TO_SELECT = False
-    try:
-
-        @python2shader_and_validate
-        def compute_shader(
-            index: ("input", "GlobalInvocationId", i32),
-            data2: ("buffer", 1, Array(f32)),
-        ):
-            data2[index] = (
-                40.0
-                if index == 0
-                else ((41.0 if index == 1 else 42.0) if index < 3 else 43.0)
-            )
-
-    finally:
-        python_shader.py.OPT_CONVERT_TERNARY_TO_SELECT = True
-
-    skip_if_no_wgpu()
-    res = generate_list_of_floats_from_shader(10, compute_shader)
-    assert res == [40, 41, 42, 43, 43, 43, 43, 43, 43, 43]
-
-
-def test_ternary_cf3():
-    python_shader.py.OPT_CONVERT_TERNARY_TO_SELECT = False
-    try:
-
-        @python2shader_and_validate
-        def compute_shader(
-            index: ("input", "GlobalInvocationId", i32),
-            data2: ("buffer", 1, Array(f32)),
-        ):
-            data2[index] = (
-                (10.0 * 4.0)
-                if index == 0
-                else ((39.0 + 2.0) if index == 1 else (50.0 - 8.0))
-            )
-
-    finally:
-        python_shader.py.OPT_CONVERT_TERNARY_TO_SELECT = True
-
-    skip_if_no_wgpu()
-    res = generate_list_of_floats_from_shader(10, compute_shader)
-    assert res == [40, 41, 42, 42, 42, 42, 42, 42, 42, 42]
-
-
 # %% more or / and
 
 
@@ -347,14 +282,14 @@ def test_andor5():
         index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
     ):
         mod = index % 2
-        data2[index] = 40.0 if (index == 1 or index == 3) else 41.0
-        # if index < 5:
-        # else:
-        # data2[index] = 42.0 if (index > 7 and mod == 1) else 43.0
+        if index < 5:
+            data2[index] = 40.0 if (index == 1 or index == 3 or index == 4) else 41.0
+        else:
+            data2[index] = 42.0 if (index > 6 and mod == 1) else 43.0
 
     skip_if_no_wgpu()
     res = generate_list_of_floats_from_shader(10, compute_shader)
-    assert res == [40, 41, 41, 41, 41, 41, 41, 41, 41, 41]
+    assert res == [41, 40, 41, 40, 40, 43, 43, 42, 43, 42]
 
 
 # %% loops
@@ -590,14 +525,15 @@ HASHES = {
     "test_if3.compute_shader": ("eed2242bc723bc19", "5fd34c5a756c0128"),
     "test_if4.compute_shader": ("9dcf1f3cfaff479d", "7f101ed4facfe1fd"),
     "test_if5.compute_shader": ("35d6f557a5a3a23f", "0bd1a694b5cd4656"),
-    "test_ternary1.compute_shader": ("78a6f5034f5d9c25", "316086560fab4faf"),
-    "test_ternary2.compute_shader": ("876484851fd42095", "5d3cce752b4d7535"),
-    "test_ternary3.compute_shader": ("6e70f44cd9129c93", "4152284068243d3b"),
-    "test_ternary_cf1.compute_shader": ("5ddfcb0497e4e918", "6055b9b66cef6a45"),
-    "test_ternary_cf2.compute_shader": ("d071ee52ed031ae0", "0fc5a0f41eee5f0d"),
-    "test_ternary_cf3.compute_shader": ("713a15d1315973ee", "791e0c70f0fbbf92"),
+    "test_ternary1.compute_shader": ("5ddfcb0497e4e918", "6055b9b66cef6a45"),
+    "test_ternary2.compute_shader": ("d071ee52ed031ae0", "0fc5a0f41eee5f0d"),
+    "test_ternary3.compute_shader": ("713a15d1315973ee", "791e0c70f0fbbf92"),
+    "test_andor2.compute_shader": ("fdbc7fc6e2d483b2", "52564c851e9203a0"),
+    "test_andor3.compute_shader": ("c0c95273ec3d337d", "e3a7271b83f5edf1"),
+    "test_andor4.compute_shader": ("21af47177cb9e62c", "27639564243343a1"),
+    "test_andor5.compute_shader": ("fdf58b2d2a2a3b82", "dd97d5cd715efea4"),
     "test_loop1.compute_shader": ("e6b2fbb992a727f4", "8c9c9af924e92f14"),
-    "test_loop2.compute_shader": ("e5b15e86683c234b", "f23caa3999cec193"),
+    "test_loop2.compute_shader": ("67f0546a6e091d63", "76d36877e4cd6315"),
     "test_loop3.compute_shader": ("6daf801ca352d8bf", "57b06ed205152275"),
     "test_loop4.compute_shader": ("d0a6263225e1c5e9", "52fdcb999ecdfab0"),
     "test_loop5.compute_shader": ("7dcf26dbdad5d2c2", "b766a0d1362fa9c2"),
