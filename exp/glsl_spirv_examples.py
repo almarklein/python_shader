@@ -257,7 +257,11 @@ layout(set = 0, binding = 0) buffer PrimeIndices {
 void main() {
     uint index = gl_GlobalInvocationID.x;
     uint val = 0;
-    while (val < index) {
+    uint i = 0;
+    while (true) {
+        i += 1;
+        if (index == 4) { continue; }
+        if (i == 7) { break; }
         val = val + 2;
     }
     data[index] = val;

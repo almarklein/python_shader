@@ -295,6 +295,23 @@ def test_andor5():
 # %% loops
 
 
+def test_loop0():
+    # Simplest-est form
+
+    @python2shader_and_validate
+    def compute_shader(
+        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+    ):
+        val = 0.0
+        for i in range(index):
+            pass
+        data2[index] = val
+
+    skip_if_no_wgpu()
+    res = generate_list_of_floats_from_shader(10, compute_shader)
+    assert res == [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+
 def test_loop1():
     # Simplest form
 
@@ -472,14 +489,64 @@ def test_while2():
         index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
     ):
         val = 0.0
-        i = 0
-        while i < index:
+        i = -1
+        while i < index - 1:
+            i = i + 1
             if index == 4:
                 continue
             elif i == 7:
                 break
             val = val + 1.0
+        data2[index] = val
+
+    skip_if_no_wgpu()
+    res = generate_list_of_floats_from_shader(10, compute_shader)
+    assert res == [0, 1, 2, 3, 0, 5, 6, 7, 7, 7]
+
+
+def test_while3():
+    # Test while True
+    # Here the if-break becomes the iter block, quite similar to a for-loop
+
+    @python2shader_and_validate
+    def compute_shader(
+        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+    ):
+        val = 0.0
+        i = -1
+        while True:
             i = i + 1
+            if i == 7 or i == index:
+                break
+            elif index == 4:
+                continue
+            val = val + 1.0
+        data2[index] = val
+
+    skip_if_no_wgpu()
+    res = generate_list_of_floats_from_shader(10, compute_shader)
+    assert res == [0, 1, 2, 3, 0, 5, 6, 7, 7, 7]
+
+
+def test_while4():
+    # Test while True again
+    # Here we truely have an OpBranchConditional %true .. ..
+
+    @python2shader_and_validate
+    def compute_shader(
+        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+    ):
+        val = 0.0
+        i = -1
+        while True:
+            i = i + 1
+            if i > 100:
+                i = i + 1
+            if i == 7 or i == index:
+                break
+            elif index == 4:
+                continue
+            val = val + 1.0
         data2[index] = val
 
     skip_if_no_wgpu()
@@ -532,6 +599,7 @@ HASHES = {
     "test_andor3.compute_shader": ("c0c95273ec3d337d", "e3a7271b83f5edf1"),
     "test_andor4.compute_shader": ("21af47177cb9e62c", "27639564243343a1"),
     "test_andor5.compute_shader": ("fdf58b2d2a2a3b82", "dd97d5cd715efea4"),
+    "test_loop0.compute_shader": ("615ff0df58923453", "10726105fc319417"),
     "test_loop1.compute_shader": ("e6b2fbb992a727f4", "8c9c9af924e92f14"),
     "test_loop2.compute_shader": ("67f0546a6e091d63", "76d36877e4cd6315"),
     "test_loop3.compute_shader": ("6daf801ca352d8bf", "57b06ed205152275"),
@@ -540,8 +608,10 @@ HASHES = {
     "test_loop6.compute_shader": ("0214ce5d9493dcb4", "3e1d5e4038cbedc7"),
     "test_loop7.compute_shader": ("875d18a952bdc11a", "bd741df0657431a7"),
     "test_loop8.compute_shader": ("a864ceb208046ec4", "347b7c89df6fd5ac"),
-    "test_while1.compute_shader": ("32a93264e56c9deb", "bbda0ee55cc3b891"),
-    "test_while2.compute_shader": ("d77a0278a61d0140", "5dd17ee5889df55e"),
+    "test_while1.compute_shader": ("e721324740203543", "bbda0ee55cc3b891"),
+    "test_while2.compute_shader": ("aa79d8c1f4a83e12", "1ae62cff48b3ff3b"),
+    "test_while3.compute_shader": ("1e57a71e4fa63df2", "21cd8db4635668ce"),
+    "test_while4.compute_shader": ("104a22255a5eb09d", "93b4fa7cf42b0b51"),
     "test_discard.fragment_shader": ("8d73bfc370da9504", "6d3182b0b5189d45"),
 }
 
