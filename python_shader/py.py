@@ -282,6 +282,9 @@ class PyBytecode2Bytecode:
                 if target in ends:
                     first_jump_is_to_end = True
                     body_target = i + 2
+                elif self._co.co_code[target] == dis.opmap["BREAK_LOOP"]:
+                    first_jump_is_to_end = True
+                    body_target = i + 2
                 break
 
         # Check what kind of loop this is
@@ -295,11 +298,12 @@ class PyBytecode2Bytecode:
         loop_info["first_jump_is_to_end"] = first_jump_is_to_end
 
         # Define the labels that we need for the loop structure
-        loop_info["header_label"] = f"looph{loop_start}"
-        loop_info["iter_label"] = f"loopi{loop_start}"
-        loop_info["continue_label"] = f"loopc{loop_start}"
-        loop_info["body_label"] = f"loopb{loop_start}"
-        loop_info["merge_label"] = f"loopm{loop_start}"
+        loop_idx = len(prev_loops) + 1
+        loop_info["header_label"] = f"looph{loop_idx}"
+        loop_info["iter_label"] = f"loopi{loop_idx}"
+        loop_info["continue_label"] = f"loopc{loop_idx}"
+        loop_info["body_label"] = f"loopb{loop_idx}"
+        loop_info["merge_label"] = f"loopm{loop_idx}"
 
         # Define label mappings
         loop_info["labelmap"] = labelmap = {}
@@ -444,7 +448,9 @@ class PyBytecode2Bytecode:
         if pointer_pos in loop_labels:
             return loop_labels[pointer_pos]
         elif pointer_pos not in self._labels:
-            self._labels[pointer_pos] = str(pointer_pos)
+            # Select a label that generates consistent bytecode independent of py version
+            # self._labels[pointer_pos] = str(pointer_pos)  # good for debugging
+            self._labels[pointer_pos] = "L" + str(len(self._labels) + 1)
         return self._labels[pointer_pos]
 
     # %%
