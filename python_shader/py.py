@@ -431,7 +431,6 @@ class PyBytecode2Bytecode:
             # Put it back in with the parent label
             self._opcodes[i_ins : i_ins + 1] = selection
 
-    # todo: move next opcode (the arg) as arg to the methods?
     def _next(self):
         res = self._co.co_code[self._pointer]
         self._pointer += 1
