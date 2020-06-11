@@ -296,8 +296,6 @@ def test_andor5():
 
 
 def test_loop0():
-    # Simplest-est form
-
     @python2shader_and_validate
     def compute_shader(
         index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
@@ -305,6 +303,22 @@ def test_loop0():
         val = 0.0
         for i in range(index):
             pass
+        data2[index] = val
+
+    skip_if_no_wgpu()
+    res = generate_list_of_floats_from_shader(10, compute_shader)
+    assert res == [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+
+def test_loop0b():
+    @python2shader_and_validate
+    def compute_shader(
+        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+    ):
+        val = 0.0
+        for i in range(index):
+            for j in range(index):
+                pass
         data2[index] = val
 
     skip_if_no_wgpu()
@@ -552,6 +566,54 @@ def test_while4():
     skip_if_no_wgpu()
     res = generate_list_of_floats_from_shader(10, compute_shader)
     assert res == [0, 1, 2, 3, 0, 5, 6, 7, 7, 7]
+
+
+def test_while5():
+    # A while in a while!
+
+    @python2shader_and_validate
+    def compute_shader(
+        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+    ):
+        val = 0.0
+        while val < f32(index):
+            i = 0
+            while i < 3:
+                i = i + 1
+                val = val + 1.0
+        data2[index] = val
+
+    skip_if_no_wgpu()
+    res = generate_list_of_floats_from_shader(10, compute_shader)
+    assert res == [0, 3, 3, 3, 6, 6, 6, 9, 9, 9]
+
+
+def test_while6():
+    # A while True in a while True!
+
+    @python2shader_and_validate
+    def compute_shader(
+        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+    ):
+        val = 0.0
+        while True:
+            if val == 999.0:
+                continue
+            if val >= f32(index):
+                break
+            i = 0
+            while True:
+                i = i + 1
+                if i == 999:
+                    continue
+                if i > 3:
+                    break
+                val = val + 1.0
+        data2[index] = val
+
+    skip_if_no_wgpu()
+    res = generate_list_of_floats_from_shader(10, compute_shader)
+    assert res == [0, 3, 3, 3, 6, 6, 6, 9, 9, 9]
 
 
 # %% discard
