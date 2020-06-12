@@ -194,9 +194,10 @@ class PyBytecode2Bytecode:
             else:
                 method()
 
-        # Some post-processing ...
+        # Some post-processing (order is important)
         self._fix_empty_blocks()
         self._fix_or_control_flow()
+        self._fix_consistent_labels()
 
         # Note: at some point we tried to detect ternary ops (xx if yy else zz)
         # and resolved them into op_select. This detection relied on the fact that
@@ -299,11 +300,11 @@ class PyBytecode2Bytecode:
 
         # Define the labels that we need for the loop structure
         loop_idx = len(prev_loops) + 1
-        loop_info["header_label"] = f"looph{loop_idx}"
-        loop_info["iter_label"] = f"loopi{loop_idx}"
-        loop_info["continue_label"] = f"loopc{loop_idx}"
-        loop_info["body_label"] = f"loopb{loop_idx}"
-        loop_info["merge_label"] = f"loopm{loop_idx}"
+        loop_info["header_label"] = f"Lh{loop_idx}"
+        loop_info["iter_label"] = f"Li{loop_idx}"
+        loop_info["continue_label"] = f"Lc{loop_idx}"
+        loop_info["body_label"] = f"Lb{loop_idx}"
+        loop_info["merge_label"] = f"Lm{loop_idx}"
 
         # Define label mappings
         loop_info["labelmap"] = labelmap = {}
@@ -331,34 +332,19 @@ class PyBytecode2Bytecode:
 
         return loop_info
 
-    def _fix_empty_blocks(self):
+    def _replace_labels(self, labels_to_replace):
 
-        # Sometimes Python bytecode contains an empty block (i.e. code
-        # jumpt to a location, from which it jumps to another location
-        # immediately). In such cases, the control flow can be
-        # incosistent, with some branches jumping to that empty block,
-        # and some skipping it. The code below finds such empty blocks
-        # and resolve them.
-        labels_to_replace = {}
-        for i in reversed(range(len(self._opcodes) - 1)):
-            if (
-                self._opcodes[i][0] == "co_label"
-                and self._opcodes[i + 1][0] == "co_branch"
-                and self._opcodes[i][1] not in self._protected_labels
-            ):
-                labels_to_replace[self._opcodes[i][1]] = self._opcodes[i + 1][1]
-                self._opcodes.pop(i)
-                self._opcodes.pop(i)
-        # Handle if there's more of these
+        # Handle recursion
         for key in list(labels_to_replace):
             while labels_to_replace[key] in labels_to_replace:
                 labels_to_replace[key] = labels_to_replace[labels_to_replace[key]]
-        # Resolve
+
+        # Replace the labels
         for i in range(len(self._opcodes)):
-            if self._opcodes[i][0] == "co_branch":
+            if self._opcodes[i][0] in ("co_label", "co_branch"):
                 if self._opcodes[i][1] in labels_to_replace:
                     self._opcodes[i] = (
-                        "co_branch",
+                        self._opcodes[i][0],
                         labels_to_replace[self._opcodes[i][1]],
                     )
             elif self._opcodes[i][0] in ("co_branch_conditional", "co_branch_loop"):
@@ -371,8 +357,34 @@ class PyBytecode2Bytecode:
                 if changed:
                     self._opcodes[i] = tuple(op)
 
-    def _fix_or_control_flow(self):
+    def _fix_empty_blocks(self):
+        # Sometimes Python bytecode contains an empty block (i.e. code
+        # jumpt to a location, from which it jumps to another location
+        # immediately). In such cases, the control flow can be
+        # incosistent, with some branches jumping to that empty block,
+        # and some skipping it. The code below finds such empty blocks
+        # and resolve them.
 
+        labels_to_replace = {}
+
+        def _set_new_label(label, new_label):
+            while label in labels_to_replace:
+                label = labels_to_replace[label]
+            labels_to_replace[label] = new_label
+
+        for i in reversed(range(len(self._opcodes) - 1)):
+            if (
+                self._opcodes[i][0] == "co_label"
+                and self._opcodes[i + 1][0] == "co_branch"
+                and self._opcodes[i][1] not in self._protected_labels
+            ):
+                _set_new_label(self._opcodes[i][1], self._opcodes[i + 1][1])
+                self._opcodes.pop(i)
+                self._opcodes.pop(i)
+
+        self._replace_labels(labels_to_replace)
+
+    def _fix_or_control_flow(self):
         # In `a or b` many languages don't evaluate `b` if `a` evaluates
         # to truethy. This introduces more complex control flow, with
         # multiple branches passing through the same block. SpirV does
@@ -435,6 +447,28 @@ class PyBytecode2Bytecode:
             # Put it back in with the parent label
             self._opcodes[i_ins : i_ins + 1] = selection
 
+    def _fix_consistent_labels(self):
+        # Rename the block labels, so that they are numbered in order
+        # of appearance of the co_label. This also makes the resulting
+        # bytecode consistent between Python versions/implementations.
+
+        labels_to_replace = {}
+
+        def _set_new_label(label, new_label):
+            while label in labels_to_replace:
+                label = labels_to_replace[label]
+            labels_to_replace[label] = new_label
+
+        count = 0
+        for i in range(len(self._opcodes)):
+            if self._opcodes[i][0] == "co_label":
+                label = self._opcodes[i][1]
+                if not label.startswith("L"):
+                    count += 1
+                    _set_new_label(label, f"L{count}")
+
+        self._replace_labels(labels_to_replace)
+
     def _next(self):
         res = self._co.co_code[self._pointer]
         self._pointer += 1
@@ -448,9 +482,11 @@ class PyBytecode2Bytecode:
         if pointer_pos in loop_labels:
             return loop_labels[pointer_pos]
         elif pointer_pos not in self._labels:
-            # Select a label that generates consistent bytecode independent of py version
-            # self._labels[pointer_pos] = str(pointer_pos)  # good for debugging
-            self._labels[pointer_pos] = "L" + str(len(self._labels) + 1)
+            # Labels are set to bytecode index at first. Later we turn
+            # them into values that are consistent across Python
+            # versions. The final label starts with "L", and labels
+            # starting with "L" will not be renamed.
+            self._labels[pointer_pos] = str(pointer_pos)
         return self._labels[pointer_pos]
 
     # %%
@@ -757,7 +793,7 @@ class PyBytecode2Bytecode:
     def _op_jump_absolute(self):
         target = self._next()
         label = self._get_label(target)
-        if label.startswith("loopm") and self._opcodes[-1][0] == "co_pop_top":
+        if label.startswith("Lm") and self._opcodes[-1][0] == "co_pop_top":
             # This is a break in Python 3.8+ - I think it pops the iterator
             self._opcodes.pop(-1)
         self.emit(op.co_branch, label)
