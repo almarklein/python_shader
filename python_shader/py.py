@@ -630,7 +630,7 @@ class PyBytecode2Bytecode:
         elif func.startswith("texture."):
             ob = self._stack.pop()
             assert ob.startswith("texture.")  # a texture object
-            self.emit(op.co_call, func, nargs + 1)
+            self.emit(op.co_call, func.split(".")[-1], nargs + 1)
             self._stack.append(None)
         elif func == ".range":
             if not (
