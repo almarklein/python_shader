@@ -6,7 +6,6 @@ from ._coreutils import ShaderError
 from ._module import ShaderModule
 from .opcodes import OpCodeDefinitions as op
 from ._dis import dis
-from . import stdlib
 from ._types import gpu_types_map
 
 
@@ -565,55 +564,41 @@ class PyBytecode2Bytecode:
             raise ShaderError("Only float/int/bool constants supported.")
 
     def _op_load_global(self):
+        # Could be:
+        # * virtual func that we resolve here, like range()
+        # * builtin functions like texture sampling
+        # * func from ext instruction set
+        # todo: loading constants from the Python globals() scope
+        # todo: loading other Python shader functions
         i = self._next()
         name = self._co.co_names[i]
-        if name == "stdlib":
-            self._stack.append(stdlib)
-        elif name == "range":
-            self._stack.append(name)
-        else:
-            self.emit(op.co_load_name, name)
-            self._stack.append(name)
+        # We add a dot to denote that it's a global name. We resolve this dot
+        # in this compiler, either in load_attr or when we emit co_call
+        # We don't emit here, but put on the parser's stack.
+        self._stack.append("." + name)
 
     def _op_load_attr(self):
         i = self._next()
         name = self._co.co_names[i]
         ob = self._stack.pop()  # noqa
-        if ob is stdlib:
-            func_name = "stdlib." + name
-            self._stack.append(func_name)
-            self.emit(op.co_load_name, func_name)
-        elif isinstance(ob, str) and ob.startswith("texture."):
-            func_name = "texture." + name
+        if not isinstance(ob, str):
+            self.emit(op.co_load_attr, name)
+            self._stack.append(None)
+        elif ob.startswith("."):
+            full_name = ob + "." + name
+            self._stack.append(full_name)
+            # no emit
+        elif ob.startswith("texture."):
+            func_name = "texture." + name  # need in call/method
             self._stack.append(ob)
             self._stack.append(func_name)
-            self.emit(op.co_pop_top)
-            self.emit(op.co_load_name, func_name)
-            self.emit(op.co_load_name, ob)
         else:
             self.emit(op.co_load_attr, name)
-            self._stack.append(name)
+            self._stack.append(None)
 
     def _op_load_method(self):
-        i = self._next()
-        method_name = self._co.co_names[i]
-        ob = self._stack.pop()
-        if ob is stdlib:
-            func_name = "stdlib." + method_name
-            self._stack.append(None)
-            self._stack.append(func_name)
-            self.emit(op.co_load_name, func_name)
-        elif isinstance(ob, str) and ob.startswith("texture."):
-            func_name = "texture." + method_name
-            self._stack.append(ob)
-            self._stack.append(func_name)
-            self.emit(op.co_pop_top)
-            self.emit(op.co_load_name, func_name)
-            self.emit(op.co_load_name, ob)
-        else:
-            raise ShaderError(
-                "Cannot call functions from object, except from texture and stdlib."
-            )
+        self._stack.append(self._stack[-1])  # for _op_load_attr
+        return self._op_load_attr()
 
     def _op_load_deref(self):
         self._next()
@@ -633,6 +618,11 @@ class PyBytecode2Bytecode:
         args = self._stack[-nargs:]
         self._stack[-nargs:] = []
         func = self._stack.pop()
+
+        assert isinstance(func, str)
+        if func.startswith(".stdlib."):
+            func = func[7:]
+
         if func in gpu_types_map and gpu_types_map[func].is_abstract:
             # A type definition
             type_str = f"{func}({','.join(args)})"
@@ -640,9 +630,9 @@ class PyBytecode2Bytecode:
         elif func.startswith("texture."):
             ob = self._stack.pop()
             assert ob.startswith("texture.")  # a texture object
-            self.emit(op.co_call, nargs + 1)
+            self.emit(op.co_call, func, nargs + 1)
             self._stack.append(None)
-        elif func == "range":
+        elif func == ".range":
             if not (
                 self._co.co_code[self._pointer] == dis.opmap["GET_ITER"]
                 and self._co.co_code[self._pointer + 2] == dis.opmap["FOR_ITER"]
@@ -666,8 +656,7 @@ class PyBytecode2Bytecode:
             self._stack.append("range")
             # nothing to emit yet
         else:
-            assert isinstance(func, str)
-            self.emit(op.co_call, nargs)
+            self.emit(op.co_call, func.lstrip("."), nargs)
             self._stack.append(None)
 
     def _op_call_method(self):
@@ -678,14 +667,21 @@ class PyBytecode2Bytecode:
 
         func = self._stack.pop()
         ob = self._stack.pop()
+
         assert isinstance(func, str)
-        if func.startswith("texture."):
-            assert ob.startswith("texture.")  # a texture object
-            self.emit(op.co_call, nargs + 1)
+        if func.startswith(".stdlib."):
+            func = func[7:]
+
+        if func.startswith("."):
+            self.emit(op.co_call, func.lstrip("."), nargs)  # not +1
             self._stack.append(None)
-        else:  # func.startswith("stdlib.")
-            assert ob is None
-            self.emit(op.co_call, nargs)
+        elif func.startswith("texture."):
+            self.emit(op.co_call, func.split(".")[-1], nargs + 1)
+            assert self._stack.pop() == ob
+            self._stack.append(None)
+        else:
+            self.emit(op.co_call, func.lstrip("."), nargs + 1)
+            assert self._stack.pop() == ob
             self._stack.append(None)
 
     def _op_binary_subscr(self):
@@ -771,8 +767,11 @@ class PyBytecode2Bytecode:
             self.emit(op.co_pop_top)
             self.emit(op.co_dup_top)
             self.emit(op.co_binary_op, "mul")
+        elif exp == 0.5:
+            self.emit(op.co_pop_top)
+            self.emit(op.co_call, "sqrt", 1)
         else:
-            self.emit(op.co_binary_op, "pow")
+            self.emit(op.co_call, "pow", 2)
 
     def _op_binary_modulo(self):
         self._next()

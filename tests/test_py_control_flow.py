@@ -652,7 +652,7 @@ HASHES = {
     "test_if1.compute_shader": ("e580648acc6e6d93", "df47945efe25f3e0"),
     "test_if2.compute_shader": ("b5c96a1479de4f42", "f931b5238c6a8593"),
     "test_if3.compute_shader": ("b550d1e4e0696d67", "5fd34c5a756c0128"),
-    "test_if4.compute_shader": ("d186ff8a9a1c5f7f", "7f101ed4facfe1fd"),
+    "test_if4.compute_shader": ("415d4b87aaf3bd22", "7f101ed4facfe1fd"),
     "test_if5.compute_shader": ("c541d7e5d2a31ae4", "0bd1a694b5cd4656"),
     "test_ternary1.compute_shader": ("71489b4284d415d0", "6055b9b66cef6a45"),
     "test_ternary2.compute_shader": ("4b3dd69ab5db7735", "0fc5a0f41eee5f0d"),
@@ -671,13 +671,13 @@ HASHES = {
     "test_loop6.compute_shader": ("258103538db2ab05", "3e1d5e4038cbedc7"),
     "test_loop7.compute_shader": ("d6bd715f582db309", "bd741df0657431a7"),
     "test_loop8.compute_shader": ("0b0b746d9d5fae20", "347b7c89df6fd5ac"),
-    "test_while1.compute_shader": ("4af1ab9d3df40d5e", "bbda0ee55cc3b891"),
+    "test_while1.compute_shader": ("7b7aaa3164eab8c5", "bbda0ee55cc3b891"),
     "test_while2.compute_shader": ("94be5b6299da9855", "1ae62cff48b3ff3b"),
     "test_while3.compute_shader": ("f3f0f7099a9edf9b", "34de5e3b0a44406b"),
     "test_while4.compute_shader": ("c555169a4649736f", "93b4fa7cf42b0b51"),
-    "test_while5.compute_shader": ("ea2309aa48f4e33f", "d9324dc099327352"),
-    "test_while6.compute_shader": ("51d0c77c809c74a6", "e89fc46e244b6d42"),
-    "test_discard.fragment_shader": ("e7c2b2ad579b6d58", "6d3182b0b5189d45"),
+    "test_while5.compute_shader": ("5f4ce5e00ffe6fb4", "d9324dc099327352"),
+    "test_while6.compute_shader": ("bf0b39432c31e8a5", "e89fc46e244b6d42"),
+    "test_discard.fragment_shader": ("bbdaa8848a180860", "6d3182b0b5189d45"),
 }
 
 

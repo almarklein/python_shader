@@ -204,6 +204,7 @@ class BaseSpirVGenerator:
         self._constants = {}
         self._type_hash_to_id = {}
         self._capabilities = set()
+        self._extentded_instruction_sets = {}
 
         # Section 2.4 of the Spir-V spec specifies the Logical Layout of a Module
         self._sections = {
@@ -584,3 +585,12 @@ class BaseSpirVGenerator:
 
         self._type_hash_to_id[type_hash] = type_id
         return type_id
+
+    def obtain_extended_instruction_set(self, set_name):
+        """ Obtain the extended instruction set object by the instruction set name.
+        """
+        if set_name not in self._extentded_instruction_sets:
+            id = self.obtain_id(set_name)
+            self.gen_instruction("extension_imports", cc.OpExtInstImport, id, set_name)
+            self._extentded_instruction_sets[set_name] = id
+        return self._extentded_instruction_sets[set_name]

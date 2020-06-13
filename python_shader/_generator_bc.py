@@ -13,7 +13,7 @@ from ._generator_base import (
 from ._coreutils import ShaderError
 from . import _spirv_constants as cc
 from . import _types
-
+from .stdlib import tex_functions, ext_functions
 from .opcodes import OpCodeDefinitions
 
 # todo: build in some checks
@@ -196,79 +196,151 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         else:
             raise ShaderError("Unexpected return/discard")
 
-    def co_call(self, nargs):
+    def co_call(self, funcname, nargs):
 
+        assert len(self._stack) >= nargs
         args = self._stack[-nargs:]
         self._stack[-nargs:] = []
-        func = self._stack.pop()
 
-        if isinstance(func, type):
-            assert not func.is_abstract
-            if issubclass(func, _types.Vector):
-                result = self._vector_packing(func, args)
-            elif issubclass(func, _types.Array):
-                result = self._array_packing(args)
-            elif issubclass(func, _types.Scalar):
-                if len(args) != 1:
-                    raise ShaderError("Scalar convert needs exactly one argument.")
-                result = self._convert_scalar(func, args[0])
-            self._stack.append(result)
+        assert isinstance(funcname, str)
 
-        elif isinstance(func, str) and func.startswith(("stdlib.", "texture.")):
-            _, _, funcname = func.partition(".")
-
-            # OpTypeImage
-            if funcname in ("imageLoad", "read"):
-                tex, coord = args
-                self._capabilities.add(cc.Capability_StorageImageReadWithoutFormat)
-                tex.depth.value, tex.sampled.value = 0, 2
-                if coord.type not in (_types.i32, _types.ivec2, _types.ivec3):
-                    raise ShaderError(
-                        "Expected texture coords to be i32, ivec2 or ivec3."
-                    )
-                vec_sample_type = _types.Vector(4, tex.sample_type)
-                result_id, type_id = self.obtain_value(vec_sample_type)
-                self.gen_func_instruction(
-                    cc.OpImageRead, type_id, result_id, tex, coord,
-                )
-                self._stack.append(result_id)
-            elif funcname in ("imageStore", "write"):
-                tex, coord, color = args
-                self._capabilities.add(cc.Capability_StorageImageWriteWithoutFormat)
-                tex.depth.value, tex.sampled.value = 0, 2
-                if coord.type not in (_types.i32, _types.ivec2, _types.ivec3):
-                    raise ShaderError(
-                        "Expected texture coords to be i32, ivec2 or ivec3."
-                    )
-                if tex.sample_type is _types.i32 and color.type is not _types.ivec4:
-                    raise ShaderError(
-                        f"Expected texture value to be ivec4, not {color.type}"
-                    )
-                elif tex.sample_type is _types.f32 and color.type is not _types.vec4:
-                    raise ShaderError(
-                        f"Expected texture value to be vec4, not {color.type}"
-                    )
-                self.gen_func_instruction(cc.OpImageWrite, tex, coord, color)
-                self._stack.append(None)  # this call returns None, gets popped
-            elif funcname == "sample":  # -> from a texture
-                tex, sam, coord = args
-                tex.depth.value, tex.sampled.value = 0, 1
-                sample_type = tex.sample_type
-                result_id, type_id = self.obtain_value(_types.Vector(4, sample_type))
-                self.gen_func_instruction(
-                    cc.OpImageSampleExplicitLod,  # or cc.OpImageSampleImplicitLod,
-                    type_id,
-                    result_id,
-                    self.get_texture_sampler(tex, sam),
-                    coord,
-                    cc.ImageOperandsMask_MaskNone | cc.ImageOperandsMask_Lod,
-                    self.obtain_constant(0.0),
-                )
-                self._stack.append(result_id)
-            else:
-                raise ShaderError(f"Unknown function: {func} ")
+        if funcname in _types.gpu_types_map:
+            # A common type, below we also check for more complex type expressions
+            ty = _types.gpu_types_map[funcname]
+            self._stack.append(self._typecast(ty, args))
+        elif funcname in tex_functions:
+            self._texture_call(funcname, args)
+        elif funcname in ext_functions:
+            self._ext_instruction_call(funcname, args)
         else:
-            raise ShaderError(f"Not callable: {func}")
+            # Well, it could be a more special type ... try to convert!
+            try:
+                ty = _types.type_from_name(funcname)
+            except Exception:
+                ty = None
+            if ty is not None:
+                self._stack.append(self._typecast(ty, args))
+            else:
+                raise ShaderError(f"Using invalid function call: {funcname}")
+
+    def _typecast(self, ty, args):
+        assert not ty.is_abstract
+        if issubclass(ty, _types.Vector):
+            result = self._vector_packing(ty, args)
+        elif issubclass(ty, _types.Array):
+            result = self._array_packing(args)
+        elif issubclass(ty, _types.Scalar):
+            if len(args) != 1:
+                raise ShaderError("Scalar convert needs exactly one argument.")
+            result = self._convert_scalar(ty, args[0])
+        return result
+
+    def _texture_call(self, funcname, args):
+        if funcname in ("imageLoad", "read"):
+            tex, coord = args
+            self._capabilities.add(cc.Capability_StorageImageReadWithoutFormat)
+            tex.depth.value, tex.sampled.value = 0, 2
+            if coord.type not in (_types.i32, _types.ivec2, _types.ivec3):
+                raise ShaderError("Expected texture coords to be i32, ivec2 or ivec3.")
+            vec_sample_type = _types.Vector(4, tex.sample_type)
+            result_id, type_id = self.obtain_value(vec_sample_type)
+            self.gen_func_instruction(
+                cc.OpImageRead, type_id, result_id, tex, coord,
+            )
+            self._stack.append(result_id)
+        elif funcname in ("imageStore", "write"):
+            tex, coord, color = args
+            self._capabilities.add(cc.Capability_StorageImageWriteWithoutFormat)
+            tex.depth.value, tex.sampled.value = 0, 2
+            if coord.type not in (_types.i32, _types.ivec2, _types.ivec3):
+                raise ShaderError("Expected texture coords to be i32, ivec2 or ivec3.")
+            if tex.sample_type is _types.i32 and color.type is not _types.ivec4:
+                raise ShaderError(
+                    f"Expected texture value to be ivec4, not {color.type}"
+                )
+            elif tex.sample_type is _types.f32 and color.type is not _types.vec4:
+                raise ShaderError(
+                    f"Expected texture value to be vec4, not {color.type}"
+                )
+            self.gen_func_instruction(cc.OpImageWrite, tex, coord, color)
+            self._stack.append(None)  # this call returns None, gets popped
+        elif funcname == "sample":  # -> from a texture
+            tex, sam, coord = args
+            tex.depth.value, tex.sampled.value = 0, 1
+            sample_type = tex.sample_type
+            result_id, type_id = self.obtain_value(_types.Vector(4, sample_type))
+            self.gen_func_instruction(
+                cc.OpImageSampleExplicitLod,  # or cc.OpImageSampleImplicitLod,
+                type_id,
+                result_id,
+                self.get_texture_sampler(tex, sam),
+                coord,
+                cc.ImageOperandsMask_MaskNone | cc.ImageOperandsMask_Lod,
+                self.obtain_constant(0.0),
+            )
+            self._stack.append(result_id)
+        else:
+            raise RuntimeError(f"Unknown texture func {funcname}")
+
+    def _ext_instruction_call(self, funcname, args):
+        # https://www.khronos.org/registry/spir-v/specs/unified1/GLSL.std.450.html
+        set_name = "GLSL.std.450"  # The most common
+
+        info = ext_functions[funcname]
+
+        if info:
+            # One of the many float/vec-float functions that we can handle automatically
+            set_name, nr, nargs = info["set_name"], info["nr"], info["nargs"]
+            # Check
+            ty = args[0].type
+            if issubclass(ty, _types.Float):
+                pass  # ok
+            elif issubclass(ty, _types.Vector) and issubclass(ty.subtype, _types.Float):
+                pass  # ok
+            else:
+                raise ShaderError(f"Arg 0 of {funcname} must be float or float-vector.")
+            for i in range(1, len(args)):
+                if args[i].type is not ty:
+                    raise ShaderError(
+                        f"Arg {i} of {funcname} must be float or float-vector."
+                    )
+            # Get result object
+            result_type = info["result_type"]
+            if result_type == "same":
+                result_type = args[0].type
+            elif result_type == "component":
+                result_type = args[0].type.subtype
+            else:
+                result_type = s_types.type_from_name(result_type)
+        elif funcname == "abs":
+            nargs = 1
+            result_type = ty = args[0].type
+            if issubclass(ty, _types.Float):
+                nr = 4
+            elif issubclass(ty, _types.Int):
+                nr = 5
+            elif issubclass(ty, _types.Vector) and issubclass(ty.subtype, _types.Float):
+                nr = 4
+            elif issubclass(ty, _types.Vector) and issubclass(ty.subtype, _types.Int):
+                nr = 5
+            else:
+                raise ShaderError("abs() expects (vector of) int or float.")
+        else:
+            raise RuntimeError(f"Unknown extension instruction {funcname}")
+
+        # Check
+        if nargs != len(args):
+            raise ShaderError(
+                f"Ext function {funcname} expects {info['nargs']} args, got {nargs}."
+            )
+
+        # Generate instruction
+        result_id, type_id = self.obtain_value(result_type)
+        instr_set = self.obtain_extended_instruction_set(set_name)
+        self.gen_func_instruction(
+            cc.OpExtInst, type_id, result_id, instr_set, nr, *args
+        )
+        self._stack.append(result_id)
 
     # %% IO
 
@@ -558,18 +630,8 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         elif name in self._texture:
             ob = self._texture[name]
             assert isinstance(ob, VariableAccessId)
-        elif name.startswith(("stdlib.", "texture.")):
-            ob = name
-        elif name in _types.gpu_types_map:
-            ob = _types.gpu_types_map[name]  # A common type
         else:
-            # Well, it could be a more special type ... try to convert!
-            try:
-                ob = _types.type_from_name(name)
-            except Exception:
-                ob = None
-            if ob is None:
-                raise ShaderError(f"Using invalid variable: {name}")
+            raise ShaderError(f"Using invalid variable: {name}")
         self._stack.append(ob)
 
     def co_store_name(self, name):
@@ -704,6 +766,7 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
 
     def co_load_array(self, nargs):
         # Literal array
+        assert len(self._stack) >= nargs
         args = self._stack[-nargs:]
         self._stack[-nargs:] = []
         result = self._array_packing(args)

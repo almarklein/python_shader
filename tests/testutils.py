@@ -1,5 +1,6 @@
 import os
 import sys
+import math
 import inspect
 import hashlib
 import subprocess
@@ -15,6 +16,23 @@ def iters_equal(iter1, iter2):
         return False
     if not all(iter1[i] == iter2[i] for i in range(len(iter1))):
         return False
+    return True
+
+
+def iters_close(iter1, iter2):
+    """ Assert that the given iterators are near-equal.
+    """
+    iter1, iter2 = list(iter1), list(iter2)
+    if len(iter1) != len(iter2):
+        return False
+    for i in range(len(iter1)):
+        a = iter1[i]
+        b = iter2[i]
+        if math.isnan(a) and (isinstance(b, complex) or math.isnan(b)):
+            continue
+        b1, b2 = b - abs(b / 100), b + abs(b / 100)
+        if not (b1 <= a <= b2):
+            return False
     return True
 
 

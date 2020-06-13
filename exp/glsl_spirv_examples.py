@@ -268,3 +268,24 @@ void main() {
 }
 """
 )
+
+
+# %% extended instruction set
+
+
+print_glsl2spirv_comp(
+    """
+#version 450
+//layout(local_size_x = 1) in;
+
+layout(set = 0, binding = 0) buffer PrimeIndices {
+    uint[] data;
+};
+
+void main() {
+    uint index = gl_GlobalInvocationID.x;
+    uint val = 0;
+    data[index] = uint(pow(val, 3.1));
+}
+"""
+)
