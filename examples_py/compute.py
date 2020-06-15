@@ -3,7 +3,7 @@ A few compute examples. Compute shaders do not have vertex buffer inputs, nor
 outputs. Any data you need must be provided as uniform, buffer or texture.
 """
 
-from python_shader import python2shader, i32, f32, ivec3, Array
+from pyshader import python2shader, i32, f32, ivec3, Array
 
 
 @python2shader

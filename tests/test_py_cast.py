@@ -5,9 +5,9 @@ Tests related to casting and vector/array composition.
 
 import ctypes
 
-import python_shader
-from python_shader import f32, f64, u8, i16, i32, i64  # noqa
-from python_shader import bvec2, ivec2, ivec3, vec2, vec3, vec4, Array  # noqa
+import pyshader
+from pyshader import f32, f64, u8, i16, i32, i64  # noqa
+from pyshader import bvec2, ivec2, ivec3, vec2, vec3, vec4, Array  # noqa
 
 import wgpu.backends.rs  # noqa
 from wgpu.utils import compute_with_buffers
@@ -256,7 +256,7 @@ def test_abstract_types():
 
 
 def python2shader_and_validate(func):
-    m = python_shader.python2shader(func)
+    m = pyshader.python2shader(func)
     assert m.input is func
     validate_module(m, HASHES)
     return m

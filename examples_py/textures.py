@@ -6,7 +6,7 @@ For vertex/fragment shaders, it is enough to specify whether the format
 results in integer of float components.
 """
 
-from python_shader import python2shader, ivec3, vec2, vec4
+from pyshader import python2shader, ivec3, vec2, vec4
 
 
 # Take two values from a 2-element 2D texture, and store into a a scalar 2D

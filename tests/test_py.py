@@ -17,8 +17,8 @@ script to get new hashes when needed:
 
 """
 
-import python_shader
-from python_shader import stdlib, f32, i32, vec2, vec3, vec4, ivec3, ivec4, Array
+import pyshader
+from pyshader import stdlib, f32, i32, vec2, vec3, vec4, ivec3, ivec4, Array
 
 from pytest import mark, raises
 from testutils import can_use_vulkan_sdk, validate_module, run_test_and_print_new_hashes
@@ -54,8 +54,8 @@ def test_no_duplicate_constants():
     def vertex_shader():
         positions = [vec2(0.0, 1.0), vec2(0.0, 1.0), vec2(0.0, 1.0)]  # noqa
 
-    m = python_shader.python2shader(vertex_shader)
-    text = python_shader.dev.disassemble(m.to_spirv())
+    m = pyshader.python2shader(vertex_shader)
+    text = pyshader.dev.disassemble(m.to_spirv())
     assert 2 <= text.count("OpConst") <= 3
 
 
@@ -77,8 +77,8 @@ def test_cannot_assign_same_slot():
     ):
         data2[index] = data1[index]
 
-    with raises(python_shader.ShaderError) as err:
-        python_shader.python2shader(compute_shader).to_spirv()
+    with raises(pyshader.ShaderError) as err:
+        pyshader.python2shader(compute_shader).to_spirv()
     assert "already taken" in str(err.value)
 
 
@@ -138,7 +138,7 @@ def test_texcomp_2d_rg32i():
 
 
 def python2shader_and_validate(func):
-    m = python_shader.python2shader(func)
+    m = pyshader.python2shader(func)
     assert m.input is func
     validate_module(m, HASHES)
     return m

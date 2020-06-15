@@ -1,6 +1,6 @@
 import ctypes
 
-from python_shader import _types as types, shadertype_as_ctype
+from pyshader import _types as types, shadertype_as_ctype
 
 from pytest import raises
 

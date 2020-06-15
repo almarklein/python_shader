@@ -5,7 +5,7 @@ WASL is experimental, currently broken, and probably being deprecated :)
 """
 
 
-from python_shader.wasl import wasl2shader
+from pyshader.wasl import wasl2shader
 
 vertex_code = """
 fn main (

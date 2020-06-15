@@ -4,7 +4,7 @@ from setuptools import find_packages, setup
 def get_version_and_docstring():
     ns = {"__doc__": "", "__version__": ""}
     docStatus = 0  # Not started, in progress, done
-    for line in open("python_shader/__init__.py").readlines():
+    for line in open("pyshader/__init__.py").readlines():
         if line.startswith("__version__"):
             exec(line.strip(), ns, ns)
         elif line.startswith('"""'):
@@ -21,9 +21,9 @@ def get_version_and_docstring():
 version, doc = get_version_and_docstring()
 
 setup(
-    name="python-shader",
+    name="pyshader",
     version=version,
-    url="https://github.com/almarklein/python-shader",
+    url="https://github.com/pygfx/pyshader",
     description="Write modern GPU shaders in Python!",
     long_description=doc,
     long_description_content_type="text/markdown",

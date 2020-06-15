@@ -100,7 +100,7 @@ class PyBytecode2Bytecode:
                 raise TypeError("Shader arguments must be annotated.")
             resource = py_func.__annotations__.get(argname, None)
             if resource is None:
-                raise TypeError(f"Python-shader arg {argname} is not decorated.")
+                raise TypeError(f"pyshader arg {argname} is not decorated.")
             elif isinstance(resource, tuple) and len(resource) == 3:
                 kind, slot, subtype = resource
                 assert isinstance(kind, str)
@@ -109,7 +109,7 @@ class PyBytecode2Bytecode:
                 slot = list(slot) if isinstance(slot, tuple) else slot  # json
             else:
                 raise TypeError(
-                    f"Python-shader arg {argname} must be a 3-tuple, "
+                    f"pyshader arg {argname} must be a 3-tuple, "
                     + f"not {type(resource)}."
                 )
             kind = kind.lower()
@@ -119,7 +119,7 @@ class PyBytecode2Bytecode:
                 resource_dict = KINDMAP[kind]
             except KeyError:
                 raise TypeError(
-                    f"Python-shader arg {argname} has unknown resource kind '{kind}')."
+                    f"pyshader arg {argname} has unknown resource kind '{kind}')."
                 )
             # Emit and store in our dict
             self.emit(op.co_resource, kind + "." + argname, kind, slot, subtype)

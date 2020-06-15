@@ -2,7 +2,7 @@
 Some shaders that could be used to render a mesh
 """
 
-from python_shader import python2shader, vec3, vec4, mat4
+from pyshader import python2shader, vec3, vec4, mat4
 
 
 @python2shader

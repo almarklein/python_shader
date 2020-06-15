@@ -6,8 +6,8 @@ With this we can validate arithmetic, control flow etc.
 
 import ctypes
 
-import python_shader
-from python_shader import f32, i32, ivec2, ivec3, ivec4, vec2, vec3, vec4, Array  # noqa
+import pyshader
+from pyshader import f32, i32, ivec2, ivec3, ivec4, vec2, vec3, vec4, Array  # noqa
 
 import wgpu.backends.rs  # noqa
 from wgpu.utils import compute_with_buffers
@@ -85,7 +85,7 @@ def test_copy_vec3():
         data3[index] = ivec3(index, index, index)
 
     # # Equivalent shader in GLSL
-    # compute_shader = python_shader.dev.glsl2spirv("""
+    # compute_shader = pyshader.dev.glsl2spirv("""
     #     #version 450
     #     layout(std430 , set=0, binding=0) buffer Foo1 { vec3[] data1; };
     #     layout(std430 , set=0, binding=1) buffer Foo2 { vec3[] data2; };
@@ -155,7 +155,7 @@ def test_copy_vec4():
 
 
 def python2shader_and_validate(func):
-    m = python_shader.python2shader(func)
+    m = pyshader.python2shader(func)
     assert m.input is func
     validate_module(m, HASHES)
     return m

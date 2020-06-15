@@ -2,7 +2,7 @@ trigger:
 - master
 
 variables:
-  NAME: python-shader
+  NAME: pyshader
 
 jobs:
 - job: Build
@@ -11,7 +11,7 @@ jobs:
       Linux-py36-full:
         vmImage: ubuntu-16.04
         pyversion: '3.6'
-        PYTHON_SHADER_TEST_FULL: true
+        PYSHADER_TEST_FULL: true
       Linux-py37:
         vmImage: ubuntu-16.04
         pyversion: '3.7'
@@ -51,7 +51,7 @@ jobs:
         pip install -q -U pytest pytest-cov wgpu
   - task: Bash@3
     displayName: Install more development requirements
-    condition: eq(variables['PYTHON_SHADER_TEST_FULL'], 'true')
+    condition: eq(variables['PYSHADER_TEST_FULL'], 'true')
     inputs:
       targetType: inline
       script: |
@@ -62,14 +62,14 @@ jobs:
         sudo apt install vulkan-sdk
   - task: Bash@3
     displayName: Lint (black)
-    condition: eq(variables['PYTHON_SHADER_TEST_FULL'], 'true')
+    condition: eq(variables['PYSHADER_TEST_FULL'], 'true')
     inputs:
       targetType: inline
       script: |
         black --check .
   - task: Bash@3
     displayName: Lint (flake8)
-    condition: eq(variables['PYTHON_SHADER_TEST_FULL'], 'true')
+    condition: eq(variables['PYSHADER_TEST_FULL'], 'true')
     inputs:
       targetType: inline
       script: |
@@ -80,8 +80,8 @@ jobs:
       targetType: inline
       script: |
         python setup.py install
-        rm -rf ./python_shader ./build ./egg-info
-        pytest --disable-warnings --junit-xml=results-packaged.xml -v --cov=python_shader || true
+        rm -rf ./pyshader ./build ./egg-info
+        pytest --disable-warnings --junit-xml=results-packaged.xml -v --cov=pyshader || true
         # Fail the task if results-packaged.xml was not created
         if [[ ! -f results-packaged.xml ]]
         then

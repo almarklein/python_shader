@@ -1,4 +1,4 @@
-import python_shader
+import pyshader
 
 from pytest import raises, mark
 
@@ -36,11 +36,11 @@ class FakeModule:
 @mark.skipif(not can_use_vulkan_sdk, reason="No Vulkan SDK")
 def test_run():
 
-    bb = python_shader.dev.glsl2spirv(vertex_code, "vertex")
-    python_shader.dev.validate(bb)
-    python_shader.dev.validate(FakeModule(bb))
-    x1 = python_shader.dev.disassemble(bb)
-    x2 = python_shader.dev.disassemble(FakeModule(bb))
+    bb = pyshader.dev.glsl2spirv(vertex_code, "vertex")
+    pyshader.dev.validate(bb)
+    pyshader.dev.validate(FakeModule(bb))
+    x1 = pyshader.dev.disassemble(bb)
+    x2 = pyshader.dev.disassemble(FakeModule(bb))
     assert x1 == x2
     assert isinstance(x1, str)
     assert "Version" in x1
@@ -52,26 +52,26 @@ def test_fails():
 
     # Shader type myst be vertex, fragment or compute
     with raises(ValueError):
-        python_shader.dev.glsl2spirv(vertex_code, "invalid_type")
+        pyshader.dev.glsl2spirv(vertex_code, "invalid_type")
 
     # Code must be str
     with raises(TypeError):
-        python_shader.dev.glsl2spirv(vertex_code.encode(), "vertex")
+        pyshader.dev.glsl2spirv(vertex_code.encode(), "vertex")
 
     # Code must actually glsl
     with raises(Exception):
-        python_shader.dev.glsl2spirv("not valid glsls", "vertex")
+        pyshader.dev.glsl2spirv("not valid glsls", "vertex")
 
     # Input must be bytes or ShaderModule-ish
     with raises(Exception):
-        python_shader.dev.validate(523)
+        pyshader.dev.validate(523)
     with raises(Exception):
-        python_shader.dev.disassemble(523)
+        pyshader.dev.disassemble(523)
 
     # Not valid spirv
     with raises(Exception):
-        python_shader.dev.validate(b"xxxxx")
+        pyshader.dev.validate(b"xxxxx")
 
     # Cannot disassemble invalid spirv
     with raises(Exception):
-        python_shader.dev.disassemble(b"xxxxx")
+        pyshader.dev.disassemble(b"xxxxx")

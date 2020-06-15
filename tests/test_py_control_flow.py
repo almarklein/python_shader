@@ -6,9 +6,9 @@ With this we can validate arithmetic, control flow etc.
 
 import ctypes
 
-import python_shader
+import pyshader
 
-from python_shader import f32, i32, vec2, vec3, vec4, Array  # noqa
+from pyshader import f32, i32, vec2, vec3, vec4, Array  # noqa
 
 import wgpu.backends.rs  # noqa
 from wgpu.utils import compute_with_buffers
@@ -215,8 +215,8 @@ def test_andor1():
             val = f32(index - 6) and 99.0
         data2[index] = val
 
-    with pytest.raises(python_shader.ShaderError):
-        python_shader.python2shader(compute_shader)
+    with pytest.raises(pyshader.ShaderError):
+        pyshader.python2shader(compute_shader)
 
 
 def test_andor2():
@@ -637,7 +637,7 @@ def test_discard():
 
 
 def python2shader_and_validate(func):
-    m = python_shader.python2shader(func)
+    m = pyshader.python2shader(func)
     assert m.input is func
     validate_module(m, HASHES)
     return m

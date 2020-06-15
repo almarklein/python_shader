@@ -5,7 +5,7 @@ import inspect
 import hashlib
 import subprocess
 
-import python_shader
+import pyshader
 
 
 def iters_equal(iter1, iter2):
@@ -46,12 +46,12 @@ def validate_module(shader_module, hashes):
     # Get steps of code: Python, bytecode, spirv
     key = func.__qualname__.replace(".<locals>.", ".")
     bc = shader_module.to_bytecode()
-    text_bc = python_shader.opcodes.bc2str(bc)
-    assert bc == python_shader.opcodes.str2bc(text_bc)
+    text_bc = pyshader.opcodes.bc2str(bc)
+    assert bc == pyshader.opcodes.str2bc(text_bc)
     byte_sp = shader_module.to_spirv()
 
     # print(text_bc)
-    # print(python_shader.dev.disassemble(byte_sp))
+    # print(pyshader.dev.disassemble(byte_sp))
 
     # Get hashes so we can compare it easier
     assert isinstance(text_bc, str)
@@ -63,7 +63,7 @@ def validate_module(shader_module, hashes):
     if overwrite_hashes:
         # Dev mode: print hashes so they can be copied in. MUST validate here.
         assert not os.environ.get("CI")
-        python_shader.dev.validate(byte_sp)
+        pyshader.dev.validate(byte_sp)
         assert key not in hashes  # prevent duplicates
         hashes[key] = hash_bc, hash_sp
 
@@ -83,7 +83,7 @@ def validate_module(shader_module, hashes):
         # If the Vulkan SKD is available, validate the module for good measure.
         # In practice there will probably be one CI build that does this.
         if can_use_vulkan_sdk:
-            python_shader.dev.validate(byte_sp)
+            pyshader.dev.validate(byte_sp)
 
 
 def run_test_and_print_new_hashes(ns):
@@ -133,8 +133,8 @@ def run_test_and_print_new_hashes(ns):
 
 
 def _determine_can_use_vulkan_sdk():
-    # If PYTHON_SHADER_TEST_FULL is set, force using the vulkan SDK
-    if os.getenv("PYTHON_SHADER_TEST_FULL", "").lower() == "true":
+    # If PYSHADER_TEST_FULL is set, force using the vulkan SDK
+    if os.getenv("PYSHADER_TEST_FULL", "").lower() == "true":
         return True
     try:
         subprocess.check_output(["spirv-val", "--version"])

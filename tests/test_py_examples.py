@@ -8,7 +8,7 @@ import os
 import types
 import importlib.util
 
-import python_shader
+import pyshader
 
 import pytest
 from testutils import validate_module, run_test_and_print_new_hashes
@@ -16,7 +16,7 @@ from testutils import validate_module, run_test_and_print_new_hashes
 EXAMPLES_DIR = os.path.abspath(os.path.join(__file__, "..", "..", "examples_py"))
 
 
-def get_python_shader_examples():
+def get_pyshader_examples():
 
     shader_modules = {}  # shader descriptive name -> shader object
 
@@ -32,7 +32,7 @@ def get_python_shader_examples():
         spec.loader.exec_module(m)
         # Collect shader module objects from the module
         for val in m.__dict__.values():
-            if isinstance(val, python_shader.ShaderModule):
+            if isinstance(val, pyshader.ShaderModule):
                 fullname = modname + "." + val.input.__qualname__
                 val.input.__qualname__ = fullname
                 shader_modules[fullname] = val
@@ -44,7 +44,7 @@ def get_python_shader_examples():
     return shader_modules
 
 
-shader_modules = get_python_shader_examples()
+shader_modules = get_pyshader_examples()
 
 
 @pytest.mark.parametrize("shader_name", list(shader_modules.keys()))

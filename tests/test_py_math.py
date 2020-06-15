@@ -8,9 +8,9 @@ import json
 import random
 import ctypes
 
-import python_shader
+import pyshader
 
-from python_shader import f32, i32, vec2, vec3, vec4, Array  # noqa
+from pyshader import f32, i32, vec2, vec3, vec4, Array  # noqa
 
 import wgpu.backends.rs  # noqa
 from wgpu.utils import compute_with_buffers
@@ -287,7 +287,7 @@ def test_ext_func_definitions():
 
     # Check each function
     count = 0
-    for name, info in python_shader.stdlib.ext_functions.items():
+    for name, info in pyshader.stdlib.ext_functions.items():
         if not info:
             continue  # skip the hardcoded functions
         normalized_name = name.replace("_", "")
@@ -310,7 +310,7 @@ def test_ext_func_definitions():
 
 
 def python2shader_and_validate(func):
-    m = python_shader.python2shader(func)
+    m = pyshader.python2shader(func)
     assert m.input is func
     validate_module(m, HASHES)
     return m

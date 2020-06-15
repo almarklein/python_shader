@@ -1,7 +1,7 @@
-[![Build Status](https://dev.azure.com/almarklein/python-shader/_apis/build/status/almarklein.python-shader?branchName=master)](https://dev.azure.com/almarklein/python-shader/_build/latest?definitionId=5&branchName=master)
+[![Build Status](https://dev.azure.com/almarklein/pyshader/_apis/build/status/almarklein.pyshader?branchName=master)](https://dev.azure.com/almarklein/pyshader/_build/latest?definitionId=5&branchName=master)
 
 
-# python_shader
+# pyshader
 
 Write modern GPU shaders in Python! Provides a Python to SpirV compiler, to
 start with.
@@ -26,14 +26,14 @@ functionality for e.g. if-statements and for-loops.
 ## Installation
 
 ```
-pip install python-shader
+pip install pyshader
 ```
 
 
 ## Example usage (a simple mesh shader)
 
 ```py
-from python_shader import python2shader, vec3, vec4, mat4
+from pyshader import python2shader, vec3, vec4, mat4
 
 @python2shader
 def vertex_shader(
@@ -53,8 +53,8 @@ def fragment_shader_flat(
 
 ## Developers
 
-If you want to use `python_shader.dev.validate()`,
-`python_shader.dev.disassemble()`, or `python_shader.dev.glsl2spirv()`,
+If you want to use `pyshader.dev.validate()`,
+`pyshader.dev.disassemble()`, or `pyshader.dev.glsl2spirv()`,
 you need to seperately install the [Vulkan SDK](https://www.lunarg.com/vulkan-sdk/).
 
 
@@ -65,7 +65,7 @@ This code is distributed under the 2-clause BSD license.
 
 ## API
 
-Python-shader is a mini-framework allowing compilation from/to different
+The pyshader lib is a mini-framework allowing compilation from/to different
 shader representations. It features an internal bytecode representation
 (not (yet) part of the public API). At the moment, the only compilation part
 is from a Python function, to bytecode, to SpirV. More paths may be added
@@ -93,7 +93,7 @@ it can be converted to binary SpirV. All in dependency-free pure Python.
 ### Types
 
 GPU programming feels a bit different. This is for example expressed
-by the heavy use of types representing vectors and matrices. Python-shader
+by the heavy use of types representing vectors and matrices. Pyshader
 has is's own type system to represent GPU specific types.
 
 There are a handful of leaf types:
@@ -173,7 +173,7 @@ and the texture format.
 
 #### Strict typing
 
-Python-shader uses type inference, so you don't have to worry about
+Pyshader uses type inference, so you don't have to worry about
 specifying types except for the function's input arguments. The typing
 is strict though, and there is no implicit conversion from integers
 to floats; you need to explicitly cast them.
@@ -197,5 +197,5 @@ the elements of a vector:
 #### Examples
 
 Checkout the Python shader examples to learn more:
-https://github.com/almarklein/python-shader/tree/master/examples_py
+https://github.com/pygfx/pyshader/tree/master/examples_py
 

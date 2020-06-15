@@ -2,7 +2,7 @@
 Minimal shaders to draw a triangle.
 """
 
-from python_shader import python2shader, i32, vec2, vec3, vec4
+from pyshader import python2shader, i32, vec2, vec3, vec4
 
 
 @python2shader
