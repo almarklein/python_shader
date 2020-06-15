@@ -34,17 +34,6 @@ def sample(texture, sampler, tex_coords):  # noqa: N802
     raise NotImplementedError(NI)
 
 
-# %% Extension instructions that we hard-code
-# ( because of the types)
-
-
-def abs(x):
-    """ The absolute value of x. The type of x can be an int or float
-    scalar or vector.
-    """
-    return abs(x)
-
-
 # %% Funcions from extension instruction sets
 
 # https://www.khronos.org/registry/spir-v/specs/unified1/GLSL.std.450.html
@@ -86,3 +75,23 @@ def length(v):
     """ Calculate the length (a.k.a. norm) of the given vector.
     """
     return sum(x ** 2 for x in v) ** 0.5
+
+
+# %% Extension instructions that we hard-code
+# ( because of the types)
+
+
+def hardcoded_extension(func):
+    assert not func.__defaults__
+    assert not func.__kwdefaults__
+    assert not func.__code__.co_kwonlyargcount
+    ext_functions[func.__name__] = None
+    return func
+
+
+@hardcoded_extension
+def abs(x):
+    """ The absolute value of x. The type of x can be an int or float
+    scalar or vector.
+    """
+    return abs(x)

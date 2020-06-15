@@ -231,6 +231,27 @@ def test_cast_ivec2_bvec2():
     assert iters_equal(out[1], values2)
 
 
+def test_abstract_types():
+    # This triggers the per-element vector conversion
+    @python2shader_and_validate
+    def compute_shader(
+        index: ("input", "GlobalInvocationId", i32),
+        data1: ("buffer", 0, Array(ivec2)),
+        data2: ("buffer", 1, Array(vec2)),
+    ):
+        a = data1[index]
+        data2[index] = Vector(2, f32)(a)
+
+    skip_if_no_wgpu()
+
+    values1 = [-999999, -100, 0, 1, 4, 100, 32767, 32760, 0, 999999]
+
+    inp_arrays = {0: (ctypes.c_int32 * len(values1))(*values1)}
+    out_arrays = {1: ctypes.c_float * len(values1)}
+    out = compute_with_buffers(inp_arrays, out_arrays, compute_shader, n=5)
+    assert iters_equal(out[1], values1)
+
+
 # %% Utils for this module
 
 
@@ -258,6 +279,7 @@ HASHES = {
     "test_cast_vec_any_vec4.compute_shader": ("56f57a24e6f7b1f0", "44bd6b015b3d9667"),
     "test_cast_vec_ivec3_vec3.compute_shader": ("1232037d61589e28", "5d988118bd2952ab"),
     "test_cast_ivec2_bvec2.compute_shader": ("5dde79b57409789e", "f1824ce347d142e0"),
+    "test_abstract_types.compute_shader": ("1f162c00b2a27ff3", "3d34e8037aafe3af"),
 }
 
 if __name__ == "__main__":

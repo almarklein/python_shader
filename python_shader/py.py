@@ -572,10 +572,13 @@ class PyBytecode2Bytecode:
         # todo: loading other Python shader functions
         i = self._next()
         name = self._co.co_names[i]
-        # We add a dot to denote that it's a global name. We resolve this dot
-        # in this compiler, either in load_attr or when we emit co_call
-        # We don't emit here, but put on the parser's stack.
-        self._stack.append("." + name)
+        if name in gpu_types_map:
+            self._stack.append(name)
+        else:
+            # We add a dot to denote that it's a global name. We resolve this dot
+            # in this compiler, either in load_attr or when we emit co_call
+            # We don't emit here, but put on the parser's stack.
+            self._stack.append("." + name)
 
     def _op_load_attr(self):
         i = self._next()
@@ -616,23 +619,61 @@ class PyBytecode2Bytecode:
     def _op_call_function(self):
         nargs = self._next()
         args = self._stack[-nargs:]
+        assert len(args) == nargs
         self._stack[-nargs:] = []
+
         func = self._stack.pop()
 
         assert isinstance(func, str)
-        if func.startswith(".stdlib."):
-            func = func[7:]
+        self._call_function(func, args)
 
-        if func in gpu_types_map and gpu_types_map[func].is_abstract:
-            # A type definition
-            type_str = f"{func}({','.join(args)})"
-            self._stack.append(type_str)
-        elif func.startswith("texture."):
+    def _op_call_method(self):
+        nargs = self._next()
+        args = self._stack[-nargs:]
+        assert len(args) == nargs
+        self._stack[-nargs:] = []
+
+        func = self._stack.pop()
+        ob = self._stack.pop()
+
+        assert isinstance(func, str)
+
+        if func.startswith("texture."):
+            pass  # args.insert(0, ob)
+        elif func.startswith("."):
+            pass
+        else:
+            1 / 0
+            self.emit(op.co_call, func.lstrip("."), nargs + 1)
+            assert self._stack.pop() == ob
+            self._stack.append(None)
+
+        self._call_function(func, args)
+
+    def _call_function(self, func, args):
+        nargs = len(args)
+        funcname = func.split(".")[-1]
+
+        if func.startswith("texture."):
+            # A texture function called as a method of a texture object
+            # This is syntactic sugar. We just need to increase nargs.
             ob = self._stack.pop()
             assert ob.startswith("texture.")  # a texture object
-            self.emit(op.co_call, func.split(".")[-1], nargs + 1)
+            self.emit(op.co_call, funcname, nargs + 1)
             self._stack.append(None)
-        elif func == ".range":
+        elif func.split("(")[0] in gpu_types_map:
+            # A type definition
+            if "(" not in func and gpu_types_map[func].is_abstract:
+                type_str = f"{func}({','.join(str(arg) for arg in args)})"
+                self._stack.append(type_str)
+            else:
+                self.emit(op.co_call, funcname, nargs)
+                self._stack.append(None)
+
+        elif not func.startswith("."):
+            raise ShaderError(f"Variables in shaders ({func}) are not callable.")
+
+        elif funcname == "range":
             if not (
                 self._co.co_code[self._pointer] == dis.opmap["GET_ITER"]
                 and self._co.co_code[self._pointer + 2] == dis.opmap["FOR_ITER"]
@@ -641,13 +682,13 @@ class PyBytecode2Bytecode:
             loop_info = self._loops_to_handle[0]
             assert loop_info["start"] == self._pointer + 2
             loop_info["range_is_set"] = True
-            if len(args) == 1:
+            if nargs == 1:
                 self.emit(op.co_load_constant, 0)
                 self.emit(op.co_rot_two)
                 self.emit(op.co_load_constant, 1)
-            elif len(args) == 2:
+            elif nargs == 2:
                 self.emit(op.co_load_constant, 1)
-            elif len(args) == 3:
+            elif nargs == 3:
                 step = args[2]
                 if not (isinstance(step, int) and step > 0):
                     raise ShaderError("range() step must be a constant int > 0")
@@ -655,34 +696,11 @@ class PyBytecode2Bytecode:
                 raise ShaderError("range() must have 1, 2 or 3 args.")
             self._stack.append("range")
             # nothing to emit yet
-        else:
-            self.emit(op.co_call, func.lstrip("."), nargs)
-            self._stack.append(None)
-
-    def _op_call_method(self):
-        nargs = self._next()
-        args = self._stack[-nargs:]
-        args  # not used
-        self._stack[-nargs:] = []
-
-        func = self._stack.pop()
-        ob = self._stack.pop()
-
-        assert isinstance(func, str)
-        if func.startswith(".stdlib."):
-            func = func[7:]
-
-        if func.startswith("."):
-            self.emit(op.co_call, func.lstrip("."), nargs)  # not +1
-            self._stack.append(None)
-        elif func.startswith("texture."):
-            self.emit(op.co_call, func.split(".")[-1], nargs + 1)
-            assert self._stack.pop() == ob
+        elif func.count(".") == 1 or func.startswith((".stdlib.", ".math.")):
+            self.emit(op.co_call, funcname, nargs)
             self._stack.append(None)
         else:
-            self.emit(op.co_call, func.lstrip("."), nargs + 1)
-            assert self._stack.pop() == ob
-            self._stack.append(None)
+            raise ShaderError(f"Unknown external function {func}.")
 
     def _op_binary_subscr(self):
         self._next()  # because always 1 arg even if dummy
