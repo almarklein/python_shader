@@ -196,6 +196,6 @@ the elements of a vector:
 
 #### Examples
 
-Checkout the Python shader examples to learn more:
+Check out the Python shader examples to learn more:
 https://github.com/pygfx/pyshader/tree/master/examples_py
 
