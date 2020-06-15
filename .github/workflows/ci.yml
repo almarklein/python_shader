@@ -65,6 +65,7 @@ jobs:
             black --check .
             flake8 .
       - name: Test with pytest
+        shell: bash
         run: |
             python setup.py install
             rm -rf ./pyshader ./build ./egg-info
