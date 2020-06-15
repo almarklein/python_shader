@@ -29,7 +29,9 @@ setup(
     long_description_content_type="text/markdown",
     author="Almar Klein",
     author_email="almar.klein@gmail.com",
-    packages=find_packages(exclude=["tests", "tests.*", "examples", "examples.*"]),
+    packages=find_packages(
+        exclude=["tests", "tests.*", "examples_py", "examples_py.*"]
+    ),
     python_requires=">=3.6.0",
     zip_safe=True,
     classifiers=[
