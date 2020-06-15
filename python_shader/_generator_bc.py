@@ -325,6 +325,65 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
                 nr = 5
             else:
                 raise ShaderError("abs() expects (vector of) int or float.")
+        elif funcname == "sign":
+            nargs = 1
+            result_type = ty = args[0].type
+            if issubclass(ty, _types.Float):
+                nr = 6
+            elif issubclass(ty, _types.Int):
+                nr = 6
+            elif issubclass(ty, _types.Vector) and issubclass(ty.subtype, _types.Float):
+                nr = 6
+            elif issubclass(ty, _types.Vector) and issubclass(ty.subtype, _types.Int):
+                nr = 7
+            else:
+                raise ShaderError("sign() expects (vector of) int or float.")
+        elif funcname == "matrix_inverse":
+            nargs = 1
+            result_type = ty = args[0].type
+            if issubclass(ty, _types.Matrix) and ty._rows == ty.cols:
+                nr = 34
+            else:
+                raise ShaderError("matrix_inverse() expects square matrix.")
+        elif funcname == "min":
+            nargs = 2
+            result_type = ty = args[0].type
+            if issubclass(ty, _types.Float):
+                nr = 37
+            elif issubclass(ty, _types.Int):
+                nr = 39
+            elif issubclass(ty, _types.Vector) and issubclass(ty.subtype, _types.Float):
+                nr = 37
+            elif issubclass(ty, _types.Vector) and issubclass(ty.subtype, _types.Int):
+                nr = 39
+            else:
+                raise ShaderError("min() expects (vector of) int or float.")
+        elif funcname == "max":
+            nargs = 2
+            result_type = ty = args[0].type
+            if issubclass(ty, _types.Float):
+                nr = 40
+            elif issubclass(ty, _types.Int):
+                nr = 42
+            elif issubclass(ty, _types.Vector) and issubclass(ty.subtype, _types.Float):
+                nr = 40
+            elif issubclass(ty, _types.Vector) and issubclass(ty.subtype, _types.Int):
+                nr = 42
+            else:
+                raise ShaderError("max() expects (vector of) int or float.")
+        elif funcname == "clamp":
+            nargs = 3
+            result_type = ty = args[0].type
+            if issubclass(ty, _types.Float):
+                nr = 43
+            elif issubclass(ty, _types.Int):
+                nr = 45
+            elif issubclass(ty, _types.Vector) and issubclass(ty.subtype, _types.Float):
+                nr = 43
+            elif issubclass(ty, _types.Vector) and issubclass(ty.subtype, _types.Int):
+                nr = 45
+            else:
+                raise ShaderError("clamp() expects (vector of) int or float.")
         else:
             raise RuntimeError(f"Unknown extension instruction {funcname}")
 

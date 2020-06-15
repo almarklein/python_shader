@@ -3,6 +3,7 @@ Tests that run a compute shader and validate the outcome.
 With this we can validate arithmetic, control flow etc.
 """
 
+import json
 import random
 import ctypes
 
@@ -115,6 +116,8 @@ def test_mul_div2():
 
 # %% Extension functions
 
+# We test a subset; we test the definition of all functions in test_ext_func_definitions
+
 
 def test_pow():
     # note hat a**2 is converted to a*a and a**0.5 to sqrt(a)
@@ -190,7 +193,9 @@ def test_length():
 
 
 # %% Extension functions that need more care
-# Mostly because they operate on more types than just float and vec
+
+# Mostly because they operate on more types than just float and vec.
+# We'll want to test all "hardcoded" functions here.
 
 
 def test_abs():
@@ -217,6 +222,80 @@ def test_abs():
     res = list(out[2])
     assert iters_close(res[0::2], [abs(v) for v in values1])
     assert res[1::2] == [abs(v) for v in values2]
+
+
+def test_min_max_clamp():
+    @python2shader_and_validate
+    def compute_shader(
+        index: ("input", "GlobalInvocationId", i32),
+        data1: ("buffer", 0, Array(vec3)),
+        data2: ("buffer", 1, Array(vec3)),
+        data3: ("buffer", 2, Array(vec3)),
+    ):
+        v = data1[index].x
+        mi = data1[index].y
+        ma = data1[index].z
+
+        data2[index] = vec3(min(v, ma), max(v, mi), clamp(v, mi, ma))
+        data3[index] = vec3(nmin(v, ma), nmax(v, mi), nclamp(v, mi, ma))
+
+    skip_if_no_wgpu()
+
+    the_vals = [-4, -3, -2, -1, +0, +0, +1, +2, +3, +4]
+    min_vals = [-2, -5, -5, +2, +2, -1, +3, +1, +1, -6]
+    max_vals = [+2, -1, -3, +3, +3, +1, +9, +9, +2, -3]
+    values = sum(zip(the_vals, min_vals, max_vals), ())
+
+    inp_arrays = {0: (ctypes.c_float * 30)(*values)}
+    out_arrays = {1: ctypes.c_float * 30, 2: ctypes.c_float * 30}
+    out = compute_with_buffers(inp_arrays, out_arrays, compute_shader, n=10)
+
+    res1 = list(out[1])
+    res2 = list(out[2])
+    ref_min = [min(the_vals[i], max_vals[i]) for i in range(10)]
+    ref_max = [max(the_vals[i], min_vals[i]) for i in range(10)]
+    ref_clamp = [min(max(min_vals[i], the_vals[i]), max_vals[i]) for i in range(10)]
+    # Test normal variant
+    assert res1[0::3] == ref_min
+    assert res1[1::3] == ref_max
+    assert res1[2::3] == ref_clamp
+    # Test NaN-safe variant
+    assert res2[0::3] == ref_min
+    assert res2[1::3] == ref_max
+    assert res2[2::3] == ref_clamp
+
+
+# %% Extension function definitions
+
+
+def test_ext_func_definitions():
+    # The above tests touch a subset of all extension functions.
+    # This test validates that the extension functions that we define
+    # in stdlib.py have the correct enum nr and number of arguments.
+
+    # Prepare meta data about instructions
+    instructions = {}
+    with open("extinst.glsl.std.450.grammar.json", "r") as f:
+        meta = json.load(f)
+    for x in meta["instructions"]:
+        normalized_name = x["opname"].lower()
+        instructions[normalized_name] = x["opcode"], len(x["operands"])
+
+    # Check each function
+    for name, info in python_shader.stdlib.ext_functions.items():
+        if not info:
+            continue  # skip the hardcoded functions
+        normalized_name = name.replace("_", "")
+        if normalized_name not in instructions:
+            normalized_name = "f" + normalized_name
+        assert normalized_name in instructions, f"Could not find meta data for {name}()"
+        nr, nargs = instructions[normalized_name]
+        assert (
+            info["nr"] == nr
+        ), f"Invalid enum nr for {name}: {info['nr']} instead of {nr}"
+        assert (
+            info["nargs"] == nargs
+        ), f"Invalud nargs for {name}: {info['nargs']} instead of {nargs}"
 
 
 # %% Utils for this module
