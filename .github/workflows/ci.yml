@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - name: Linux py36 full
+            os: ubuntu-16.04
+            pyversion: '3.6'
+            PYSHADER_TEST_FULL: true
+          - name: Linux py37
+            os: ubuntu-latest
+            pyversion: '3.7'
+          - name: Linux py38
+            os: ubuntu-latest
+            pyversion: '3.8'
+          - name: Linux pypy3
+            os: ubuntu-latest
+            pyversion: 'pypy3'
+          - name: MacOS py36
+            os: macos-latest
+            pyversion: '3.6'
+          - name: MacOS py38
+            os: macos-latest
+            pyversion: '3.8'
+          - name: Windows py36
+            os: windows-latest
+            pyversion: '3.6'
+          - name: Windows py38
+            os: windows-latest
+            pyversion: '3.8'
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python ${{ matrix.pyversion }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.pyversion }}
+      - name: Install dev dependencies
+        run: |
+            python -m pip install --upgrade pip
+            pip install -q -U pytest pytest-cov wgpu
+      - name: Install more dev dependencies
+        if: matrix.PYSHADER_TEST_FULL == 1
+        run: |
+            pip install -q -U black flake8 pep8-naming
+            wget -qO - http://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo apt-key add -
+            sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-1.1.130-xenial.list http://packages.lunarg.com/vulkan/1.1.130/lunarg-vulkan-1.1.130-xenial.list
+            sudo apt update
+            sudo apt install vulkan-sdk
+      - name: Lint (black and flake8)
+        if: matrix.PYSHADER_TEST_FULL == 1
+        run: |
+            black --check .
+            flake8 .
+      - name: Test with pytest
+        run: |
+            python setup.py install
+            rm -rf ./pyshader ./build ./egg-info
+            pytest --disable-warnings --junit-xml=results-packaged.xml -v --cov=pyshader || true
