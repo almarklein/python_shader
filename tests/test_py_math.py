@@ -3,6 +3,7 @@ Tests that run a compute shader and validate the outcome.
 With this we can validate arithmetic, control flow etc.
 """
 
+import os
 import json
 import random
 import ctypes
@@ -17,6 +18,9 @@ from wgpu.utils import compute_with_buffers
 import pytest
 from testutils import can_use_wgpu_lib, iters_close
 from testutils import validate_module, run_test_and_print_new_hashes
+
+
+THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 # %% Builtin math
@@ -275,7 +279,7 @@ def test_ext_func_definitions():
 
     # Prepare meta data about instructions
     instructions = {}
-    with open("extinst.glsl.std.450.grammar.json", "r") as f:
+    with open(os.path.join(THIS_DIR, "extinst.glsl.std.450.grammar.json"), "r") as f:
         meta = json.load(f)
     for x in meta["instructions"]:
         normalized_name = x["opname"].lower()
@@ -326,6 +330,7 @@ HASHES = {
     "test_sqrt.compute_shader": ("3fb9f30103054be5", "a18522c9c8bbf809"),
     "test_length.compute_shader": ("bcb9fb5793f33610", "2e0a4f0ac0f3468d"),
     "test_abs.compute_shader": ("09922efbd3b835a9", "48c14af6ab79385f"),
+    "test_min_max_clamp.compute_shader": ("d0b7f20a0c81aea0", "8f3b43edd3f5e049"),
 }
 
 
