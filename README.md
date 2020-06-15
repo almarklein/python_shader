@@ -1,5 +1,4 @@
-[![Build Status](https://dev.azure.com/almarklein/pyshader/_apis/build/status/almarklein.pyshader?branchName=master)](https://dev.azure.com/almarklein/pyshader/_build/latest?definitionId=5&branchName=master)
-
+![CI status](https://github.com/pygfx/pyshader/workflows/CI/badge.svg)
 
 # pyshader
 
