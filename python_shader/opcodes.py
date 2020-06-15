@@ -75,7 +75,8 @@ class OpCodeDefinitions:
 
     def co_call(self, funcname, nargs):
         """ Call a function. The arguments are on the stack. The
-        funcname should match a shader type, a function in stdlib,
+        funcname should match a shader-specific type (e.g. f32 or Array),
+        a texture sample/read/write function, a function in the stdlib,
         or another defined function (once we implement that).
         """
         raise NotImplementedError()

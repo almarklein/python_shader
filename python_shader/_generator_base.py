@@ -588,6 +588,8 @@ class BaseSpirVGenerator:
 
     def obtain_extended_instruction_set(self, set_name):
         """ Obtain the extended instruction set object by the instruction set name.
+        The used instruction sets are defined near the top of the SpirV file. The
+        resulting id is used in OpExtInst instructions.
         """
         if set_name not in self._extentded_instruction_sets:
             id = self.obtain_id(set_name)

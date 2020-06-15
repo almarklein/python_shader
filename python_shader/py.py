@@ -634,20 +634,10 @@ class PyBytecode2Bytecode:
         self._stack[-nargs:] = []
 
         func = self._stack.pop()
-        ob = self._stack.pop()
+        ob = self._stack.pop()  # noqa
 
         assert isinstance(func, str)
-
-        if func.startswith("texture."):
-            pass  # args.insert(0, ob)
-        elif func.startswith("."):
-            pass
-        else:
-            1 / 0
-            self.emit(op.co_call, func.lstrip("."), nargs + 1)
-            assert self._stack.pop() == ob
-            self._stack.append(None)
-
+        assert func.startswith("texture.") or func.startswith(".")
         self._call_function(func, args)
 
     def _call_function(self, func, args):

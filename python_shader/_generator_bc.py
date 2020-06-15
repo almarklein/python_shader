@@ -283,10 +283,17 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             raise RuntimeError(f"Unknown texture func {funcname}")
 
     def _ext_instruction_call(self, funcname, args):
+        # An extension instruction call. If there is an info dict for
+        # this function name, all args must be float or float-vector,
+        # and the result is either the same, or the same as the
+        # component type. All ext instructions that do not fall into
+        # this category are handled seperately here. These are what we
+        # call the "hardcoded" functions in stdlib.py.
+
         # https://www.khronos.org/registry/spir-v/specs/unified1/GLSL.std.450.html
         set_name = "GLSL.std.450"  # The most common
 
-        info = ext_functions[funcname]
+        info = ext_functions.get(funcname, None)
 
         if info:
             # One of the many float/vec-float functions that we can handle automatically
