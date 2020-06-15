@@ -282,6 +282,7 @@ def test_ext_func_definitions():
         instructions[normalized_name] = x["opcode"], len(x["operands"])
 
     # Check each function
+    count = 0
     for name, info in python_shader.stdlib.ext_functions.items():
         if not info:
             continue  # skip the hardcoded functions
@@ -296,6 +297,9 @@ def test_ext_func_definitions():
         assert (
             info["nargs"] == nargs
         ), f"Invalud nargs for {name}: {info['nargs']} instead of {nargs}"
+        count += 1
+
+    print(f"Validated {count} extension functions!")
 
 
 # %% Utils for this module
