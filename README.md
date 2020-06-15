@@ -13,7 +13,7 @@ is a binary platform independent represenation for GPU shaders. This module
 makes it easier to write SpirV shaders in Python.
 
 This should be useful for anything built on top of
-[wgpu-py](https://github.com/almarklein/wgpu-py).
+[wgpu-py](https://github.com/pygfx/wgpu-py).
 
 
 ## Current status
