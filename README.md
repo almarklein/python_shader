@@ -77,15 +77,15 @@ from pyshader import python2shader, vec3, vec4, mat4
 
 @python2shader
 def vertex_shader(
-    vertex_pos: ("input", 0, vec3),
-    transform: ("uniform", (0, 0), mat4),
-    out_pos: ("output", "Position", vec4),
+    vertex_pos=("input", 0, vec3),
+    transform=("uniform", (0, 0), mat4),
+    out_pos=("output", "Position", vec4),
 ):
     out_pos = transform * vec4(vertex_pos, 1.0)
 
 @python2shader
 def fragment_shader_flat(
-    color: ("uniform", (0, 1), vec3), out_color: ("output", 0, vec4),
+    color=("uniform", (0, 1), vec3), out_color=("output", 0, vec4),
 ):
     out_color = vec4(color, 1.0)  # noqa
 ```
@@ -167,7 +167,9 @@ or "fragment", to indicate the type of shader.
 
 #### Function arguments
 
-Each argument of your function must be annotated with a 3-element tuple:
+Each argument of your function must be annotated with a 3-element tuple.
+This may be done either using an annotation or a "default value". Both
+flavours are equally valid, but the latter may prevent linting issues.
 
 ```py
 @python2shader
@@ -175,6 +177,11 @@ def your_vertex_shader(
     argument_name: (resource_type, slot, type_info)
 ):
     ...
+# or
+@python2shader
+def your_vertex_shader(
+    argument_name=(resource_type, slot, type_info)
+):
 ```
 
 There are 6 possible resource types. These are specified as a string, but
