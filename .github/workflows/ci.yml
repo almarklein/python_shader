@@ -69,4 +69,4 @@ jobs:
         run: |
             python setup.py install
             rm -rf ./pyshader ./build ./egg-info
-            pytest --disable-warnings --junit-xml=results-packaged.xml -v --cov=pyshader || true
+            pytest -v --cov=pyshader
