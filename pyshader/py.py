@@ -9,6 +9,9 @@ from ._dis import dis
 from ._types import gpu_types_map
 
 
+EXTENDED_ARG = dis.opmap["EXTENDED_ARG"]
+
+
 def python2shader(func):
     """ Convert a Python function to a ShaderModule object.
 
@@ -52,7 +55,6 @@ class PyBytecode2Bytecode:
         self._co = self._py_func.__code__
 
         self._opcodes = []
-        self._opcode_map = {}  # map Python bytecode indices to opcode indices
 
         self._input = {}
         self._output = {}
@@ -76,8 +78,6 @@ class PyBytecode2Bytecode:
 
         # The loop_info objects are popped from the above lists and put on this stack
         self._loop_stack = [{}]  # prepend empty dict to be able to do get()
-
-        self._pointer = -1
 
         # todo: allow user to specify name otherwise?
         entrypoint_name = "main"  # py_func.__name__
@@ -145,9 +145,6 @@ class PyBytecode2Bytecode:
 
         if opcode == "co_branch":
             assert not self._opcodes[-1][0].startswith("co_branch")
-        bytecode_index = self._pointer - 2
-        if bytecode_index not in self._opcode_map:
-            self._opcode_map[bytecode_index] = len(self._opcodes)
         self._opcodes.append((opcode, *args))
 
     def dump(self):
@@ -162,9 +159,9 @@ class PyBytecode2Bytecode:
         #    https://svn.python.org/projects/python/branches/pep-0384/Objects/lnotab_notes.txt
 
         # Pointer in the bytecode stream
-        self._pointer = 0
 
         # Parse
+        self._pointer = 0
         while self._pointer < len(self._co.co_code):
             if (
                 self._loops_to_handle
@@ -186,8 +183,7 @@ class PyBytecode2Bytecode:
                 ):
                     self.emit(op.co_branch, label)
                 self.emit(op.co_label, label)
-            opcode = self._next()
-            opname = dis.opname[opcode]
+            opname, arg = self._next()
             method_name = "_op_" + opname.lower()
             method = getattr(self, method_name, None)
             if method is None:
@@ -196,7 +192,7 @@ class PyBytecode2Bytecode:
                     f"Cannot parse py's {opname} yet (no {method_name}())."
                 )
             else:
-                method()
+                method(arg)
 
         # Some post-processing (order is important)
         self._fix_empty_blocks()
@@ -222,18 +218,21 @@ class PyBytecode2Bytecode:
         # Collect jumps in the bytecode
         jumps = {}
         jump_ops = (
-            dis.opmap["JUMP_ABSOLUTE"],
-            dis.opmap["JUMP_FORWARD"],
-            dis.opmap["POP_JUMP_IF_FALSE"],
-            dis.opmap["POP_JUMP_IF_TRUE"],
+            "JUMP_ABSOLUTE",
+            "JUMP_FORWARD",
+            "POP_JUMP_IF_FALSE",
+            "POP_JUMP_IF_TRUE",
+            "JUMP_IF_FALSE_OR_POP",
+            "JUMP_IF_TRUE_OR_POP",
         )
-        for i in range(0, len(self._co.co_code), 2):
-            if self._co.co_code[i] in jump_ops:
-                if self._co.co_code[i] == dis.opmap["JUMP_FORWARD"]:
-                    target = i + self._co.co_code[i + 1] + 2
-                else:
-                    target = self._co.co_code[i + 1]
-                jumps[i] = target
+
+        self._pointer = 0
+        while self._pointer < len(self._co.co_code):
+            i = self._pointer
+            opname, arg = self._next()
+            if "JUMP" in opname:
+                assert opname in jump_ops
+                jumps[i] = (i + 2 + arg) if opname == "JUMP_FORWARD" else arg
 
         # Look for loop starts
         loop_starts = []
@@ -274,7 +273,7 @@ class PyBytecode2Bytecode:
         # Now we know the end (but there may be two positions to jump to)
         assert len(jumps_to_start) > 0
         our_ends = [jumps_to_start[-1] + 2]
-        if self._co.co_code[our_ends[0]] == dis.opmap["POP_BLOCK"]:
+        if self._peek(our_ends[0]) == "POP_BLOCK":
             our_ends.append(our_ends[0] + 2)
         ends = our_ends.copy()
         ends += [x["start"] for x in prev_loops] + [x["end"] for x in prev_loops]
@@ -287,13 +286,13 @@ class PyBytecode2Bytecode:
                 if target in ends:
                     first_jump_is_to_end = True
                     body_target = i + 2
-                elif self._co.co_code[target] == dis.opmap["BREAK_LOOP"]:
+                elif self._peek(target) == "BREAK_LOOP":
                     first_jump_is_to_end = True
                     body_target = i + 2
                 break
 
         # Check what kind of loop this is
-        has_for_iter = self._co.co_code[loop_start] == dis.opmap["FOR_ITER"]
+        has_for_iter = self._peek(loop_start) == "FOR_ITER"
 
         # Init loop info
         loop_info = {}
@@ -474,12 +473,34 @@ class PyBytecode2Bytecode:
         self._replace_labels(labels_to_replace)
 
     def _next(self):
-        res = self._co.co_code[self._pointer]
-        self._pointer += 1
-        return res
+        assert self._pointer % 2 == 0
+        opcode = self._co.co_code[self._pointer]
+        arg = self._co.co_code[self._pointer + 1]
+        # Resolve name
+        opcode = dis.opname[opcode]
+        # Resolve EXTENDED_ARG
+        n, i = 1, self._pointer
+        while self._co.co_code[i - 2] == EXTENDED_ARG:
+            arg += self._co.co_code[i - 1] * 256 ** n
+            n += 1
+            i -= 2
+        self._pointer += 2
+        return opcode, arg
 
-    def _peak_next(self):
-        return self._co.co_code[self._pointer]
+    def _peek(self, pos=None):
+        pos = self._pointer if pos is None else pos
+        res = self._co.co_code[pos]
+        if pos % 2 == 0:
+            # Resolve name
+            res = dis.opname[res]
+        else:
+            # Resolve EXTENDED_ARG
+            n, i = 1, pos - 1
+            while self._co.co_code[i - 2] == EXTENDED_ARG:
+                res += self._co.co_code[i - 1] * 256 ** n
+                n += 1
+                i -= 2
+        return res
 
     def _get_label(self, pointer_pos):
         loop_labels = self._loop_stack[-1].get("labelmap", {})
@@ -495,13 +516,14 @@ class PyBytecode2Bytecode:
 
     # %%
 
-    def _op_pop_top(self):
-        self._next()
+    def _op_extended_arg(self, arg):
+        pass
+
+    def _op_pop_top(self, arg):
         self._stack.pop()
         self.emit(op.co_pop_top)
 
-    def _op_return_value(self):
-        self._next()
+    def _op_return_value(self, arg):
         result = self._stack.pop()
         assert result is None
         if self._pointer == len(self._co.co_code):
@@ -509,9 +531,8 @@ class PyBytecode2Bytecode:
         else:
             self.emit(op.co_return)
 
-    def _op_load_fast(self):
+    def _op_load_fast(self, i):
         # store a variable that is used in an inner scope.
-        i = self._next()
         name = self._co.co_varnames[i]
         if name in self._input:
             self.emit(op.co_load_name, "input." + name)
@@ -536,8 +557,7 @@ class PyBytecode2Bytecode:
             self.emit(op.co_load_name, name)
             self._stack.append(name)
 
-    def _op_store_fast(self):
-        i = self._next()
+    def _op_store_fast(self, i):
         name = self._co.co_varnames[i]
         ob = self._stack.pop()  # noqa - ob not used
         # we don't prevent assigning to input here, that's the task of bc generator
@@ -557,8 +577,7 @@ class PyBytecode2Bytecode:
             # Normal store
             self.emit(op.co_store_name, name)
 
-    def _op_load_const(self):
-        i = self._next()
+    def _op_load_const(self, i):
         ob = self._co.co_consts[i]
         if isinstance(ob, (float, int, bool)):
             self.emit(op.co_load_constant, ob)
@@ -568,14 +587,13 @@ class PyBytecode2Bytecode:
         else:
             raise ShaderError("Only float/int/bool constants supported.")
 
-    def _op_load_global(self):
+    def _op_load_global(self, i):
         # Could be:
         # * virtual func that we resolve here, like range()
         # * builtin functions like texture sampling
         # * func from ext instruction set
         # todo: loading constants from the Python globals() scope
         # todo: loading other Python shader functions
-        i = self._next()
         name = self._co.co_names[i]
         if name in gpu_types_map:
             self._stack.append(name)
@@ -585,8 +603,7 @@ class PyBytecode2Bytecode:
             # We don't emit here, but put on the parser's stack.
             self._stack.append("." + name)
 
-    def _op_load_attr(self):
-        i = self._next()
+    def _op_load_attr(self, i):
         name = self._co.co_names[i]
         ob = self._stack.pop()  # noqa
         if not isinstance(ob, str):
@@ -604,25 +621,22 @@ class PyBytecode2Bytecode:
             self.emit(op.co_load_attr, name)
             self._stack.append(None)
 
-    def _op_load_method(self):
+    def _op_load_method(self, i):
         self._stack.append(self._stack[-1])  # for _op_load_attr
-        return self._op_load_attr()
+        return self._op_load_attr(i)
 
-    def _op_load_deref(self):
-        self._next()
+    def _op_load_deref(self, arg):
         # ext_ob_name = self._co.co_freevars[i]
         # ext_ob = self._py_func.__closure__[i]
         raise ShaderError("Shaders cannot be used as closures atm.")
 
-    def _op_store_attr(self):
-        i = self._next()
+    def _op_store_attr(self, i):
         name = self._co.co_names[i]
         ob = self._stack.pop()
         value = self._stack.pop()  # noqa
         raise ShaderError(f"{ob}.{name} store")
 
-    def _op_call_function(self):
-        nargs = self._next()
+    def _op_call_function(self, nargs):
         args = self._stack[-nargs:]
         assert len(args) == nargs
         self._stack[-nargs:] = []
@@ -632,8 +646,7 @@ class PyBytecode2Bytecode:
         assert isinstance(func, str)
         self._call_function(func, args)
 
-    def _op_call_method(self):
-        nargs = self._next()
+    def _op_call_method(self, nargs):
         args = self._stack[-nargs:]
         assert len(args) == nargs
         self._stack[-nargs:] = []
@@ -670,8 +683,8 @@ class PyBytecode2Bytecode:
 
         elif funcname == "range":
             if not (
-                self._co.co_code[self._pointer] == dis.opmap["GET_ITER"]
-                and self._co.co_code[self._pointer + 2] == dis.opmap["FOR_ITER"]
+                self._peek(self._pointer) == "GET_ITER"
+                and self._peek(self._pointer + 2) == "FOR_ITER"
             ):
                 raise ShaderError("range() can only be used as a for-loop iter.")
             loop_info = self._loops_to_handle[0]
@@ -697,8 +710,7 @@ class PyBytecode2Bytecode:
         else:
             raise ShaderError(f"Unknown external function {func}.")
 
-    def _op_binary_subscr(self):
-        self._next()  # because always 1 arg even if dummy
+    def _op_binary_subscr(self, arg):
         index = self._stack.pop()
         ob = self._stack.pop()  # noqa - ob not ised
         if isinstance(index, tuple):
@@ -707,72 +719,64 @@ class PyBytecode2Bytecode:
             self.emit(op.co_load_index)
         self._stack.append(None)
 
-    def _op_store_subscr(self):
-        self._next()  # because always 1 arg even if dummy
+    def _op_store_subscr(self, arg):
         index = self._stack.pop()  # noqa
         ob = self._stack.pop()  # noqa
         val = self._stack.pop()  # noqa
         self.emit(op.co_store_index)
 
-    def _op_build_tuple(self):
+    def _op_build_tuple(self, n):
         # todo: but I want to be able to do ``x, y = y, x`` !
         raise ShaderError("No tuples in SpirV-ish Python yet")
 
-        n = self._next()
         res = [self._stack.pop() for i in range(n)]
         res = tuple(reversed(res))
 
-        if dis.opname[self._peak_next()] == "BINARY_SUBSCR":
+        if dis.opname[self._peek()] == "BINARY_SUBSCR":
             self._stack.append(res)
             # No emit, in the SpirV bytecode we pop the subscript indices off the stack.
         else:
             raise ShaderError("Tuples are not supported.")
 
-    def _op_build_list(self):
+    def _op_build_list(self, n):
         # Litaral list
-        n = self._next()
         res = [self._stack.pop() for i in range(n)]
         res = list(reversed(res))
         self._stack.append(res)
         self.emit(op.co_load_array, n)
 
-    def _op_build_map(self):
+    def _op_build_map(self, arg):
         raise ShaderError("Dict not allowed in Shader-Python")
 
-    def _op_build_const_key_map(self):
+    def _op_build_const_key_map(self, arg):
         # The version of BUILD_MAP specialized for constant keys. Py3.6+
         raise ShaderError("Dict not allowed in Shader-Python")
 
-    def _op_binary_add(self):
-        self._next()
+    def _op_binary_add(self, arg):
         self._stack.pop()
         self._stack.pop()
         self._stack.append(None)
         self.emit(op.co_binary_op, "add")
 
-    def _op_binary_subtract(self):
-        self._next()
+    def _op_binary_subtract(self, arg):
         self._stack.pop()
         self._stack.pop()
         self._stack.append(None)
         self.emit(op.co_binary_op, "sub")
 
-    def _op_binary_multiply(self):
-        self._next()
+    def _op_binary_multiply(self, arg):
         self._stack.pop()
         self._stack.pop()
         self._stack.append(None)
         self.emit(op.co_binary_op, "mul")
 
-    def _op_binary_true_divide(self):
-        self._next()
+    def _op_binary_true_divide(self, arg):
         self._stack.pop()
         self._stack.pop()
         self._stack.append(None)
         self.emit(op.co_binary_op, "div")
 
-    def _op_binary_power(self):
-        self._next()
+    def _op_binary_power(self, arg):
         exp = self._stack.pop()
         self._stack.pop()  # base
         self._stack.append(None)
@@ -786,15 +790,14 @@ class PyBytecode2Bytecode:
         else:
             self.emit(op.co_call, "pow", 2)
 
-    def _op_binary_modulo(self):
-        self._next()
+    def _op_binary_modulo(self, arg):
         self._stack.pop()
         self._stack.pop()
         self._stack.append(None)
         self.emit(op.co_binary_op, "mod")
 
-    def _op_compare_op(self):
-        cmp = cmp_op[self._next()]
+    def _op_compare_op(self, arg):
+        cmp = cmp_op[arg]
         if cmp not in ("<", "<=", "==", "!=", ">", ">="):
             raise ShaderError(f"Compare op {cmp} not supported in shaders.")
         self._stack.pop()
@@ -802,16 +805,14 @@ class PyBytecode2Bytecode:
         self._stack.append(None)
         self.emit(op.co_compare, cmp)
 
-    def _op_jump_absolute(self):
-        target = self._next()
+    def _op_jump_absolute(self, target):
         label = self._get_label(target)
         if label.startswith("Lm") and self._opcodes[-1][0] == "co_pop_top":
             # This is a break in Python 3.8+ - I think it pops the iterator
             self._opcodes.pop(-1)
         self.emit(op.co_branch, label)
 
-    def _op_jump_forward(self):
-        delta = self._next()
+    def _op_jump_forward(self, delta):
         target = self._pointer + delta
         if self._opcodes[-1][0].startswith("co_branch"):
             # Is this a Python bug? Below is a snippet of seen Python bytecode.
@@ -822,8 +823,7 @@ class PyBytecode2Bytecode:
             return
         self.emit(op.co_branch, self._get_label(target))
 
-    def _op_pop_jump_if_false(self):
-        target = self._next()
+    def _op_pop_jump_if_false(self, target):
         condition = self._stack.pop()  # noqa
         self.emit(
             op.co_branch_conditional,
@@ -832,8 +832,7 @@ class PyBytecode2Bytecode:
         )
         # todo: spirv supports hints on what branch is the most likely
 
-    def _op_pop_jump_if_true(self):
-        target = self._next()
+    def _op_pop_jump_if_true(self, target):
         condition = self._stack.pop()  # noqa
         self.emit(
             op.co_branch_conditional,
@@ -841,7 +840,7 @@ class PyBytecode2Bytecode:
             self._get_label(self._pointer),
         )
 
-    def _op_jump_if_true_or_pop(self):
+    def _op_jump_if_true_or_pop(self, target):
         # This is xx OR yy, but only when a result is needed
         # So not inside ``if xx or yy:``, but in ``if bool(xx or yy):``
 
@@ -849,7 +848,6 @@ class PyBytecode2Bytecode:
         # pushed on the stack, and at target, we continue. That's where we
         # need to insert the OR.
 
-        # target = self._next()
         # self._insert_at[target] = ("co_binary_op", "or")
 
         # ... except that determining if an arbitrary object is true
@@ -860,9 +858,8 @@ class PyBytecode2Bytecode:
             "Implicit bool conversions not supported. Maybe use ``x if y else z``?"
         )
 
-    def _op_jump_if_false_or_pop(self):
+    def _op_jump_if_false_or_pop(self, target):
         # Same as _op_jump_if_true_or_pop, but for AND
-        # target = self._next()
         # self._insert_at[target] = ("co_binary_op", "and")
         raise ShaderError(
             "Implicit bool conversions not supported. Maybe use ``x if y else z``?"
@@ -881,9 +878,9 @@ class PyBytecode2Bytecode:
                 raise ShaderError("Shader for-loop must use range()")
 
             # Consume next codepoint - the storing of the iter value
-            assert dis.opname[self._co.co_code[self._pointer]] == "FOR_ITER"
-            assert dis.opname[self._co.co_code[self._pointer + 2]] == "STORE_FAST"
-            iter_name_index = self._co.co_code[self._pointer + 2 + 1]
+            assert self._peek(self._pointer) == "FOR_ITER"
+            assert self._peek(self._pointer + 2) == "STORE_FAST"
+            iter_name_index = self._peek(self._pointer + 2 + 1)
             iter_name = self._co.co_varnames[iter_name_index]
             loop_info["iter_name"] = iter_name
 
@@ -975,52 +972,45 @@ class PyBytecode2Bytecode:
             self.emit(op.co_branch, loop_info["header_label"])
             self.emit(op.co_label, loop_info["merge_label"])
 
-    def _op_setup_loop(self):
-        # This is Python < 2.8 indicating that there is a loop coming. We don't use it.
-        delta = self._next()
+    def _op_setup_loop(self, delta):
+        # This is Python < 3.8 indicating that there is a loop coming. We don't use it.
         self._pointer + delta
         assert self._loops_to_handle[0]["end"]
 
-    def _op_break_loop(self):
-        # Python < 2.8
-        self._next()
+    def _op_break_loop(self, arg):
+        # Python < 3.8
         self.emit(op.co_branch, self._loop_stack[-1]["merge_label"])
 
-    def _op_continue_loop(self):
-        # This bytecode op is present in Python < 2.8, but does not seem to be
-        # used in 2.6 and 2.7 either ...
-        target1 = self._next()  # for-iter
+    def _op_continue_loop(self, target):
+        # This bytecode op is present in Python < 3.8, but does not seem to be
+        # used in 3.6 and 3.7 either ...
+        target1 = target  # for-iter
         target2 = self._loop_stack[-1]["continue_label"]
         assert target1 == target2
         self.emit(op.co_branch, target2)
 
-    def _op_get_iter(self):
-        self._next()
+    def _op_get_iter(self, arg):
         func = self._stack.pop()
         if func != "range":
             raise ShaderError("Can only use a loop with range()")
         self._stack.append(func)
         # Note: in op_call_function we've already made sure that there are three arg values on the stack
 
-    def _op_for_iter(self):
+    def _op_for_iter(self, delta):
         # This is the start of a for-loop, but we don't trigger using the method,
         # because our logic needs to take while-loops into account too.
         # But we can do some checks for good measure :)
 
-        delta = self._next()
         target = self._pointer + delta
         here = self._pointer - 2
 
-        next_op = self._next()  # STORE_FAST
-        next_val = self._next()  # iter variable name
-
+        next_op, next_val = self._next()  # STORE_FAST, iter variable name
         loop_info = self._loop_stack[-1]
 
         assert here == loop_info["start"]
         assert target in (loop_info["end"], loop_info["end"] - 2)
-        assert dis.opname[next_op] == "STORE_FAST"
+        assert next_op == "STORE_FAST"
         assert self._co.co_varnames[next_val] == loop_info["iter_name"]
 
-    def _op_pop_block(self):
-        # We already handle this block by our loop handling, ignoring here.
-        self._next()
+    def _op_pop_block(self, arg):
+        pass

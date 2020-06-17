@@ -645,28 +645,28 @@ def test_long_bytecode():
             c = a + b + 6
             d = a + b + c + 7
             e = a + b + c + d + 8 - 3  # 100
-            data2[index] = e - 60
+            data2[index] = f32(e - 60)
         elif index < 4:
             a = 3 + 4
             b = a + 5
             c = a + b + 6
             d = a + b + c + 7
             e = a + b + c + d + 8 - 3  # 100
-            data2[index] = e - 59
+            data2[index] = f32(e - 59)
         elif index < 8:
             a = 3 + 4
             b = a + 5
             c = a + b + 6
             d = a + b + c + 7
             e = a + b + c + d + 8 - 3  # 100
-            data2[index] = e - 58
+            data2[index] = f32(e - 58)
         else:
             a = 3 + 4
             b = a + 5
             c = a + b + 6
             d = a + b + c + 7
             e = a + b + c + d + 8 - 3  # 100
-            data2[index] = e - 57
+            data2[index] = f32(e - 57)
 
     skip_if_no_wgpu()
     res = generate_list_of_floats_from_shader(10, compute_shader)
@@ -718,6 +718,7 @@ HASHES = {
     "test_while5.compute_shader": ("5f4ce5e00ffe6fb4", "d9324dc099327352"),
     "test_while6.compute_shader": ("bf0b39432c31e8a5", "e89fc46e244b6d42"),
     "test_discard.fragment_shader": ("bbdaa8848a180860", "6d3182b0b5189d45"),
+    "test_long_bytecode.compute_shader": ("0126f7716c3d09aa", "c427f79643c9407c"),
 }
 
 
