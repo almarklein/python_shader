@@ -36,7 +36,8 @@ class ShaderModule:
     def to_spirv(self):
         """ Get the binary representation of the SpirV module (bytes).
         """
-        # Store the generator - great during dev
-        self.gen = Bytecode2SpirVGenerator()
-        self.gen.convert(self._bytecode)
-        return self.gen.dump()  # bytes
+        gen = Bytecode2SpirVGenerator()
+        # self.gen = gen  # uncomment this line for debugging purposes
+
+        gen.convert(self._bytecode)
+        return gen.dump()  # bytes

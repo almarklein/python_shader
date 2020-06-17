@@ -50,11 +50,23 @@ class PyBytecode2Bytecode:
     of code generation becomes simpler.
     """
 
+    def show_bytecode(self):
+        """ For debugging purposes.
+        """
+        pprint_bytecode(self._co)
+
     def convert(self, py_func, shader_type):
+
+        # Attributes of code objects: co_code, co_name, co_filename, co_firstlineno,
+        # co_argcount, co_kwonlyargcount, co_nlocals, co_consts, co_varnames,
+        # co_names, co_cellvars, co_freevars, co_stacksize, co_flags, co_lnotab
+        # -> co_lnotab  is line number table
+        #    https://svn.python.org/projects/python/branches/pep-0384/Objects/lnotab_notes.txt
         self._py_func = py_func
         self._co = self._py_func.__code__
+        self._py_bytecode = self._co.co_code
 
-        self._opcodes = []
+        self._opcodes = []  # The resulting "bytecode"
 
         self._input = {}
         self._output = {}
@@ -152,17 +164,8 @@ class PyBytecode2Bytecode:
 
     def _convert(self):
 
-        # Attributes of self._co: co_code, co_name, co_filename, co_firstlineno,
-        # co_argcount, co_kwonlyargcount, co_nlocals, co_consts, co_varnames,
-        # co_names, co_cellvars, co_freevars, co_stacksize, co_flags, co_lnotab
-        # -> co_lnotab  is line number table
-        #    https://svn.python.org/projects/python/branches/pep-0384/Objects/lnotab_notes.txt
-
-        # Pointer in the bytecode stream
-
-        # Parse
         self._pointer = 0
-        while self._pointer < len(self._co.co_code):
+        while self._pointer < len(self._py_bytecode):
             if (
                 self._loops_to_handle
                 and self._pointer == self._loops_to_handle[0]["start"]
@@ -227,7 +230,7 @@ class PyBytecode2Bytecode:
         )
 
         self._pointer = 0
-        while self._pointer < len(self._co.co_code):
+        while self._pointer < len(self._py_bytecode):
             i = self._pointer
             opname, arg = self._next()
             if "JUMP" in opname:
@@ -474,14 +477,14 @@ class PyBytecode2Bytecode:
 
     def _next(self):
         assert self._pointer % 2 == 0
-        opcode = self._co.co_code[self._pointer]
-        arg = self._co.co_code[self._pointer + 1]
+        opcode = self._py_bytecode[self._pointer]
+        arg = self._py_bytecode[self._pointer + 1]
         # Resolve name
         opcode = dis.opname[opcode]
         # Resolve EXTENDED_ARG
         n, i = 1, self._pointer
-        while self._co.co_code[i - 2] == EXTENDED_ARG:
-            arg += self._co.co_code[i - 1] * 256 ** n
+        while self._py_bytecode[i - 2] == EXTENDED_ARG:
+            arg += self._py_bytecode[i - 1] * 256 ** n
             n += 1
             i -= 2
         self._pointer += 2
@@ -489,15 +492,15 @@ class PyBytecode2Bytecode:
 
     def _peek(self, pos=None):
         pos = self._pointer if pos is None else pos
-        res = self._co.co_code[pos]
+        res = self._py_bytecode[pos]
         if pos % 2 == 0:
             # Resolve name
             res = dis.opname[res]
         else:
             # Resolve EXTENDED_ARG
             n, i = 1, pos - 1
-            while self._co.co_code[i - 2] == EXTENDED_ARG:
-                res += self._co.co_code[i - 1] * 256 ** n
+            while self._py_bytecode[i - 2] == EXTENDED_ARG:
+                res += self._py_bytecode[i - 1] * 256 ** n
                 n += 1
                 i -= 2
         return res
@@ -526,7 +529,7 @@ class PyBytecode2Bytecode:
     def _op_return_value(self, arg):
         result = self._stack.pop()
         assert result is None
-        if self._pointer == len(self._co.co_code):
+        if self._pointer == len(self._py_bytecode):
             pass
         else:
             self.emit(op.co_return)

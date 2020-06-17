@@ -14,7 +14,7 @@ import wgpu.backends.rs  # noqa
 from wgpu.utils import compute_with_buffers
 
 import pytest
-from testutils import can_use_wgpu_lib
+from testutils import can_use_wgpu_lib, can_use_vulkan_sdk
 from testutils import validate_module, run_test_and_print_new_hashes
 
 
@@ -630,7 +630,10 @@ def test_discard():
         out_color = vec4(1.0, 0.0, 0.0, 1.0)  # noqa - shader output
 
     assert ("co_return",) in fragment_shader.to_bytecode()
-    assert "OpKill" in fragment_shader.gen.to_text()
+
+    if can_use_vulkan_sdk:
+        spirv_text = pyshader.dev.disassemble(fragment_shader.to_spirv())
+        assert "OpKill" in spirv_text
 
 
 def test_long_bytecode():

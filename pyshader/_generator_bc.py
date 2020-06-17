@@ -46,8 +46,15 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
     the opcode methods of OpCodeDefinitions.
     """
 
+    def show_bytecode(self):
+        """ For debugging purposes.
+        """
+        for x in self._bytecode:
+            print(x)
+
     def _convert(self, bytecode):
 
+        self._bytecode = bytecode
         self._execution_model_flag = None
 
         self._stack = []
