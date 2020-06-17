@@ -92,15 +92,21 @@ class PyBytecode2Bytecode:
             "texture": self._texture,
         }
 
+        defaults = list(py_func.__defaults__ or [])
+        while len(defaults) < py_func.__code__.co_argcount:
+            defaults.insert(0, None)
+
         # Parse function inputs
         for i in range(py_func.__code__.co_argcount):
             # Get name and resource object
             argname = py_func.__code__.co_varnames[i]
-            if argname not in py_func.__annotations__:
-                raise TypeError("Shader arguments must be annotated.")
             resource = py_func.__annotations__.get(argname, None)
             if resource is None:
-                raise TypeError(f"pyshader arg {argname} is not decorated.")
+                resource = defaults[i]
+            if resource is None:
+                raise TypeError(
+                    f"pyshader arg {argname} needs type info either as default value or annotation."
+                )
             elif isinstance(resource, tuple) and len(resource) == 3:
                 kind, slot, subtype = resource
                 assert isinstance(kind, str)
@@ -109,8 +115,7 @@ class PyBytecode2Bytecode:
                 slot = list(slot) if isinstance(slot, tuple) else slot  # json
             else:
                 raise TypeError(
-                    f"pyshader arg {argname} must be a 3-tuple, "
-                    + f"not {type(resource)}."
+                    f"pyshader arg {argname} type info must be a 3-tuple, not {type(resource)}."
                 )
             kind = kind.lower()
             subtype = subtype.__name__ if isinstance(subtype, type) else subtype
