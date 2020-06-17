@@ -616,7 +616,7 @@ def test_while6():
     assert res == [0, 3, 3, 3, 6, 6, 6, 9, 9, 9]
 
 
-# %% discard
+# %% more
 
 
 def test_discard():
@@ -631,6 +631,46 @@ def test_discard():
 
     assert ("co_return",) in fragment_shader.to_bytecode()
     assert "OpKill" in fragment_shader.gen.to_text()
+
+
+def test_long_bytecode():
+    # avoid regressions like issue #42
+    @python2shader_and_validate
+    def compute_shader(
+        index=("input", "GlobalInvocationId", i32), data2=("buffer", 1, Array(f32)),
+    ):
+        if index < 2:
+            a = 3 + 4
+            b = a + 5
+            c = a + b + 6
+            d = a + b + c + 7
+            e = a + b + c + d + 8 - 3  # 100
+            data2[index] = e - 60
+        elif index < 4:
+            a = 3 + 4
+            b = a + 5
+            c = a + b + 6
+            d = a + b + c + 7
+            e = a + b + c + d + 8 - 3  # 100
+            data2[index] = e - 59
+        elif index < 8:
+            a = 3 + 4
+            b = a + 5
+            c = a + b + 6
+            d = a + b + c + 7
+            e = a + b + c + d + 8 - 3  # 100
+            data2[index] = e - 58
+        else:
+            a = 3 + 4
+            b = a + 5
+            c = a + b + 6
+            d = a + b + c + 7
+            e = a + b + c + d + 8 - 3  # 100
+            data2[index] = e - 57
+
+    skip_if_no_wgpu()
+    res = generate_list_of_floats_from_shader(10, compute_shader)
+    assert res == [40, 40, 41, 41, 42, 42, 42, 42, 43, 43]
 
 
 # %% Utils for this module
