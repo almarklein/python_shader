@@ -13,9 +13,9 @@ from pyshader import python2shader, ivec3, vec2, vec4
 # texture. Note that read() and write() always operate on either vec4 or ivec4.
 @python2shader
 def compute_shader_tex_add(
-    index: ("input", "GlobalInvocationId", ivec3),
-    tex1: ("texture", 0, "2d rg16i"),
-    tex2: ("texture", 1, "2d r32f"),
+    index=("input", "GlobalInvocationId", ivec3),
+    tex1=("texture", 0, "2d rg16i"),
+    tex2=("texture", 1, "2d r32f"),
 ):
     val = tex1.read(index.xy).xy  # ivec2
     val = vec2(val)  # cast to vec2
@@ -25,9 +25,9 @@ def compute_shader_tex_add(
 # A simple fragment shader that applies a texture to e.g. a mesh.
 @python2shader
 def fragment_shader_tex(
-    tex: ("texture", 0, "2d f32"),
-    sampler: ("sampler", 1, ""),
-    tcoord: ("input", 0, vec2),
-    out_color: ("output", 0, vec4),
+    tex=("texture", 0, "2d f32"),
+    sampler=("sampler", 1, ""),
+    tcoord=("input", 0, vec2),
+    out_color=("output", 0, vec4),
 ):
     out_color = tex.sample(sampler, tcoord)  # noqa
