@@ -134,6 +134,51 @@ def test_texcomp_2d_rg32i():
         tex.write(index.xy, color)
 
 
+# %% test fails
+
+
+def test_fail_unvalid_names():
+    def compute_shader(index: ("input", "GlobalInvocationId", ivec3),):
+        color = foo  # noqa
+
+    with raises(pyshader.ShaderError):
+        pyshader.python2shader(compute_shader)
+
+
+def test_fail_unvalid_stlib_name():
+    def compute_shader(index: ("input", "GlobalInvocationId", ivec3),):
+        color = stdlib.foo  # noqa
+
+    with raises(pyshader.ShaderError):
+        pyshader.python2shader(compute_shader)
+
+
+def test_cannot_use_unresolved_globals():
+    def compute_shader(index: ("input", "GlobalInvocationId", ivec3),):
+        color = stdlib + 1.0  # noqa
+
+    with raises(pyshader.ShaderError):
+        pyshader.python2shader(compute_shader)
+
+
+def test_cannot_call_non_funcs():
+    def compute_shader1(
+        index: ("input", "GlobalInvocationId", ivec3), tex: ("texture", 0, "2d rg32i"),
+    ):
+        a = 1.0
+        a(1.0)
+
+    def compute_shader2(
+        index: ("input", "GlobalInvocationId", ivec3), tex: ("texture", 0, "2d rg32i"),
+    ):
+        a = 1.0()  # noqa
+
+    with raises(pyshader.ShaderError):
+        pyshader.python2shader(compute_shader1)
+    with raises(pyshader.ShaderError):
+        pyshader.python2shader(compute_shader2)
+
+
 # %% Utils for this module
 
 

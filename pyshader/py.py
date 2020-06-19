@@ -1,3 +1,4 @@
+import math
 import inspect
 from dis import dis as pprint_bytecode
 from dis import cmp_op
@@ -7,6 +8,7 @@ from ._module import ShaderModule
 from .opcodes import OpCodeDefinitions as op
 from ._dis import dis
 from ._types import gpu_types_map
+from .stdlib import __all__ as stdlib_func_names
 
 
 EXTENDED_ARG = dis.opmap["EXTENDED_ARG"]
@@ -144,6 +146,13 @@ class PyBytecode2Bytecode:
 
         self._convert()
         self.emit(op.co_func_end)
+
+    def _stack_pop(self, allow_global=False):
+        ob = self._stack.pop()
+        if not allow_global:
+            if isinstance(ob, str) and ob.startswith("."):
+                raise ShaderError(f"Invalid use of (global) {ob[1:]}")
+        return ob
 
     def emit(self, opcode, *args):
         if callable(opcode):
@@ -523,11 +532,11 @@ class PyBytecode2Bytecode:
         pass
 
     def _op_pop_top(self, arg):
-        self._stack.pop()
+        self._stack_pop()
         self.emit(op.co_pop_top)
 
     def _op_return_value(self, arg):
-        result = self._stack.pop()
+        result = self._stack_pop()
         assert result is None
         if self._pointer == len(self._py_bytecode):
             pass
@@ -562,7 +571,7 @@ class PyBytecode2Bytecode:
 
     def _op_store_fast(self, i):
         name = self._co.co_varnames[i]
-        ob = self._stack.pop()  # noqa - ob not used
+        ob = self._stack_pop()  # noqa - ob not used
         # we don't prevent assigning to input here, that's the task of bc generator
         if name in self._input:
             self.emit(op.co_store_name, "input." + name)
@@ -591,35 +600,68 @@ class PyBytecode2Bytecode:
             raise ShaderError("Only float/int/bool constants supported.")
 
     def _op_load_global(self, i):
-        # Could be:
-        # * virtual func that we resolve here, like range()
-        # * builtin functions like texture sampling
-        # * func from ext instruction set
+        # Loading a global in Python can mean different things. We need
+        # to check here what it is, and make sure that the loaded thing
+        # gets used and results in the correct emitted bytecode. We do
+        # not emit code here, but we move a special value on the stack.
+        # That value is a string name prepended with a dot, to indicate
+        # it being global.
+        #
+        # When popping a value off the stack, one must indictate whether
+        # globals are allowed. This happens only in call_function,
+        # call_method, and load_attr. We must make sure that such
+        # globals are handled correctly, and do not "slip through",
+        # otherwise the user can get really strange error messages
+        # because the stack is broken.
+
+        name = self._co.co_names[i]
+
+        if name in gpu_types_map:
+            # A type definition
+            self._stack.append(".type." + name)
+        elif name in stdlib_func_names:
+            # An stdlib function, like texture sampling, or ext instruction
+            self._stack.append(".stdlib." + name)
+        elif name in ("math", "stdlib"):
+            # Namespaces, need load_attr on these
+            self._stack.append("." + name)
+        elif name in ("range",):
+            # Builtin functions that we resolve in this compiler
+            self._stack.append(".py." + name)
+        else:
+            raise ShaderError(f"Unknown variable name {name!r}")
         # todo: loading constants from the Python globals() scope
         # todo: loading other Python shader functions
-        name = self._co.co_names[i]
-        if name in gpu_types_map:
-            self._stack.append(name)
-        else:
-            # We add a dot to denote that it's a global name. We resolve this dot
-            # in this compiler, either in load_attr or when we emit co_call
-            # We don't emit here, but put on the parser's stack.
-            self._stack.append("." + name)
 
     def _op_load_attr(self, i):
         name = self._co.co_names[i]
-        ob = self._stack.pop()  # noqa
+        ob = self._stack_pop(True)  # allow global
         if not isinstance(ob, str):
+            # Likely vector swizzling
             self.emit(op.co_load_attr, name)
             self._stack.append(None)
-        elif ob.startswith("."):
-            full_name = ob + "." + name
-            self._stack.append(full_name)
-            # no emit
+        elif ob == ".stdlib":
+            if name not in stdlib_func_names:
+                raise ShaderError(f"No stdlib function {name}")
+            self._stack.append(".stdlib." + name)  # new global on the stack
+        elif ob.startswith(".math"):
+            ob = getattr(math, name, None)
+            if isinstance(ob, float):
+                self.emit(op.co_load_constant, ob)  # e.g. math.pi
+                self._stack.append(None)
+            elif name in stdlib_func_names:
+                self._stack.append(".stdlib." + name)  # new global on the stack
+            else:
+                raise ShaderError(f"No math constant/function {name}")
         elif ob.startswith("texture."):
-            func_name = "texture." + name  # need in call/method
+            # Calling a texture sampling function as a method on a texture
+            # object. Not a global! We need to communicate to call_funcion/call_method
+            # that this is such a function.
             self._stack.append(ob)
-            self._stack.append(func_name)
+            self._stack.append("texture." + name)
+        elif ob.startswith("."):
+            # Catch invalid use of globals
+            raise ShaderError(f"Cannot load attribute '{name}' from '{ob}'")
         else:
             self.emit(op.co_load_attr, name)
             self._stack.append(None)
@@ -635,56 +677,64 @@ class PyBytecode2Bytecode:
 
     def _op_store_attr(self, i):
         name = self._co.co_names[i]
-        ob = self._stack.pop()
-        value = self._stack.pop()  # noqa
+        ob = self._stack_pop()
+        value = self._stack_pop()  # noqa
         raise ShaderError(f"{ob}.{name} store")
 
     def _op_call_function(self, nargs):
-        args = self._stack[-nargs:]
-        assert len(args) == nargs
-        self._stack[-nargs:] = []
+        args = [self._stack_pop(True) for i in range(nargs)]
+        args.reverse()
 
-        func = self._stack.pop()
+        func = self._stack_pop(True)  # allow global
 
-        assert isinstance(func, str)
+        if not isinstance(func, str):
+            raise ShaderError(f"Cannot call object '{func}'.")
         self._call_function(func, args)
 
     def _op_call_method(self, nargs):
-        args = self._stack[-nargs:]
-        assert len(args) == nargs
-        self._stack[-nargs:] = []
+        args = [self._stack_pop() for i in range(nargs)]
+        args.reverse()
 
-        func = self._stack.pop()
-        ob = self._stack.pop()  # noqa
+        func = self._stack_pop(True)  # allow global
+
+        ob = self._stack_pop(True)  # noqa - need to get rid of this here
+        assert func.startswith("texture.") or func.startswith(".")
 
         assert isinstance(func, str)
-        assert func.startswith("texture.") or func.startswith(".")
         self._call_function(func, args)
 
     def _call_function(self, func, args):
         nargs = len(args)
-        funcname = func.split(".")[-1]
+        funcname = func.split(".", 2)[-1]
+
+        # Args can be globals, but only for e.g. Vector(2, f32)
+        if func.startswith(".type."):
+            args, ori_args = [], args
+            for arg in ori_args:
+                if isinstance(arg, str) and arg.startswith(".type."):
+                    args.append(arg[6:])
+                else:
+                    args.append(arg)
+        for arg in args:
+            if isinstance(arg, str) and arg.startswith("."):
+                raise ShaderError(f"Cannot call {func} with arg {arg}")
 
         if func.startswith("texture."):
             # A texture function called as a method of a texture object
             # This is syntactic sugar. We just need to increase nargs.
-            ob = self._stack.pop()
+            ob = self._stack_pop()
             assert ob.startswith("texture.")  # a texture object
             self.emit(op.co_call, funcname, nargs + 1)
             self._stack.append(None)
-        elif func.split("(")[0] in gpu_types_map:
+        elif func.startswith(".type."):
             # A type definition
-            if "(" not in func and gpu_types_map[func].is_abstract:
-                type_str = f"{func}({','.join(str(arg) for arg in args)})"
-                self._stack.append(type_str)
+            if "(" not in funcname and gpu_types_map[funcname].is_abstract:
+                type_str = f"{funcname}({','.join(str(arg) for arg in args)})"
+                self._stack.append(".type." + type_str)
             else:
                 self.emit(op.co_call, funcname, nargs)
                 self._stack.append(None)
-
-        elif not func.startswith("."):
-            raise ShaderError(f"Variables in shaders ({func}) are not callable.")
-
-        elif funcname == "range":
+        elif func == ".py.range":
             if not (
                 self._peek(self._pointer) == "GET_ITER"
                 and self._peek(self._pointer + 2) == "FOR_ITER"
@@ -707,15 +757,17 @@ class PyBytecode2Bytecode:
                 raise ShaderError("range() must have 1, 2 or 3 args.")
             self._stack.append("range")
             # nothing to emit yet
-        elif func.count(".") == 1 or func.startswith((".stdlib.", ".math.")):
+        elif func.startswith((".stdlib.", ".math.")):
             self.emit(op.co_call, funcname, nargs)
             self._stack.append(None)
-        else:
+        elif func.startswith("."):
             raise ShaderError(f"Unknown external function {func}.")
+        else:
+            raise ShaderError(f"Cannot call object {func}.")
 
     def _op_binary_subscr(self, arg):
-        index = self._stack.pop()
-        ob = self._stack.pop()  # noqa - ob not ised
+        index = self._stack_pop()
+        ob = self._stack_pop()  # noqa - ob not ised
         if isinstance(index, tuple):
             self.emit(op.co_load_index, len(index))
         else:
@@ -723,16 +775,16 @@ class PyBytecode2Bytecode:
         self._stack.append(None)
 
     def _op_store_subscr(self, arg):
-        index = self._stack.pop()  # noqa
-        ob = self._stack.pop()  # noqa
-        val = self._stack.pop()  # noqa
+        index = self._stack_pop()  # noqa
+        ob = self._stack_pop()  # noqa
+        val = self._stack_pop()  # noqa
         self.emit(op.co_store_index)
 
     def _op_build_tuple(self, n):
         # todo: but I want to be able to do ``x, y = y, x`` !
         raise ShaderError("No tuples in SpirV-ish Python yet")
 
-        res = [self._stack.pop() for i in range(n)]
+        res = [self._stack_pop() for i in range(n)]
         res = tuple(reversed(res))
 
         if dis.opname[self._peek()] == "BINARY_SUBSCR":
@@ -743,7 +795,7 @@ class PyBytecode2Bytecode:
 
     def _op_build_list(self, n):
         # Litaral list
-        res = [self._stack.pop() for i in range(n)]
+        res = [self._stack_pop() for i in range(n)]
         res = list(reversed(res))
         self._stack.append(res)
         self.emit(op.co_load_array, n)
@@ -756,32 +808,32 @@ class PyBytecode2Bytecode:
         raise ShaderError("Dict not allowed in Shader-Python")
 
     def _op_binary_add(self, arg):
-        self._stack.pop()
-        self._stack.pop()
+        self._stack_pop()
+        self._stack_pop()
         self._stack.append(None)
         self.emit(op.co_binary_op, "add")
 
     def _op_binary_subtract(self, arg):
-        self._stack.pop()
-        self._stack.pop()
+        self._stack_pop()
+        self._stack_pop()
         self._stack.append(None)
         self.emit(op.co_binary_op, "sub")
 
     def _op_binary_multiply(self, arg):
-        self._stack.pop()
-        self._stack.pop()
+        self._stack_pop()
+        self._stack_pop()
         self._stack.append(None)
         self.emit(op.co_binary_op, "mul")
 
     def _op_binary_true_divide(self, arg):
-        self._stack.pop()
-        self._stack.pop()
+        self._stack_pop()
+        self._stack_pop()
         self._stack.append(None)
         self.emit(op.co_binary_op, "div")
 
     def _op_binary_power(self, arg):
-        exp = self._stack.pop()
-        self._stack.pop()  # base
+        exp = self._stack_pop()
+        self._stack_pop()  # base
         self._stack.append(None)
         if exp == 2:  # shortcut
             self.emit(op.co_pop_top)
@@ -794,8 +846,8 @@ class PyBytecode2Bytecode:
             self.emit(op.co_call, "pow", 2)
 
     def _op_binary_modulo(self, arg):
-        self._stack.pop()
-        self._stack.pop()
+        self._stack_pop()
+        self._stack_pop()
         self._stack.append(None)
         self.emit(op.co_binary_op, "mod")
 
@@ -803,8 +855,8 @@ class PyBytecode2Bytecode:
         cmp = cmp_op[arg]
         if cmp not in ("<", "<=", "==", "!=", ">", ">="):
             raise ShaderError(f"Compare op {cmp} not supported in shaders.")
-        self._stack.pop()
-        self._stack.pop()
+        self._stack_pop()
+        self._stack_pop()
         self._stack.append(None)
         self.emit(op.co_compare, cmp)
 
@@ -827,7 +879,7 @@ class PyBytecode2Bytecode:
         self.emit(op.co_branch, self._get_label(target))
 
     def _op_pop_jump_if_false(self, target):
-        condition = self._stack.pop()  # noqa
+        condition = self._stack_pop()  # noqa
         self.emit(
             op.co_branch_conditional,
             self._get_label(self._pointer),
@@ -836,7 +888,7 @@ class PyBytecode2Bytecode:
         # todo: spirv supports hints on what branch is the most likely
 
     def _op_pop_jump_if_true(self, target):
-        condition = self._stack.pop()  # noqa
+        condition = self._stack_pop()  # noqa
         self.emit(
             op.co_branch_conditional,
             self._get_label(target),
@@ -993,7 +1045,7 @@ class PyBytecode2Bytecode:
         self.emit(op.co_branch, target2)
 
     def _op_get_iter(self, arg):
-        func = self._stack.pop()
+        func = self._stack_pop()
         if func != "range":
             raise ShaderError("Can only use a loop with range()")
         self._stack.append(func)

@@ -168,21 +168,24 @@ def tan(x):
 
 @extension(16, result_type="same")
 def asin(x):
-    """ Get asin(x)
+    """ Get the arc sine of x, an angle in radians.
+    The range of result values is [-π / 2, π / 2].
     """
     return math.asin(x)
 
 
 @extension(17, result_type="same")
 def acos(x):
-    """ Get acos(x)
+    """ Get the arc cosine of x, an angle in radians.
+    The range of result values is [0, π].
     """
     return math.acos(x)
 
 
 @extension(18, result_type="same")
 def atan(x):
-    """ Get atan(x)
+    """ Get the arc tangent of x, an angle in radians.
+    The range of result values is [-π / 2, π / 2].
     """
     return math.atan(x)
 
@@ -231,7 +234,9 @@ def atanh(x):
 
 @extension(25, result_type="same")
 def atan2(x, y):
-    """ Get atan2(x, y)
+    """ Get the arc tangent of x, an angle in radians.
+    The signs of x and y are used to determine what quadrant the angle is in.
+    The range of result values is [-π, π]
     """
     return math.atan2(x, y)
 
@@ -415,3 +420,8 @@ def nclamp(x, min_val, max_val):
     If x or y is NaN, the other is returned. If both are NaN, the result is NaN.
     """
     raise NotImplementedError()
+
+
+# %% all
+
+__all__ = list(tex_functions) + list(ext_functions)

@@ -780,7 +780,10 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         if isinstance(ob, VariableAccessId):
             # Create new variable access for this last indexing op
             ac = ob.index(index)
-            assert val.type is ac.type
+            if val.type is not ac.type:
+                raise ShaderError(
+                    f"Cannot set-index a {val.type.__name__} object in a {ac.type.__name__} container."
+                )
             # Then resolve the chain to a store op
             ac.resolve_store(self, val)
         else:
@@ -1347,9 +1350,10 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         val2 = self._stack.pop()
         val1 = self._stack.pop()
         condition = self._stack.pop()
-        assert (
-            val1.type is val2.type
-        ), "Both values in select (ternary) must match types."
+        if val1.type is not val2.type:
+            raise ShaderError(
+                "Incompatible types in op_selec: {val1.type.__name__} and {val2.type.__name__}"
+            )
         result_id, type_id = self.obtain_value(val1.type)
         self.gen_func_instruction(
             cc.OpSelect, type_id, result_id, condition, val1, val2

@@ -4,6 +4,7 @@ With this we can validate arithmetic, control flow etc.
 """
 
 import os
+import math
 import json
 import random
 import ctypes
@@ -116,6 +117,24 @@ def test_mul_div2():
     res = list(out[1])
     assert res[0::2] == [6 * i * 2 for i in values1]
     assert res[1::2] == [6 * i / 2 for i in values1]
+
+
+def test_math_constants():
+    @python2shader_and_validate
+    def compute_shader(
+        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+    ):
+        if index % 2 == 0:
+            data2[index] = math.pi
+        else:
+            data2[index] = math.e
+
+    skip_if_no_wgpu()
+
+    out = compute_with_buffers({}, {1: ctypes.c_float * 10}, compute_shader, n=10)
+
+    res = list(out[1])
+    assert iters_close(res, [math.pi, math.e] * 5)
 
 
 # %% Extension functions
@@ -326,6 +345,7 @@ HASHES = {
     "test_add_sub2.compute_shader": ("eac80cea3cae0305", "785f2c0acdbe0cd3"),
     "test_mul_div1.compute_shader": ("889f742ee3d3a695", "3b804bb4b7b52de0"),
     "test_mul_div2.compute_shader": ("bb5f1d05c0b02dab", "7e9591cb2d93d067"),
+    "test_math_constants.compute_shader": ("425b33e1d60a6105", "ab0b82f58688bbc7"),
     "test_pow.compute_shader": ("c83ff35156e57f86", "4c41b41333f94ee9"),
     "test_sqrt.compute_shader": ("3fb9f30103054be5", "a18522c9c8bbf809"),
     "test_length.compute_shader": ("bcb9fb5793f33610", "2e0a4f0ac0f3468d"),
