@@ -153,6 +153,9 @@ def test_tuple_unpacking():
         c += 100.0
         c, d = d, c
         c += 200.0
+        c, d, _ = c, d, 0.0  # 3-tuple
+        c, d, _, _ = c, d, 0.0, 0.0  # 4-tuple
+        c, d, _, _, _ = c, d, 0.0, 0.0, 0.0  # 5-tuple
         data2[index] = vec2(c, d)
 
     skip_if_no_wgpu()
@@ -256,7 +259,7 @@ HASHES = {
     "test_texture_1d_i32.fragment_shader": ("0c1ad1a8f909c442", "7f4ad10ae75030fa"),
     "test_texture_3d_r16i.fragment_shader": ("f1069cfd9c74fa1d", "14f0b7e61c2ea4dc"),
     "test_texcomp_2d_rg32i.compute_shader": ("7dbaa7fe613cf33d", "609468500982bfbd"),
-    "test_tuple_unpacking.compute_shader": ("689c305d3aaa5717", "9eb10190d4bab57f"),
+    "test_tuple_unpacking.compute_shader": ("8ae5274a8ed79b8f", "f2c9aabaf35e6a24"),
 }
 
 

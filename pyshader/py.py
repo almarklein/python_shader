@@ -539,7 +539,22 @@ class PyBytecode2Bytecode:
         ob1 = self._stack_pop()
         ob2 = self._stack_pop()
         self._stack.extend([ob1, ob2])
-        self.emit(op.co_rot_two)
+        self.emit(op.co_reverse_stack, 2)  # rotate and reverse are same for n = 2
+
+    def _op_rot_three(self, arg):
+        ob1 = self._stack_pop()
+        ob2 = self._stack_pop()
+        ob3 = self._stack_pop()
+        self._stack.extend([ob1, ob3, ob2])
+        self.emit(op.co_rotate_stack, 3)
+
+    def _op_rot_four(self, arg):  # py 3.8+
+        ob1 = self._stack_pop()
+        ob2 = self._stack_pop()
+        ob3 = self._stack_pop()
+        ob4 = self._stack_pop()
+        self._stack.extend([ob1, ob4, ob3, ob2])
+        self.emit(op.co_rotate_stack, 4)
 
     def _op_return_value(self, arg):
         result = self._stack_pop()
@@ -605,15 +620,13 @@ class PyBytecode2Bytecode:
                 raise ShaderError(
                     "Const tuples are not supported (though you can do `a, b = c, d`)"
                 )
-            for x in reversed(ob):
+            for x in ob:
                 if isinstance(x, (float, int, bool)):
                     self.emit(op.co_load_constant, x)
                     self._stack.append(x)
                 else:
                     raise ShaderError("Only float/int/bool constants supported.")
-            self._stack.append(
-                ("tuple", len(ob))
-            )  # signal that the tuple is on the stack
+            self._stack.append(("tuple", len(ob)))  # signal for UNPACK_SEQUENCE
         elif ob is None:
             self._stack.append(None)  # Probably for the function return value
         else:
@@ -771,7 +784,7 @@ class PyBytecode2Bytecode:
             loop_info["range_is_set"] = True
             if nargs == 1:
                 self.emit(op.co_load_constant, 0)
-                self.emit(op.co_rot_two)
+                self.emit(op.co_reverse_stack, 2)
                 self.emit(op.co_load_constant, 1)
             elif nargs == 2:
                 self.emit(op.co_load_constant, 1)
@@ -807,12 +820,24 @@ class PyBytecode2Bytecode:
         self.emit(op.co_store_index)
 
     def _op_build_tuple(self, n):
-        raise ShaderError("Tuples are not supported (though you can do `a, b = c, d`)")
+        if self._peek() == "UNPACK_SEQUENCE":
+            # We don't actually build a tuple, but mark that the stack has the values
+            self._stack.append(("tuple", n))
+        else:
+            raise ShaderError(
+                "Tuples are not supported (though you can do `a, b = c, d`)"
+            )
 
     def _op_unpack_sequence(self, n):
         x = self._stack_pop()
-        if x == ("tuple", n):
-            pass  # We have a match!
+        if isinstance(x, tuple) and x and x[0] == "tuple":
+            # If the number of elements matches, we are all good
+            if x[1] == n:
+                self.emit(op.co_reverse_stack, n)
+                objects = [self._stack.pop() for i in range(n)]
+                self._stack.extend(objects)
+            else:
+                raise ShaderError(f"Cannot unpack a {x[1]} tuple into a {n}-tuple")
         else:
             raise ShaderError(
                 "Cannot unpack arbitrary sequences (though you can do `a, b = c, d`)"

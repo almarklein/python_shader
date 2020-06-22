@@ -678,11 +678,15 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         self._stack.append(ob)
         self._stack.append(ob)
 
-    def co_rot_two(self):
-        ob1 = self._stack.pop()
-        ob2 = self._stack.pop()
-        self._stack.append(ob1)
-        self._stack.append(ob2)
+    def co_rotate_stack(self, n):
+        obs = [self._stack.pop() for i in range(n)]
+        obs.append(obs.pop(0))
+        obs.reverse()
+        self._stack.extend(obs)
+
+    def co_reverse_stack(self, n):
+        obs = [self._stack.pop() for i in range(n)]
+        self._stack.extend(obs)
 
     def co_load_name(self, name):
         # store a variable that is used in an inner scope.

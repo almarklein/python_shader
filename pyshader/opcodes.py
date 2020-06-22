@@ -99,8 +99,14 @@ class OpCodeDefinitions:
         """
         raise NotImplementedError()
 
-    def co_rot_two(self):
-        """ Swap the two top elements on the stack.
+    def co_rotate_stack(self, n):
+        """ Rotate the top n elements on the stack, moving the top item
+        to the nth position.
+        """
+        raise NotImplementedError()
+
+    def co_reverse_stack(self, n):
+        """ Reverse the top n elements on the stack.
         """
         raise NotImplementedError()
 
