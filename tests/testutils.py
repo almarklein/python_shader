@@ -36,7 +36,7 @@ def iters_close(iter1, iter2):
     return True
 
 
-def validate_module(shader_module, hashes):
+def validate_module(shader_module, hashes, check_bytecode=True):
     """ Validate the given shader module against the given hashes.
     """
 
@@ -74,7 +74,7 @@ def validate_module(shader_module, hashes):
         # and SpirV on different platforms and Python versions.
         if key not in hashes:
             assert False, f"No hash found for {key}"
-        if hashes[key][0] != hash_bc:
+        if check_bytecode and hashes[key][0] != hash_bc:
             code = inspect.getsource(func)
             assert False, f"Bytecode for {key} does not match:\n{code}\n{text_bc}"
         if hashes[key][1] != hash_sp:
