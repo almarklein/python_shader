@@ -119,6 +119,35 @@ def test_mul_div2():
     assert res[1::2] == [6 * i / 2 for i in values1]
 
 
+def test_mul_modulo():
+    # There are two module functions, one in which the result takes the sign
+    # of the divisor and one in which it takes the sign of the divident.
+    # In Python these are `%` and math.fmod respectively. Here we test that
+    # the SpirV code matches that (fmod and frem).
+    @python2shader_and_validate
+    def compute_shader(
+        index: ("input", "GlobalInvocationId", i32),
+        data1: ("buffer", 0, Array(vec2)),
+        data2: ("buffer", 1, Array(vec2)),
+    ):
+        a = data1[index]
+        data2[index] = vec2(a.x % a.y, math.fmod(a.x, a.y))
+
+    skip_if_no_wgpu()
+
+    values1 = [i - 5 for i in range(10)]
+    values2 = [-2 if i % 2 else 2 for i in range(10)]
+    values = sum(zip(values1, values2), ())
+
+    inp_arrays = {0: (ctypes.c_float * 20)(*values)}
+    out_arrays = {1: ctypes.c_float * 20}
+    out = compute_with_buffers(inp_arrays, out_arrays, compute_shader)
+
+    res = list(out[1])
+    assert res[0::2] == [i % j for i, j in zip(values1, values2)]
+    assert res[1::2] == [math.fmod(i, j) for i, j in zip(values1, values2)]
+
+
 def test_math_constants():
     @python2shader_and_validate
     def compute_shader(
@@ -288,6 +317,36 @@ def test_min_max_clamp():
     assert res2[2::3] == ref_clamp
 
 
+def test_mix():
+    @python2shader_and_validate
+    def compute_shader(
+        index: ("input", "GlobalInvocationId", i32),
+        data1: ("buffer", 0, Array(vec3)),
+        data2: ("buffer", 1, Array(vec3)),
+    ):
+        v = data1[index]
+        v1 = mix(v.x, v.y, v.z)
+        v2 = mix(vec2(v.x, v.x), vec2(v.y, v.y), v.z)
+        data2[index] = vec3(v1, v2.x, v2.y)
+
+    skip_if_no_wgpu()
+
+    values1 = [-4, -3, -2, -1, +0, +0, +1, +2, +3, +4]
+    values2 = [-2, -5, -5, +2, +2, -1, +3, +1, +1, -6]
+    weights = [0.1 * i for i in range(10)]
+    values = sum(zip(values1, values2, weights), ())
+
+    inp_arrays = {0: (ctypes.c_float * 30)(*values)}
+    out_arrays = {1: ctypes.c_float * 30}
+    out = compute_with_buffers(inp_arrays, out_arrays, compute_shader, n=10)
+
+    res = list(out[1])
+    ref = [values1[i] * (1 - w) + values2[i] * w for i, w in enumerate(weights)]
+    assert iters_close(res[0::3], ref)
+    assert iters_close(res[1::3], ref)
+    assert iters_close(res[2::3], ref)
+
+
 # %% Extension function definitions
 
 
@@ -345,12 +404,14 @@ HASHES = {
     "test_add_sub2.compute_shader": ("eac80cea3cae0305", "785f2c0acdbe0cd3"),
     "test_mul_div1.compute_shader": ("889f742ee3d3a695", "3b804bb4b7b52de0"),
     "test_mul_div2.compute_shader": ("bb5f1d05c0b02dab", "7e9591cb2d93d067"),
+    "test_mul_modulo.compute_shader": ("28c42b8b719b94cf", "cd29c63a99af0a7c"),
     "test_math_constants.compute_shader": ("425b33e1d60a6105", "ab0b82f58688bbc7"),
     "test_pow.compute_shader": ("c83ff35156e57f86", "4c41b41333f94ee9"),
     "test_sqrt.compute_shader": ("3fb9f30103054be5", "a18522c9c8bbf809"),
     "test_length.compute_shader": ("bcb9fb5793f33610", "2e0a4f0ac0f3468d"),
     "test_abs.compute_shader": ("09922efbd3b835a9", "48c14af6ab79385f"),
     "test_min_max_clamp.compute_shader": ("d0b7f20a0c81aea0", "8f3b43edd3f5e049"),
+    "test_mix.compute_shader": ("21e44597b4cb97f3", "5157f868b2495a4d"),
 }
 
 

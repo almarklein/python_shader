@@ -204,6 +204,7 @@ class BaseSpirVGenerator:
         self._constants = {}
         self._type_hash_to_id = {}
         self._capabilities = set()
+        self._execution_modes = {}
         self._extentded_instruction_sets = {}
 
         # Section 2.4 of the Spir-V spec specifies the Logical Layout of a Module
@@ -250,6 +251,16 @@ class BaseSpirVGenerator:
             cc.AddressingModel_Logical,
             cc.MemoryModel_Simple,
         )
+
+        # Write execution modes
+        for mode_name, mode_args in self._execution_modes.items():
+            self.gen_instruction(
+                "execution_modes",
+                cc.OpExecutionMode,
+                self._entry_point_id,
+                getattr(cc, "ExecutionMode_" + mode_name),
+                *mode_args,
+            )
 
         # Remove duplicate types. This is required because some types are not
         # "complete" until the shader has been fully parsed. In particular the

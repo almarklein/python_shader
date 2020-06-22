@@ -319,9 +319,13 @@ def clamp(x, min_val, max_val):
     return min(max_val, max(min_val, x))
 
 
-@extension(46, result_type="same")
+# @extension(46, result_type="same")
+
+
+@hardcoded_extension  # is nr 46
 def mix(x, y, a):
-    """ Return x * (1 - a) + y * a, with x and y floats or float vectors.
+    """ Return x * (1 - a) + y * a, with x, y floats or float vectors. A can be
+    a float-vector or float (also if x and y are vectors).
     """
     return x * (1 - a) + y * a
 

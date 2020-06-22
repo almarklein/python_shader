@@ -649,6 +649,8 @@ class PyBytecode2Bytecode:
             if isinstance(ob, float):
                 self.emit(op.co_load_constant, ob)  # e.g. math.pi
                 self._stack.append(None)
+            elif name == "fmod":
+                self._stack.append(".py.rem")  # new global on the stack
             elif name in stdlib_func_names:
                 self._stack.append(".stdlib." + name)  # new global on the stack
             else:
@@ -734,6 +736,10 @@ class PyBytecode2Bytecode:
             else:
                 self.emit(op.co_call, funcname, nargs)
                 self._stack.append(None)
+        elif func == ".py.rem":
+            assert nargs == 2
+            self.emit(op.co_binary_op, "rem")
+            self._stack.append(None)
         elif func == ".py.range":
             if not (
                 self._peek(self._pointer) == "GET_ITER"
