@@ -875,7 +875,7 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             reftype1 = type1.subtype
         tn1 = type1.__name__
 
-        # Determind opcode and check types
+        # Determine opcode and check types
         if op == "neg":
             if issubclass(reftype1, _types.Float):
                 opcode = cc.OpFNegate

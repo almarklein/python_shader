@@ -813,6 +813,21 @@ class PyBytecode2Bytecode:
         # The version of BUILD_MAP specialized for constant keys. Py3.6+
         raise ShaderError("Dict not allowed in Shader-Python")
 
+    def _op_unary_positive(self, arg):
+        self._stack.pop()
+        self._stack.append(None)
+        # this is a no-op
+
+    def _op_unary_negative(self, arg):
+        self._stack.pop()
+        self._stack.append(None)
+        self.emit(op.co_unary_op, "neg")
+
+    def _op_unary_not(self, arg):
+        self._stack.pop()
+        self._stack.append(None)
+        self.emit(op.co_unary_op, "not")
+
     def _op_binary_add(self, arg):
         self._stack_pop()
         self._stack_pop()
