@@ -535,6 +535,12 @@ class PyBytecode2Bytecode:
         self._stack_pop()
         self.emit(op.co_pop_top)
 
+    def _op_rot_two(self, arg):
+        ob1 = self._stack_pop()
+        ob2 = self._stack_pop()
+        self._stack.extend([ob1, ob2])
+        self.emit(op.co_rot_two)
+
     def _op_return_value(self, arg):
         result = self._stack_pop()
         assert result is None
@@ -594,6 +600,20 @@ class PyBytecode2Bytecode:
         if isinstance(ob, (float, int, bool)):
             self.emit(op.co_load_constant, ob)
             self._stack.append(ob)
+        elif isinstance(ob, tuple):
+            if self._peek() != "UNPACK_SEQUENCE":
+                raise ShaderError(
+                    "Const tuples are not supported (though you can do `a, b = c, d`)"
+                )
+            for x in reversed(ob):
+                if isinstance(x, (float, int, bool)):
+                    self.emit(op.co_load_constant, x)
+                    self._stack.append(x)
+                else:
+                    raise ShaderError("Only float/int/bool constants supported.")
+            self._stack.append(
+                ("tuple", len(ob))
+            )  # signal that the tuple is on the stack
         elif ob is None:
             self._stack.append(None)  # Probably for the function return value
         else:
@@ -787,17 +807,16 @@ class PyBytecode2Bytecode:
         self.emit(op.co_store_index)
 
     def _op_build_tuple(self, n):
-        # todo: but I want to be able to do ``x, y = y, x`` !
-        raise ShaderError("No tuples in SpirV-ish Python yet")
+        raise ShaderError("Tuples are not supported (though you can do `a, b = c, d`)")
 
-        res = [self._stack_pop() for i in range(n)]
-        res = tuple(reversed(res))
-
-        if dis.opname[self._peek()] == "BINARY_SUBSCR":
-            self._stack.append(res)
-            # No emit, in the SpirV bytecode we pop the subscript indices off the stack.
+    def _op_unpack_sequence(self, n):
+        x = self._stack_pop()
+        if x == ("tuple", n):
+            pass  # We have a match!
         else:
-            raise ShaderError("Tuples are not supported.")
+            raise ShaderError(
+                "Cannot unpack arbitrary sequences (though you can do `a, b = c, d`)"
+            )
 
     def _op_build_list(self, n):
         # Litaral list
@@ -814,17 +833,17 @@ class PyBytecode2Bytecode:
         raise ShaderError("Dict not allowed in Shader-Python")
 
     def _op_unary_positive(self, arg):
-        self._stack.pop()
+        self._stack_pop()
         self._stack.append(None)
         # this is a no-op
 
     def _op_unary_negative(self, arg):
-        self._stack.pop()
+        self._stack_pop()
         self._stack.append(None)
         self.emit(op.co_unary_op, "neg")
 
     def _op_unary_not(self, arg):
-        self._stack.pop()
+        self._stack_pop()
         self._stack.append(None)
         self.emit(op.co_unary_op, "not")
 
