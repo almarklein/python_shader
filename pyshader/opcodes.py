@@ -145,7 +145,7 @@ class OpCodeDefinitions:
 
     def co_binary_op(self, op):
         """ Implements TOS = TOS1 ?? TOS, where ?? is the given operation,
-        which can be: add, sub, mul, div, and, or, ...
+        which can be: add, sub, mul, div, fdiv, idiv, and, or, ...
         """
         raise NotImplementedError()
 

@@ -828,6 +828,12 @@ class PyBytecode2Bytecode:
         self._stack.append(None)
         self.emit(op.co_unary_op, "not")
 
+    def _binary_op(self, binop):
+        self._stack_pop()
+        self._stack_pop()
+        self._stack.append(None)
+        self.emit(op.co_binary_op, binop)
+
     def _inplace_op(self, binop):
         val = self._stack_pop()  # noqa
         name = self._stack_pop()
@@ -845,31 +851,29 @@ class PyBytecode2Bytecode:
         self._inplace_op("mul")
 
     def _op_inplace_true_divide(self, arg):
-        self._inplace_op("div")
+        self._inplace_op("fdiv")
+
+    def _op_inplace_floor_divide(self, arg):
+        self._inplace_op("idiv")
 
     def _op_binary_add(self, arg):
-        self._stack_pop()
-        self._stack_pop()
-        self._stack.append(None)
-        self.emit(op.co_binary_op, "add")
+        self._binary_op("add")
 
     def _op_binary_subtract(self, arg):
-        self._stack_pop()
-        self._stack_pop()
-        self._stack.append(None)
-        self.emit(op.co_binary_op, "sub")
+        self._binary_op("sub")
 
     def _op_binary_multiply(self, arg):
-        self._stack_pop()
-        self._stack_pop()
-        self._stack.append(None)
-        self.emit(op.co_binary_op, "mul")
+        self._binary_op("mul")
 
     def _op_binary_true_divide(self, arg):
-        self._stack_pop()
-        self._stack_pop()
-        self._stack.append(None)
-        self.emit(op.co_binary_op, "div")
+        # We use the fdiv opcode that only works for floats. Python
+        # auto-converts ints to float when dividing. A shader does not.
+        # To avoid confusion, users have to use the normal division for
+        # floats, and the // division for ints.
+        self._binary_op("fdiv")
+
+    def _op_binary_floor_divide(self, arg):
+        self._binary_op("idiv")
 
     def _op_binary_power(self, arg):
         exp = self._stack_pop()
@@ -886,10 +890,7 @@ class PyBytecode2Bytecode:
             self.emit(op.co_call, "pow", 2)
 
     def _op_binary_modulo(self, arg):
-        self._stack_pop()
-        self._stack_pop()
-        self._stack.append(None)
-        self.emit(op.co_binary_op, "mod")
+        self._binary_op("mod")
 
     def _op_compare_op(self, arg):
         cmp = cmp_op[arg]

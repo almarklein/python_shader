@@ -903,17 +903,26 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         id1, id2 = val1, val2
 
         # Predefine some types
+        # We specify three flavors of div: One that works for both int and float,
+        # one that works for float only, and one that works for int only.
         scalar_or_vector = _types.Scalar, _types.Vector
         FOPS = dict(
             add=cc.OpFAdd,
             sub=cc.OpFSub,
             mul=cc.OpFMul,
+            fdiv=cc.OpFDiv,
             div=cc.OpFDiv,
             mod=cc.OpFMod,
             rem=cc.OpFRem,
         )
         IOPS = dict(
-            add=cc.OpIAdd, sub=cc.OpISub, mul=cc.OpIMul, mod=cc.OpSMod, rem=cc.OpSRem
+            add=cc.OpIAdd,
+            sub=cc.OpISub,
+            mul=cc.OpIMul,
+            idiv=cc.OpSDiv,
+            div=cc.OpSDiv,
+            mod=cc.OpSMod,
+            rem=cc.OpSRem,
         )
         LOPS = {"and": cc.OpLogicalAnd, "or": cc.OpLogicalOr}
 
