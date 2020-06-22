@@ -25,6 +25,7 @@ from pyshader import stdlib, f32, i32, vec2, vec3, vec4, ivec3, ivec4, Array
 import wgpu.backends.rs  # noqa
 from wgpu.utils import compute_with_buffers
 
+import pytest
 from pytest import mark, raises
 from testutils import can_use_vulkan_sdk, can_use_wgpu_lib
 from testutils import validate_module, run_test_and_print_new_hashes
