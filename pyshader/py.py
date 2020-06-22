@@ -828,6 +828,25 @@ class PyBytecode2Bytecode:
         self._stack.append(None)
         self.emit(op.co_unary_op, "not")
 
+    def _inplace_op(self, binop):
+        val = self._stack_pop()  # noqa
+        name = self._stack_pop()
+        self._stack.append(None)
+        assert isinstance(name, str)
+        self.emit(op.co_binary_op, binop)
+
+    def _op_inplace_add(self, arg):
+        self._inplace_op("add")
+
+    def _op_inplace_subtract(self, arg):
+        self._inplace_op("sub")
+
+    def _op_inplace_multiply(self, arg):
+        self._inplace_op("mul")
+
+    def _op_inplace_true_divide(self, arg):
+        self._inplace_op("div")
+
     def _op_binary_add(self, arg):
         self._stack_pop()
         self._stack_pop()

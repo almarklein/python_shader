@@ -73,6 +73,32 @@ def test_add_sub2():
     assert res[1::2] == [20.0 + i - 1 for i in values1]
 
 
+def test_add_sub3():
+    @python2shader_and_validate
+    def compute_shader(
+        index: ("input", "GlobalInvocationId", i32),
+        data1: ("buffer", 0, Array(f32)),
+        data2: ("buffer", 1, Array(vec2)),
+    ):
+        a = data1[index]
+        a -= -1.0
+        b = vec2(a, a)
+        b += 2.0
+        data2[index] = b
+
+    skip_if_no_wgpu()
+
+    values1 = [i - 5 for i in range(10)]
+
+    inp_arrays = {0: (ctypes.c_float * 10)(*values1)}
+    out_arrays = {1: ctypes.c_float * 20}
+    out = compute_with_buffers(inp_arrays, out_arrays, compute_shader)
+
+    res = list(out[1])
+    assert res[0::2] == [i + 3 for i in values1]
+    assert res[1::2] == [i + 3 for i in values1]
+
+
 def test_mul_div1():
     @python2shader_and_validate
     def compute_shader(
@@ -117,6 +143,32 @@ def test_mul_div2():
     res = list(out[1])
     assert res[0::2] == [6 * i * 2 for i in values1]
     assert res[1::2] == [6 * i / 2 for i in values1]
+
+
+def test_mul_div3():
+    @python2shader_and_validate
+    def compute_shader(
+        index: ("input", "GlobalInvocationId", i32),
+        data1: ("buffer", 0, Array(f32)),
+        data2: ("buffer", 1, Array(vec2)),
+    ):
+        a = data1[index]
+        a /= -1.0
+        b = vec2(a, a)
+        b *= 2.0
+        data2[index] = b
+
+    skip_if_no_wgpu()
+
+    values1 = [i - 5 for i in range(10)]
+
+    inp_arrays = {0: (ctypes.c_float * 10)(*values1)}
+    out_arrays = {1: ctypes.c_float * 20}
+    out = compute_with_buffers(inp_arrays, out_arrays, compute_shader)
+
+    res = list(out[1])
+    assert res[0::2] == [-i * 2 for i in values1]
+    assert res[1::2] == [-i * 2 for i in values1]
 
 
 def test_mul_modulo():
@@ -402,8 +454,10 @@ def skip_if_no_wgpu():
 HASHES = {
     "test_add_sub1.compute_shader": ("f5f5e1f5d546615f", "2edf296df860a93d"),
     "test_add_sub2.compute_shader": ("eac80cea3cae0305", "785f2c0acdbe0cd3"),
+    "test_add_sub3.compute_shader": ("ff8f23434e6d6879", "26a092691cff2104"),
     "test_mul_div1.compute_shader": ("889f742ee3d3a695", "3b804bb4b7b52de0"),
     "test_mul_div2.compute_shader": ("bb5f1d05c0b02dab", "7e9591cb2d93d067"),
+    "test_mul_div3.compute_shader": ("1c66b528d4cbafb5", "d6fa9c27744f4f8b"),
     "test_mul_modulo.compute_shader": ("28c42b8b719b94cf", "cd29c63a99af0a7c"),
     "test_math_constants.compute_shader": ("425b33e1d60a6105", "ab0b82f58688bbc7"),
     "test_pow.compute_shader": ("c83ff35156e57f86", "4c41b41333f94ee9"),
