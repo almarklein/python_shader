@@ -144,7 +144,7 @@ def test_texcomp_2d_rg32i():
 def test_tuple_unpacking():
     # Python implementations deal with tuple packing/unpacking differently.
     # Python 3.8+ has rot_four, pypy3 resolves by changing the order of the
-    # store ops in the bytecode itself.
+    # store ops in the bytecode itself, and seems to even ditch unused variables.
     @python2shader_and_validate_nobc
     def compute_shader(
         index: ("input", "GlobalInvocationId", i32),

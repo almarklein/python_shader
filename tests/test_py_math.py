@@ -319,6 +319,31 @@ def test_length():
     assert iters_close(res, ref)
 
 
+def test_normalize():
+    @python2shader_and_validate
+    def compute_shader(
+        index: ("input", "GlobalInvocationId", i32),
+        data1: ("buffer", 0, Array(f32)),
+        data2: ("buffer", 1, Array(vec2)),
+    ):
+        v = data1[index]
+        data2[index] = normalize(vec2(v, v))
+
+    skip_if_no_wgpu()
+
+    values1 = [i - 5 for i in range(10)]
+
+    inp_arrays = {0: (ctypes.c_float * 10)(*values1)}
+    out_arrays = {1: ctypes.c_float * 20}
+    out = compute_with_buffers(inp_arrays, out_arrays, compute_shader, n=10)
+
+    res = list(out[1])
+    ref = []
+    assert iters_close(res[:10], [-2**0.5/2 for i in range(10)])
+    assert iters_close(res[-8:], [+2**0.5/2 for i in range(8)])
+    assert math.isnan(res[10]) and math.isnan(res[11])  # or can this also be inf?
+
+
 # %% Extension functions that need more care
 
 # Mostly because they operate on more types than just float and vec.
@@ -487,6 +512,7 @@ HASHES = {
     "test_pow.compute_shader": ("c83ff35156e57f86", "4c41b41333f94ee9"),
     "test_sqrt.compute_shader": ("3fb9f30103054be5", "a18522c9c8bbf809"),
     "test_length.compute_shader": ("bcb9fb5793f33610", "2e0a4f0ac0f3468d"),
+    "test_normalize.compute_shader": ("644816afceb0ec7f", "b296aa6a0f80445c"),
     "test_abs.compute_shader": ("09922efbd3b835a9", "48c14af6ab79385f"),
     "test_min_max_clamp.compute_shader": ("d0b7f20a0c81aea0", "8f3b43edd3f5e049"),
     "test_mix.compute_shader": ("21e44597b4cb97f3", "5157f868b2495a4d"),
