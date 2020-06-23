@@ -339,8 +339,8 @@ def test_normalize():
 
     res = list(out[1])
     ref = []
-    assert iters_close(res[:10], [-2**0.5/2 for i in range(10)])
-    assert iters_close(res[-8:], [+2**0.5/2 for i in range(8)])
+    assert iters_close(res[:10], [-(2 ** 0.5) / 2 for i in range(10)])
+    assert iters_close(res[-8:], [+(2 ** 0.5) / 2 for i in range(8)])
     assert math.isnan(res[10]) and math.isnan(res[11])  # or can this also be inf?
 
 
