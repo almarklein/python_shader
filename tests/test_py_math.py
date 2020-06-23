@@ -338,7 +338,6 @@ def test_normalize():
     out = compute_with_buffers(inp_arrays, out_arrays, compute_shader, n=10)
 
     res = list(out[1])
-    ref = []
     assert iters_close(res[:10], [-(2 ** 0.5) / 2 for i in range(10)])
     assert iters_close(res[-8:], [+(2 ** 0.5) / 2 for i in range(8)])
     assert math.isnan(res[10]) and math.isnan(res[11])  # or can this also be inf?
