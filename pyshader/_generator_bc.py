@@ -586,6 +586,19 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         elif kind == "buffer":
             # todo: according to docs, in SpirV 1.4+, BufferBlock is deprecated
             # and one should use Block with StorageBuffer. But this crashes.
+            # Generate an ArrayStride on the storage buffer array
+            if issubclass(var_type, _types.Struct) and len(var_type.keys) == 1:
+                array_type = var_type.get_subtype(0)
+                if issubclass(array_type, _types.Array):
+                    stride = ctypes.sizeof(array_type.subtype._as_ctype())
+                    if stride > 0:
+                        self.gen_instruction(
+                            "annotations",
+                            cc.OpDecorate,
+                            self.obtain_type_id(array_type),
+                            cc.Decoration_ArrayStride,
+                            stride,
+                        )
             self.gen_instruction(
                 "annotations", cc.OpDecorate, var_id, cc.Decoration_BufferBlock
             )
