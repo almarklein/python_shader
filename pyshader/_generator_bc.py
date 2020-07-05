@@ -348,7 +348,7 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         elif funcname == "matrix_inverse":
             nargs = 1
             result_type = ty = args[0].type
-            if issubclass(ty, _types.Matrix) and ty._rows == ty.cols:
+            if issubclass(ty, _types.Matrix) and ty.rows == ty.cols:
                 nr = 34
             else:
                 raise ShaderError("matrix_inverse() expects square matrix.")
