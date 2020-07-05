@@ -72,6 +72,8 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         self._texture = {}
         self._slotmap = {}  # (namespaceidentifier, slot) -> name
 
+        self._decorated_array_types = set()
+
         # We keep track of sampler for each combination of texture and sampler
         self._texture_samplers = {}
 
@@ -591,7 +593,8 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
                 array_type = var_type.get_subtype(0)
                 if issubclass(array_type, _types.Array):
                     stride = ctypes.sizeof(array_type.subtype._as_ctype())
-                    if stride > 0:
+                    if stride > 0 and array_type not in self._decorated_array_types:
+                        self._decorated_array_types.add(array_type)
                         self.gen_instruction(
                             "annotations",
                             cc.OpDecorate,
