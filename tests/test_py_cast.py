@@ -268,18 +268,18 @@ def skip_if_no_wgpu():
 
 
 HASHES = {
-    "test_cast_i32_f32.compute_shader": ("f27e143f69e3c639", "c8b89c7a3be45738"),
-    "test_cast_u8_f32.compute_shader": ("ce8c067f25b7f08e", "a40fd335675cf868"),
-    "test_cast_f32_i32.compute_shader": ("eb0e056c35fdfe8a", "ac7437359946a691"),
-    "test_cast_f32_f32.compute_shader": ("cde5b6a2e2843093", "5753fa9dde151f3f"),
-    "test_cast_f32_f64.compute_shader": ("af1ad9a7d4e30354", "7653c236a8c69ac8"),
-    "test_cast_i64_i16.compute_shader": ("10c505c2b17eacbd", "f1fbaeb20d9d021e"),
-    "test_cast_i16_u8.compute_shader": ("6e8194a9404d6144", "19bc9aaed0e9cf09"),
-    "test_cast_vec_ivec2_vec2.compute_shader": ("bc7939af856f30b9", "dc4ff85d648045e3"),
-    "test_cast_vec_any_vec4.compute_shader": ("56f57a24e6f7b1f0", "44bd6b015b3d9667"),
-    "test_cast_vec_ivec3_vec3.compute_shader": ("1232037d61589e28", "5d988118bd2952ab"),
-    "test_cast_ivec2_bvec2.compute_shader": ("5dde79b57409789e", "f1824ce347d142e0"),
-    "test_abstract_types.compute_shader": ("1f162c00b2a27ff3", "3d34e8037aafe3af"),
+    "test_cast_i32_f32.compute_shader": ("f27e143f69e3c639", "c625d97451d58d0c"),
+    "test_cast_u8_f32.compute_shader": ("ce8c067f25b7f08e", "d6e191909bac1a92"),
+    "test_cast_f32_i32.compute_shader": ("eb0e056c35fdfe8a", "58473ea46e187ac5"),
+    "test_cast_f32_f32.compute_shader": ("cde5b6a2e2843093", "5928f6f267179344"),
+    "test_cast_f32_f64.compute_shader": ("af1ad9a7d4e30354", "9c7342f44b78379c"),
+    "test_cast_i64_i16.compute_shader": ("10c505c2b17eacbd", "51b504b6aab98f48"),
+    "test_cast_i16_u8.compute_shader": ("6e8194a9404d6144", "58a7802977173ae4"),
+    "test_cast_vec_ivec2_vec2.compute_shader": ("bc7939af856f30b9", "971d34bc52686e3a"),
+    "test_cast_vec_any_vec4.compute_shader": ("56f57a24e6f7b1f0", "d27251595fb69cd5"),
+    "test_cast_vec_ivec3_vec3.compute_shader": ("1232037d61589e28", "f0f3fd3da608b3d5"),
+    "test_cast_ivec2_bvec2.compute_shader": ("5dde79b57409789e", "c71c6ab1157cf793"),
+    "test_abstract_types.compute_shader": ("1f162c00b2a27ff3", "92dcd012423a1bfd"),
 }
 
 if __name__ == "__main__":

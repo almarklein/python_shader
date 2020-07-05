@@ -499,22 +499,22 @@ def skip_if_no_wgpu():
 
 
 HASHES = {
-    "test_add_sub1.compute_shader": ("f5f5e1f5d546615f", "2edf296df860a93d"),
-    "test_add_sub2.compute_shader": ("eac80cea3cae0305", "785f2c0acdbe0cd3"),
-    "test_add_sub3.compute_shader": ("ff8f23434e6d6879", "26a092691cff2104"),
-    "test_mul_div1.compute_shader": ("15609b10642943d4", "3b804bb4b7b52de0"),
-    "test_mul_div2.compute_shader": ("f4c102543e3f0339", "7e9591cb2d93d067"),
-    "test_mul_div3.compute_shader": ("3aec875ee04bc331", "d6fa9c27744f4f8b"),
-    "test_integer_div.compute_shader": ("3e957da5a67c96a8", "c1e635c9800b2975"),
-    "test_mul_modulo.compute_shader": ("28c42b8b719b94cf", "cd29c63a99af0a7c"),
-    "test_math_constants.compute_shader": ("425b33e1d60a6105", "ab0b82f58688bbc7"),
-    "test_pow.compute_shader": ("c83ff35156e57f86", "4c41b41333f94ee9"),
-    "test_sqrt.compute_shader": ("3fb9f30103054be5", "a18522c9c8bbf809"),
-    "test_length.compute_shader": ("bcb9fb5793f33610", "2e0a4f0ac0f3468d"),
-    "test_normalize.compute_shader": ("644816afceb0ec7f", "b296aa6a0f80445c"),
-    "test_abs.compute_shader": ("09922efbd3b835a9", "48c14af6ab79385f"),
-    "test_min_max_clamp.compute_shader": ("d0b7f20a0c81aea0", "8f3b43edd3f5e049"),
-    "test_mix.compute_shader": ("21e44597b4cb97f3", "5157f868b2495a4d"),
+    "test_add_sub1.compute_shader": ("f5f5e1f5d546615f", "0e769a5469d53e43"),
+    "test_add_sub2.compute_shader": ("eac80cea3cae0305", "bb062775088984ee"),
+    "test_add_sub3.compute_shader": ("ff8f23434e6d6879", "ce1ab0d574708436"),
+    "test_mul_div1.compute_shader": ("15609b10642943d4", "37608280de8c3af1"),
+    "test_mul_div2.compute_shader": ("f4c102543e3f0339", "4655309b6e5008d6"),
+    "test_mul_div3.compute_shader": ("3aec875ee04bc331", "4e66ca5ddfb1a95d"),
+    "test_integer_div.compute_shader": ("3e957da5a67c96a8", "0250fbb9f4dcc27e"),
+    "test_mul_modulo.compute_shader": ("28c42b8b719b94cf", "cd0f355d2f254e1d"),
+    "test_math_constants.compute_shader": ("425b33e1d60a6105", "3b54fc67b1794011"),
+    "test_pow.compute_shader": ("c83ff35156e57f86", "261d5f65da1ccd9a"),
+    "test_sqrt.compute_shader": ("3fb9f30103054be5", "dee4e351f88fae61"),
+    "test_length.compute_shader": ("bcb9fb5793f33610", "91228923b3378bda"),
+    "test_normalize.compute_shader": ("644816afceb0ec7f", "8ebbbf2aa7568d5c"),
+    "test_abs.compute_shader": ("09922efbd3b835a9", "3ae3aa426f7976ec"),
+    "test_min_max_clamp.compute_shader": ("d0b7f20a0c81aea0", "db3c9aa5bc2ae72b"),
+    "test_mix.compute_shader": ("21e44597b4cb97f3", "b0b4ff2702f62a89"),
 }
 
 
