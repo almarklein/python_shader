@@ -969,7 +969,14 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         elif type1 is type2 and issubclass(type1, scalar_or_vector):
             # Types are equal and scalar or vector. Covers a lot of cases.
             result_id, type_id = self.obtain_value(type1)
-            if issubclass(reftype1, _types.Float):
+            if (
+                issubclass(type1, _types.Vector)
+                and issubclass(reftype1, _types.Float)
+                and op == "mmul"
+            ):
+                opcode = cc.OpDot  # special case
+                result_id, type_id = self.obtain_value(type1.subtype)
+            elif issubclass(reftype1, _types.Float):
                 opcode = FOPS[op]
             elif issubclass(reftype1, _types.Int):
                 opcode = IOPS[op]

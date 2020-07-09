@@ -914,6 +914,9 @@ class PyBytecode2Bytecode:
     def _op_binary_multiply(self, arg):
         self._binary_op("mul")
 
+    def _op_binary_matrix_multiply(self, arg):
+        self._binary_op("mmul")
+
     def _op_binary_true_divide(self, arg):
         # We use the fdiv opcode that only works for floats. Python
         # auto-converts ints to float when dividing. A shader does not.

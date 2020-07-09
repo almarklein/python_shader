@@ -171,6 +171,28 @@ def test_mul_div3():
     assert res[1::2] == [-i * 2 for i in values1]
 
 
+def test_mul_dot():
+    @python2shader_and_validate
+    def compute_shader(
+        index: ("input", "GlobalInvocationId", i32),
+        data1: ("buffer", 0, Array(f32)),
+        data2: ("buffer", 1, Array(f32)),
+    ):
+        a = vec2(data1[index], data1[index])
+        data2[index] = a @ a
+
+    skip_if_no_wgpu()
+
+    values1 = [i - 5 for i in range(10)]
+
+    inp_arrays = {0: (ctypes.c_float * 10)(*values1)}
+    out_arrays = {1: ctypes.c_float * 10}
+    out = compute_with_buffers(inp_arrays, out_arrays, compute_shader)
+
+    res = list(out[1])
+    assert res == [i ** 2 * 2 for i in values1]
+
+
 def test_integer_div():
     @python2shader_and_validate
     def compute_shader(
@@ -505,6 +527,7 @@ HASHES = {
     "test_mul_div1.compute_shader": ("15609b10642943d4", "37608280de8c3af1"),
     "test_mul_div2.compute_shader": ("f4c102543e3f0339", "4655309b6e5008d6"),
     "test_mul_div3.compute_shader": ("3aec875ee04bc331", "4e66ca5ddfb1a95d"),
+    "test_mul_dot.compute_shader": ("980e7c16fe94780e", "d66618646e752d28"),
     "test_integer_div.compute_shader": ("3e957da5a67c96a8", "0250fbb9f4dcc27e"),
     "test_mul_modulo.compute_shader": ("28c42b8b719b94cf", "cd0f355d2f254e1d"),
     "test_math_constants.compute_shader": ("425b33e1d60a6105", "3b54fc67b1794011"),
