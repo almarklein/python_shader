@@ -531,6 +531,11 @@ class PyBytecode2Bytecode:
     def _op_extended_arg(self, arg):
         pass
 
+    def _op_dup_top(self, arg):
+        ob = self._stack_pop()
+        self._stack.extend([ob, ob])
+        self.emit(op.co_dup_top)
+
     def _op_pop_top(self, arg):
         self._stack_pop()
         self.emit(op.co_pop_top)
