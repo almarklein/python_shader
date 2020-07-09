@@ -838,14 +838,15 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             self._stack.append(ac)
         elif issubclass(ob.type, _types.Vector):
             indices = []
+            # Wr support xyzw, rgba, stpq
             for c in name:
-                if c in "xr":
+                if c in "xrs":
                     indices.append(0)
-                elif c in "yg":
+                elif c in "ygt":
                     indices.append(1)
-                elif c in "zb":
+                elif c in "zbp":
                     indices.append(2)
-                elif c in "wa":
+                elif c in "waq":
                     indices.append(3)
                 else:
                     raise ShaderError(f"Invalid vector attribute {name}")
