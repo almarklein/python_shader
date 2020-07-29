@@ -602,8 +602,16 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
                             cc.Decoration_ArrayStride,
                             stride,
                         )
+                    self.gen_instruction(
+                        "annotations",
+                        cc.OpMemberDecorate,
+                        type_id,
+                        0,
+                        cc.Decoration_Offset,
+                        0,
+                    )
             self.gen_instruction(
-                "annotations", cc.OpDecorate, var_id, cc.Decoration_BufferBlock
+                "annotations", cc.OpDecorate, type_id, cc.Decoration_BufferBlock
             )
 
         # Define slot of variable

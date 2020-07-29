@@ -142,15 +142,16 @@ void main()
 print_glsl2spirv_comp(
     """
 #version 450
-//layout(local_size_x = 1) in;
 
-layout(set = 0, binding = 0) buffer PrimeIndices {
-    uint[] data;
+layout(set = 0, binding = 0) buffer _data1 {
+    int[] data1;
+};
+layout(set = 0, binding = 1) buffer _data2 {
+    int[] data2;
 };
 
 void main() {
-    uint index = gl_GlobalInvocationID.x;
-    data[index] = index;
+    data2[int(gl_GlobalInvocationID.x)] = data1[int(gl_GlobalInvocationID.x)];
 }
 """
 )
