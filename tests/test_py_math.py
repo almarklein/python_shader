@@ -11,7 +11,7 @@ import ctypes
 
 import pyshader
 
-from pyshader import f32, i32, vec2, vec3, vec4, Array  # noqa
+from pyshader import f32, i32, vec2, vec4, Array  # noqa
 
 import wgpu.backends.rs  # noqa
 from wgpu.utils import compute_with_buffers
@@ -299,24 +299,24 @@ def test_sqrt():
     def compute_shader(
         index: ("input", "GlobalInvocationId", i32),
         data1: ("buffer", 0, Array(f32)),
-        data2: ("buffer", 1, Array(vec3)),
+        data2: ("buffer", 1, Array(vec4)),
     ):
         a = data1[index]
-        data2[index] = vec3(a ** 0.5, math.sqrt(a), stdlib.sqrt(a))
+        data2[index] = vec4(a ** 0.5, math.sqrt(a), stdlib.sqrt(a), 0.0)
 
     skip_if_no_wgpu()
 
     values1 = [i for i in range(10)]
 
     inp_arrays = {0: (ctypes.c_float * 10)(*values1)}
-    out_arrays = {1: ctypes.c_float * 30}
+    out_arrays = {1: ctypes.c_float * 40}
     out = compute_with_buffers(inp_arrays, out_arrays, compute_shader)
 
     res = list(out[1])
     ref = [i ** 0.5 for i in values1]
-    assert iters_close(res[0::3], ref)
-    assert iters_close(res[1::3], ref)
-    assert iters_close(res[2::3], ref)
+    assert iters_close(res[0::4], ref)
+    assert iters_close(res[1::4], ref)
+    assert iters_close(res[2::4], ref)
 
 
 def test_length():
@@ -401,26 +401,27 @@ def test_min_max_clamp():
     @python2shader_and_validate
     def compute_shader(
         index: ("input", "GlobalInvocationId", i32),
-        data1: ("buffer", 0, Array(vec3)),
-        data2: ("buffer", 1, Array(vec3)),
-        data3: ("buffer", 2, Array(vec3)),
+        data1: ("buffer", 0, Array(vec4)),
+        data2: ("buffer", 1, Array(vec4)),
+        data3: ("buffer", 2, Array(vec4)),
     ):
         v = data1[index].x
         mi = data1[index].y
         ma = data1[index].z
 
-        data2[index] = vec3(min(v, ma), max(v, mi), clamp(v, mi, ma))
-        data3[index] = vec3(nmin(v, ma), nmax(v, mi), nclamp(v, mi, ma))
+        data2[index] = vec4(min(v, ma), max(v, mi), clamp(v, mi, ma), 0.0)
+        data3[index] = vec4(nmin(v, ma), nmax(v, mi), nclamp(v, mi, ma), 0.0)
 
     skip_if_no_wgpu()
 
     the_vals = [-4, -3, -2, -1, +0, +0, +1, +2, +3, +4]
     min_vals = [-2, -5, -5, +2, +2, -1, +3, +1, +1, -6]
     max_vals = [+2, -1, -3, +3, +3, +1, +9, +9, +2, -3]
-    values = sum(zip(the_vals, min_vals, max_vals), ())
+    stubs = [0] * 10
+    values = sum(zip(the_vals, min_vals, max_vals, stubs), ())
 
-    inp_arrays = {0: (ctypes.c_float * 30)(*values)}
-    out_arrays = {1: ctypes.c_float * 30, 2: ctypes.c_float * 30}
+    inp_arrays = {0: (ctypes.c_float * 40)(*values)}
+    out_arrays = {1: ctypes.c_float * 40, 2: ctypes.c_float * 40}
     out = compute_with_buffers(inp_arrays, out_arrays, compute_shader, n=10)
 
     res1 = list(out[1])
@@ -429,43 +430,44 @@ def test_min_max_clamp():
     ref_max = [max(the_vals[i], min_vals[i]) for i in range(10)]
     ref_clamp = [min(max(min_vals[i], the_vals[i]), max_vals[i]) for i in range(10)]
     # Test normal variant
-    assert res1[0::3] == ref_min
-    assert res1[1::3] == ref_max
-    assert res1[2::3] == ref_clamp
+    assert res1[0::4] == ref_min
+    assert res1[1::4] == ref_max
+    assert res1[2::4] == ref_clamp
     # Test NaN-safe variant
-    assert res2[0::3] == ref_min
-    assert res2[1::3] == ref_max
-    assert res2[2::3] == ref_clamp
+    assert res2[0::4] == ref_min
+    assert res2[1::4] == ref_max
+    assert res2[2::4] == ref_clamp
 
 
 def test_mix():
     @python2shader_and_validate
     def compute_shader(
         index: ("input", "GlobalInvocationId", i32),
-        data1: ("buffer", 0, Array(vec3)),
-        data2: ("buffer", 1, Array(vec3)),
+        data1: ("buffer", 0, Array(vec4)),
+        data2: ("buffer", 1, Array(vec4)),
     ):
         v = data1[index]
         v1 = mix(v.x, v.y, v.z)
         v2 = mix(vec2(v.x, v.x), vec2(v.y, v.y), v.z)
-        data2[index] = vec3(v1, v2.x, v2.y)
+        data2[index] = vec4(v1, v2.x, v2.y, 0.0)
 
     skip_if_no_wgpu()
 
     values1 = [-4, -3, -2, -1, +0, +0, +1, +2, +3, +4]
     values2 = [-2, -5, -5, +2, +2, -1, +3, +1, +1, -6]
     weights = [0.1 * i for i in range(10)]
-    values = sum(zip(values1, values2, weights), ())
+    stubs = [0] * 10
+    values = sum(zip(values1, values2, weights, stubs), ())
 
-    inp_arrays = {0: (ctypes.c_float * 30)(*values)}
-    out_arrays = {1: ctypes.c_float * 30}
+    inp_arrays = {0: (ctypes.c_float * 40)(*values)}
+    out_arrays = {1: ctypes.c_float * 40}
     out = compute_with_buffers(inp_arrays, out_arrays, compute_shader, n=10)
 
     res = list(out[1])
     ref = [values1[i] * (1 - w) + values2[i] * w for i, w in enumerate(weights)]
-    assert iters_close(res[0::3], ref)
-    assert iters_close(res[1::3], ref)
-    assert iters_close(res[2::3], ref)
+    assert iters_close(res[0::4], ref)
+    assert iters_close(res[1::4], ref)
+    assert iters_close(res[2::4], ref)
 
 
 # %% Extension function definitions
@@ -521,23 +523,23 @@ def skip_if_no_wgpu():
 
 
 HASHES = {
-    "test_add_sub1.compute_shader": ("f5f5e1f5d546615f", "0e769a5469d53e43"),
-    "test_add_sub2.compute_shader": ("eac80cea3cae0305", "bb062775088984ee"),
-    "test_add_sub3.compute_shader": ("ff8f23434e6d6879", "ce1ab0d574708436"),
-    "test_mul_div1.compute_shader": ("15609b10642943d4", "37608280de8c3af1"),
-    "test_mul_div2.compute_shader": ("f4c102543e3f0339", "4655309b6e5008d6"),
-    "test_mul_div3.compute_shader": ("3aec875ee04bc331", "4e66ca5ddfb1a95d"),
-    "test_mul_dot.compute_shader": ("980e7c16fe94780e", "d66618646e752d28"),
-    "test_integer_div.compute_shader": ("3e957da5a67c96a8", "0250fbb9f4dcc27e"),
-    "test_mul_modulo.compute_shader": ("28c42b8b719b94cf", "cd0f355d2f254e1d"),
-    "test_math_constants.compute_shader": ("425b33e1d60a6105", "3b54fc67b1794011"),
-    "test_pow.compute_shader": ("c83ff35156e57f86", "261d5f65da1ccd9a"),
-    "test_sqrt.compute_shader": ("3fb9f30103054be5", "dee4e351f88fae61"),
-    "test_length.compute_shader": ("bcb9fb5793f33610", "91228923b3378bda"),
-    "test_normalize.compute_shader": ("644816afceb0ec7f", "8ebbbf2aa7568d5c"),
-    "test_abs.compute_shader": ("09922efbd3b835a9", "3ae3aa426f7976ec"),
-    "test_min_max_clamp.compute_shader": ("d0b7f20a0c81aea0", "db3c9aa5bc2ae72b"),
-    "test_mix.compute_shader": ("21e44597b4cb97f3", "b0b4ff2702f62a89"),
+    "test_add_sub1.compute_shader": ("f5f5e1f5d546615f", "28eb40c2d6fc4bae"),
+    "test_add_sub2.compute_shader": ("eac80cea3cae0305", "b869d9a18c6c1b0f"),
+    "test_add_sub3.compute_shader": ("ff8f23434e6d6879", "f86fb3117bc27a07"),
+    "test_mul_div1.compute_shader": ("15609b10642943d4", "7c507a2328783a5f"),
+    "test_mul_div2.compute_shader": ("f4c102543e3f0339", "65c31c651314e6d4"),
+    "test_mul_div3.compute_shader": ("3aec875ee04bc331", "c33955ab2704b4c3"),
+    "test_mul_dot.compute_shader": ("980e7c16fe94780e", "19197aeb7ba5d248"),
+    "test_integer_div.compute_shader": ("3e957da5a67c96a8", "c6f2e94c674cced8"),
+    "test_mul_modulo.compute_shader": ("28c42b8b719b94cf", "7be06aae36d734d5"),
+    "test_math_constants.compute_shader": ("425b33e1d60a6105", "364c1eefd753d2ca"),
+    "test_pow.compute_shader": ("c83ff35156e57f86", "1be3f8c02bb3bf88"),
+    "test_sqrt.compute_shader": ("ff0f19a5401a60d1", "b9893cebec2d359e"),
+    "test_length.compute_shader": ("bcb9fb5793f33610", "a02eded64ed47b19"),
+    "test_normalize.compute_shader": ("644816afceb0ec7f", "757e0ee7ec7447b0"),
+    "test_abs.compute_shader": ("09922efbd3b835a9", "5cbc8ca4c02d642f"),
+    "test_min_max_clamp.compute_shader": ("6e6d0773366ebc46", "efaffe7913b237a2"),
+    "test_mix.compute_shader": ("72a61c4e3964238f", "7cd066629c81ba50"),
 }
 
 

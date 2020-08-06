@@ -265,12 +265,12 @@ HASHES = {
     "test_null_shader.vertex_shader": ("bc099a07b86d70f2", "a48ffae9d0f09a5c"),
     "test_triangle_shader.vertex_shader": ("000514d8367ef0fa", "53d4b596bc25b5a0"),
     "test_triangle_shader.fragment_shader": ("6da8c966525c9c7f", "6febd7dab6d72c8d"),
-    "test_compute_shader.compute_shader": ("7b03b3564a72be3c", "2d3aa9a74f55e367"),
+    "test_compute_shader.compute_shader": ("7b03b3564a72be3c", "2e48d89fc164c79b"),
     "test_texture_2d_f32.fragment_shader": ("564804a234e76fe1", "2fe982d3e5542180"),
     "test_texture_1d_i32.fragment_shader": ("0c1ad1a8f909c442", "7f4ad10ae75030fa"),
     "test_texture_3d_r16i.fragment_shader": ("f1069cfd9c74fa1d", "14f0b7e61c2ea4dc"),
     "test_texcomp_2d_rg32i.compute_shader": ("7dbaa7fe613cf33d", "609468500982bfbd"),
-    "test_tuple_unpacking.compute_shader": ("8ae5274a8ed79b8f", "43836cc342c1a84d"),
+    "test_tuple_unpacking.compute_shader": ("8ae5274a8ed79b8f", "41c7e5016c8686ed"),
 }
 
 
