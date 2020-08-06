@@ -20,9 +20,9 @@ from testutils import validate_module, run_test_and_print_new_hashes
 def test_index():
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(i32)),
+        index: ("input", "GlobalInvocationId", ivec3), data2: ("buffer", 1, Array(i32)),
     ):
-        data2[index] = index
+        data2[index.x] = index.x
 
     skip_if_no_wgpu()
 
@@ -36,11 +36,11 @@ def test_index():
 def test_copy():
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32),
+        index: ("input", "GlobalInvocationId", ivec3),
         data1: ("buffer", 0, Array(i32)),
         data2: ("buffer", 1, Array(i32)),
     ):
-        data2[index] = data1[index]
+        data2[index.x] = data1[index.x]
 
     skip_if_no_wgpu()
 
@@ -54,13 +54,14 @@ def test_copy():
 def test_copy_vec2():
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32),
+        index: ("input", "GlobalInvocationId", ivec3),
         data1: ("buffer", 0, Array(vec2)),
         data2: ("buffer", 1, Array(vec2)),
         data3: ("buffer", 2, Array(ivec2)),
     ):
-        data2[index] = data1[index].xy
-        data3[index] = ivec2(index, index)
+        i = index.x
+        data2[i] = data1[i].xy
+        data3[i] = ivec2(i, i)
 
     skip_if_no_wgpu()
 
@@ -78,13 +79,14 @@ def test_copy_vec3():
 
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32),
+        index: ("input", "GlobalInvocationId", ivec3),
         data1: ("buffer", 0, Array(vec3)),
         data2: ("buffer", 1, Array(vec3)),
         data3: ("buffer", 2, Array(ivec3)),
     ):
-        data2[index] = data1[index].xyz
-        data3[index] = ivec3(index, index, index)
+        i = index.x
+        data2[i] = data1[i].xyz
+        data3[i] = ivec3(i, i, i)
 
     # # Equivalent shader in GLSL
     # compute_shader = pyshader.dev.glsl2spirv("""
@@ -132,13 +134,14 @@ def test_copy_vec3():
 def test_copy_vec4():
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32),
+        index: ("input", "GlobalInvocationId", ivec3),
         data1: ("buffer", 0, Array(vec4)),
         data2: ("buffer", 1, Array(vec4)),
         data3: ("buffer", 2, Array(ivec4)),
     ):
-        data2[index] = data1[index].xyzw
-        data3[index] = ivec4(index, index, index, index)
+        i = index.x
+        data2[i] = data1[i].xyzw
+        data3[i] = ivec4(i, i, i, i)
 
     skip_if_no_wgpu()
 
@@ -169,10 +172,10 @@ def skip_if_no_wgpu():
 
 
 HASHES = {
-    "test_index.compute_shader": ("5b4be829de8c83e5", "6ab7bdabdf406bde"),
-    "test_copy.compute_shader": ("7b03b3564a72be3c", "2e48d89fc164c79b"),
-    "test_copy_vec2.compute_shader": ("bbe2505a3c8e54e4", "4bc5e0202044528a"),
-    "test_copy_vec4.compute_shader": ("3d86ff76de11f553", "1b610e687635af21"),
+    "test_index.compute_shader": ("fc4587cbf1c662fa", "d219cdd85917c847"),
+    "test_copy.compute_shader": ("7cf577981390626b", "47d2f371faa48ed0"),
+    "test_copy_vec2.compute_shader": ("5e0bd906a652ec4a", "1b2df77b98a3f229"),
+    "test_copy_vec4.compute_shader": ("243e410cd456593e", "3ba9a65801fb361a"),
 }
 
 

@@ -8,7 +8,7 @@ import ctypes
 
 import pyshader
 
-from pyshader import f32, i32, vec2, vec3, vec4, Array  # noqa
+from pyshader import f32, i32, vec2, ivec3, vec3, vec4, Array  # noqa
 
 import wgpu.backends.rs  # noqa
 from wgpu.utils import compute_with_buffers
@@ -32,8 +32,10 @@ def test_if1():
     # Simple
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
+        data2: ("buffer", 1, Array(f32)),
     ):
+        index = index_xyz.x
         if index < 2:
             data2[index] = 40.0
         elif index < 4:
@@ -52,8 +54,10 @@ def test_if2():
     # More nesting
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
+        data2: ("buffer", 1, Array(f32)),
     ):
+        index = index_xyz.x
         if index < 2:
             if index == 0:
                 data2[index] = 40.0
@@ -90,8 +94,10 @@ def test_if3():
     # And and or
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
+        data2: ("buffer", 1, Array(f32)),
     ):
+        index = index_xyz.x
         if index < 2 or index > 7 or index == 4:
             data2[index] = 40.0
         elif index > 3 and index < 6:
@@ -107,10 +113,11 @@ def test_if3():
 def test_if4():
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
         data1: ("buffer", 0, Array(f32)),
         data2: ("buffer", 1, Array(f32)),
     ):
+        index = index_xyz.x
         a = f32(index)
         if index < 2:
             a = 100.0
@@ -134,8 +141,10 @@ def test_if4():
 def test_if5():
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
+        data2: ("buffer", 1, Array(f32)),
     ):
+        index = index_xyz.x
         x = False
         if index < 2:
             data2[index] = 40.0
@@ -159,8 +168,10 @@ def test_if5():
 def test_ternary1():
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
+        data2: ("buffer", 1, Array(f32)),
     ):
+        index = index_xyz.x
         data2[index] = 40.0 if index == 0 else 41.0
 
     skip_if_no_wgpu()
@@ -171,8 +182,10 @@ def test_ternary1():
 def test_ternary2():
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
+        data2: ("buffer", 1, Array(f32)),
     ):
+        index = index_xyz.x
         data2[index] = (
             40.0
             if index == 0
@@ -187,8 +200,10 @@ def test_ternary2():
 def test_ternary3():
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
+        data2: ("buffer", 1, Array(f32)),
     ):
+        index = index_xyz.x
         data2[index] = (
             (10.0 * 4.0)
             if index == 0
@@ -207,8 +222,10 @@ def test_andor1():
     # Implicit conversion to truth values is not supported
 
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
+        data2: ("buffer", 1, Array(f32)),
     ):
+        index = index_xyz.x
         if index < 5:
             val = f32(index - 3) and 99.0
         else:
@@ -223,8 +240,10 @@ def test_andor2():
     # or a lot
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
+        data2: ("buffer", 1, Array(f32)),
     ):
+        index = index_xyz.x
         if index == 2 or index == 3 or index == 5:
             data2[index] = 40.0
         elif index == 2 or index == 6 or index == 7:
@@ -241,8 +260,10 @@ def test_andor3():
     # and a lot
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
+        data2: ("buffer", 1, Array(f32)),
     ):
+        index = index_xyz.x
         mod = index % 2
         if index < 4 and mod == 0:
             data2[index] = 2.0
@@ -260,8 +281,10 @@ def test_andor4():
     # mix it up
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
+        data2: ("buffer", 1, Array(f32)),
     ):
+        index = index_xyz.x
         mod = index % 2
         if index < 4 and mod == 0 or index == 5:
             data2[index] = 2.0
@@ -279,8 +302,10 @@ def test_andor5():
     # in a ternary
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
+        data2: ("buffer", 1, Array(f32)),
     ):
+        index = index_xyz.x
         mod = index % 2
         if index < 5:
             data2[index] = 40.0 if (index == 1 or index == 3 or index == 4) else 41.0
@@ -298,8 +323,10 @@ def test_andor5():
 def test_loop0():
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
+        data2: ("buffer", 1, Array(f32)),
     ):
+        index = index_xyz.x
         val = 0.0
         for i in range(index):
             pass
@@ -313,8 +340,10 @@ def test_loop0():
 def test_loop0b():
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
+        data2: ("buffer", 1, Array(f32)),
     ):
+        index = index_xyz.x
         val = 0.0
         for i in range(index):
             for j in range(index):
@@ -331,8 +360,10 @@ def test_loop1():
 
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
+        data2: ("buffer", 1, Array(f32)),
     ):
+        index = index_xyz.x
         val = 0.0
         for i in range(index):
             val = val + 1.0
@@ -348,8 +379,10 @@ def test_loop2():
 
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
+        data2: ("buffer", 1, Array(f32)),
     ):
+        index = index_xyz.x
         val = 0.0
         for i in range(index):
             val = val + (1.0 if i < 5 else 2.0)
@@ -366,8 +399,10 @@ def test_loop3():
 
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
+        data2: ("buffer", 1, Array(f32)),
     ):
+        index = index_xyz.x
         val = 0.0
         for i in range(index):
             if i < 5:
@@ -386,8 +421,10 @@ def test_loop4():
 
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
+        data2: ("buffer", 1, Array(f32)),
     ):
+        index = index_xyz.x
         val = 0.0
         for i in range(index):
             for j in range(3):
@@ -409,8 +446,10 @@ def test_loop5():
 
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
+        data2: ("buffer", 1, Array(f32)),
     ):
+        index = index_xyz.x
         val = 0.0
         for i in range(index):
             if i == 7:
@@ -428,8 +467,10 @@ def test_loop6():
 
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
+        data2: ("buffer", 1, Array(f32)),
     ):
+        index = index_xyz.x
         val = 0.0
         for i in range(index):
             if index == 4:
@@ -449,8 +490,10 @@ def test_loop7():
 
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
+        data2: ("buffer", 1, Array(f32)),
     ):
+        index = index_xyz.x
         val = 0.0
         for i in range(3, index):
             val = val + 1.0
@@ -466,8 +509,10 @@ def test_loop8():
 
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
+        data2: ("buffer", 1, Array(f32)),
     ):
+        index = index_xyz.x
         val = 0.0
         for i in range(3, index, 2):
             val = val + 1.0
@@ -483,8 +528,10 @@ def test_while1():
 
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
+        data2: ("buffer", 1, Array(f32)),
     ):
+        index = index_xyz.x
         val = 0.0
         while val < f32(index):
             val = val + 2.0
@@ -500,8 +547,10 @@ def test_while2():
 
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
+        data2: ("buffer", 1, Array(f32)),
     ):
+        index = index_xyz.x
         val = 0.0
         i = -1
         while i < index - 1:
@@ -524,8 +573,10 @@ def test_while3():
 
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
+        data2: ("buffer", 1, Array(f32)),
     ):
+        index = index_xyz.x
         val = 0.0
         i = -1
         while True:
@@ -548,8 +599,10 @@ def test_while4():
 
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
+        data2: ("buffer", 1, Array(f32)),
     ):
+        index = index_xyz.x
         val = 0.0
         i = -1
         while True:
@@ -573,8 +626,10 @@ def test_while5():
 
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
+        data2: ("buffer", 1, Array(f32)),
     ):
+        index = index_xyz.x
         val = 0.0
         while val < f32(index):
             i = 0
@@ -593,8 +648,10 @@ def test_while6():
 
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
+        data2: ("buffer", 1, Array(f32)),
     ):
+        index = index_xyz.x
         val = 0.0
         while True:
             if val == 999.0:
@@ -640,8 +697,11 @@ def test_long_bytecode():
     # avoid regressions like issue #42
     @python2shader_and_validate
     def compute_shader(
-        index=("input", "GlobalInvocationId", i32), data2=("buffer", 1, Array(f32)),
+        index_xyz=("input", "GlobalInvocationId", ivec3),
+        data2=("buffer", 1, Array(f32)),
     ):
+        index = index_xyz.x
+        index = index_xyz.x
         if index < 2:
             a = 3 + 4
             b = a + 5
@@ -692,36 +752,36 @@ def skip_if_no_wgpu():
 
 
 HASHES = {
-    "test_if1.compute_shader": ("e580648acc6e6d93", "444301bc2ad5a562"),
-    "test_if2.compute_shader": ("b5c96a1479de4f42", "be67bfe56d4bd186"),
-    "test_if3.compute_shader": ("b550d1e4e0696d67", "1602b1fd09d80315"),
-    "test_if4.compute_shader": ("415d4b87aaf3bd22", "b244f9c461ca74cc"),
-    "test_if5.compute_shader": ("c541d7e5d2a31ae4", "5cc4b9e78322dddb"),
-    "test_ternary1.compute_shader": ("71489b4284d415d0", "52b36c2967d39e33"),
-    "test_ternary2.compute_shader": ("4b3dd69ab5db7735", "22f4560ea20f535d"),
-    "test_ternary3.compute_shader": ("1f283449fc009a18", "43a023822ab30ddb"),
-    "test_andor2.compute_shader": ("680170a3a773c54f", "fdae71bed842c7a6"),
-    "test_andor3.compute_shader": ("4a878dce1270af67", "49da23fd4aad4351"),
-    "test_andor4.compute_shader": ("78cc57a4cbd34954", "dffe0c66be42e167"),
-    "test_andor5.compute_shader": ("dce7ebfbad0c2bf8", "91d16d56490da2cb"),
-    "test_loop0.compute_shader": ("9d5afc0570dfa6d5", "5accc604ad949a5f"),
-    "test_loop0b.compute_shader": ("d218aa87e64fc8a7", "862d5c16a4d22eaf"),
-    "test_loop1.compute_shader": ("14612e882f6f9834", "4c07828ae17c18a6"),
-    "test_loop2.compute_shader": ("93ba6d1251eb823d", "08b2468dd256749c"),
-    "test_loop3.compute_shader": ("2d849f9d772d861f", "6452ff53c22dbd24"),
-    "test_loop4.compute_shader": ("3151fa7a52980b9a", "5ff0378d379f06e5"),
-    "test_loop5.compute_shader": ("37aefa906f824631", "d1992c9645a58b68"),
-    "test_loop6.compute_shader": ("8d20de4d3f4b5b33", "1bd0bc0a07cd7df1"),
-    "test_loop7.compute_shader": ("d6bd715f582db309", "213bfee84b223af1"),
-    "test_loop8.compute_shader": ("0b0b746d9d5fae20", "50320b673984efc7"),
-    "test_while1.compute_shader": ("7b7aaa3164eab8c5", "2cc84087adda09ef"),
-    "test_while2.compute_shader": ("94be5b6299da9855", "45cf0246564b957d"),
-    "test_while3.compute_shader": ("f3f0f7099a9edf9b", "e4efcf3e8cb84583"),
-    "test_while4.compute_shader": ("c555169a4649736f", "01e2da459a57d6dd"),
-    "test_while5.compute_shader": ("5f4ce5e00ffe6fb4", "33c2ad719f682250"),
-    "test_while6.compute_shader": ("bf0b39432c31e8a5", "29fb9a1766952a24"),
+    "test_if1.compute_shader": ("44cc15f3c229ee9d", "4971056442fb9a68"),
+    "test_if2.compute_shader": ("86d2f7c7a4c935c9", "858a2bc4f4408f60"),
+    "test_if3.compute_shader": ("1c609db87eca2be8", "13ca28eb20a9d456"),
+    "test_if4.compute_shader": ("7060b1753954d22c", "9d7e1eb80e301078"),
+    "test_if5.compute_shader": ("6a3ea81e2cd64956", "d2c71919ede968a8"),
+    "test_ternary1.compute_shader": ("156d28e5c4be6937", "e03a2f52c678fa3f"),
+    "test_ternary2.compute_shader": ("d67ec1d6cd093ed4", "f16ca56d73f38490"),
+    "test_ternary3.compute_shader": ("294814555a495b47", "4cba3bc35268ba95"),
+    "test_andor2.compute_shader": ("bb12e8e8d9b084b8", "2d683cd2f6da60c7"),
+    "test_andor3.compute_shader": ("0fd3a5e9e644355f", "dc48fd454561970a"),
+    "test_andor4.compute_shader": ("ec64940aa329c636", "6f296d134bdd0b63"),
+    "test_andor5.compute_shader": ("e277b50c2abacd77", "f28680efb6757c70"),
+    "test_loop0.compute_shader": ("7040fa4ca4f315d6", "1c743077aa2a5a8f"),
+    "test_loop0b.compute_shader": ("686a4296cbe258f0", "834c6cc4029014c7"),
+    "test_loop1.compute_shader": ("35952fcf52dd20f0", "2667e6e9f37db5e6"),
+    "test_loop2.compute_shader": ("ff995fa6c94115a2", "070563816faae8b7"),
+    "test_loop3.compute_shader": ("805d244ecbec89a3", "75781a34c2bbc553"),
+    "test_loop4.compute_shader": ("7d5d1636c3089f12", "44ce81e26f6890b4"),
+    "test_loop5.compute_shader": ("e440f9ea91fe58b0", "da12ef07935411b2"),
+    "test_loop6.compute_shader": ("0b3ab9bf77604e59", "9c585b01c6a4653a"),
+    "test_loop7.compute_shader": ("40e2d0c552374106", "5f620b2d5e2321c8"),
+    "test_loop8.compute_shader": ("1a738fac4a40cba8", "04e56ca8aef6b7d9"),
+    "test_while1.compute_shader": ("a2f299b8d41c44ec", "0d575ae87d655ab7"),
+    "test_while2.compute_shader": ("af3144327a1feedb", "cb2a37349e54708b"),
+    "test_while3.compute_shader": ("c21d6893f2bf240f", "8f904041153f62df"),
+    "test_while4.compute_shader": ("aff8b8bea6131cdf", "d982c5186e6a46f1"),
+    "test_while5.compute_shader": ("6ee5853ff8c9085f", "2c789a7e4f2f500c"),
+    "test_while6.compute_shader": ("dbf187d5ab4ff2f6", "b3216cf798b51142"),
     "test_discard.fragment_shader": ("bbdaa8848a180860", "6d3182b0b5189d45"),
-    "test_long_bytecode.compute_shader": ("0126f7716c3d09aa", "ebc7053afd7824d7"),
+    "test_long_bytecode.compute_shader": ("eee860ae6f0f3ba4", "d7550335b9185aa8"),
 }
 
 

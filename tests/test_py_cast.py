@@ -20,11 +20,12 @@ from testutils import validate_module, run_test_and_print_new_hashes
 def test_cast_i32_f32():
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", "i32"),
+        index: ("input", "GlobalInvocationId", "ivec3"),
         data1: ("buffer", 0, "Array(i32)"),
         data2: ("buffer", 1, "Array(f32)"),
     ):
-        data2[index] = f32(data1[index])
+        i = index.x
+        data2[i] = f32(data1[i])
 
     skip_if_no_wgpu()
 
@@ -39,11 +40,12 @@ def test_cast_i32_f32():
 def test_cast_u8_f32():
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32),
+        index: ("input", "GlobalInvocationId", ivec3),
         data1: ("buffer", 0, Array(u8)),
         data2: ("buffer", 1, Array(f32)),
     ):
-        data2[index] = f32(data1[index])
+        i = index.x
+        data2[i] = f32(data1[i])
 
     skip_if_no_wgpu()
 
@@ -58,11 +60,12 @@ def test_cast_u8_f32():
 def test_cast_f32_i32():
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32),
+        index: ("input", "GlobalInvocationId", ivec3),
         data1: ("buffer", 0, Array(f32)),
         data2: ("buffer", 1, Array(i32)),
     ):
-        data2[index] = i32(data1[index])
+        i = index.x
+        data2[i] = i32(data1[i])
 
     skip_if_no_wgpu()
 
@@ -75,11 +78,12 @@ def test_cast_f32_i32():
 def test_cast_f32_f32():
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32),
+        index: ("input", "GlobalInvocationId", ivec3),
         data1: ("buffer", 0, Array(f32)),
         data2: ("buffer", 1, Array(f32)),
     ):
-        data2[index] = f32(data1[index])
+        i = index.x
+        data2[i] = f32(data1[i])
 
     skip_if_no_wgpu()
 
@@ -92,11 +96,12 @@ def test_cast_f32_f32():
 def test_cast_f32_f64():
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32),
+        index: ("input", "GlobalInvocationId", ivec3),
         data1: ("buffer", 0, Array(f32)),
         data2: ("buffer", 1, Array(f64)),
     ):
-        data2[index] = f64(data1[index])
+        i = index.x
+        data2[i] = f64(data1[i])
 
     skip_if_no_wgpu()
 
@@ -109,11 +114,12 @@ def test_cast_f32_f64():
 def test_cast_i64_i16():
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32),
+        index: ("input", "GlobalInvocationId", ivec3),
         data1: ("buffer", 0, Array(i64)),
         data2: ("buffer", 1, Array(i16)),
     ):
-        data2[index] = i16(data1[index])
+        i = index.x
+        data2[i] = i16(data1[i])
 
     skip_if_no_wgpu()
 
@@ -129,11 +135,12 @@ def test_cast_i64_i16():
 def test_cast_i16_u8():
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32),
+        index: ("input", "GlobalInvocationId", ivec3),
         data1: ("buffer", 0, Array(i16)),
         data2: ("buffer", 1, Array(u8)),
     ):
-        data2[index] = u8(data1[index])
+        i = index.x
+        data2[i] = u8(data1[i])
 
     skip_if_no_wgpu()
 
@@ -150,11 +157,12 @@ def test_cast_vec_ivec2_vec2():
     # This triggers the direct number-vector conversion
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32),
+        index: ("input", "GlobalInvocationId", ivec3),
         data1: ("buffer", 0, Array(ivec2)),
         data2: ("buffer", 1, Array(vec2)),
     ):
-        data2[index] = vec2(data1[index])
+        i = index.x
+        data2[i] = vec2(data1[i])
 
     skip_if_no_wgpu()
 
@@ -170,9 +178,10 @@ def test_cast_vec_any_vec4():
     # Look how all args in a vector are converted :)
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(vec4)),
+        index: ("input", "GlobalInvocationId", ivec3),
+        data2: ("buffer", 1, Array(vec4)),
     ):
-        data2[index] = vec4(7.0, 3, ivec2(False, 2.7))
+        data2[index.x] = vec4(7.0, 3, ivec2(False, 2.7))
 
     skip_if_no_wgpu()
 
@@ -194,11 +203,12 @@ def test_cast_vec_ivec3_vec3():
     # not satisfying alignment to 16
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32),
+        index: ("input", "GlobalInvocationId", ivec3),
         data1: ("buffer", 0, Array(ivec3)),
         data2: ("buffer", 1, Array(vec3)),
     ):
-        data2[index] = vec3(data1[index])
+        i = index.x
+        data2[i] = vec3(data1[i])
 
     skip_if_no_wgpu()
 
@@ -220,12 +230,13 @@ def test_cast_ivec2_bvec2():
     # This triggers the per-element vector conversion
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32),
+        index: ("input", "GlobalInvocationId", ivec3),
         data1: ("buffer", 0, Array(ivec2)),
         data2: ("buffer", 1, Array(ivec2)),
     ):
-        tmp = bvec2(data1[index])
-        data2[index] = ivec2(tmp)  # ext visible storage cannot be bool
+        i = index.x
+        tmp = bvec2(data1[i])
+        data2[i] = ivec2(tmp)  # ext visible storage cannot be bool
 
     skip_if_no_wgpu()
 
@@ -242,12 +253,13 @@ def test_abstract_types():
     # This triggers the per-element vector conversion
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32),
+        index: ("input", "GlobalInvocationId", ivec3),
         data1: ("buffer", 0, Array(ivec2)),
         data2: ("buffer", 1, Array(vec2)),
     ):
-        a = data1[index]
-        data2[index] = Vector(2, f32)(a)
+        i = index.x
+        a = data1[i]
+        data2[i] = Vector(2, f32)(a)
 
     skip_if_no_wgpu()
 
@@ -275,17 +287,17 @@ def skip_if_no_wgpu():
 
 
 HASHES = {
-    "test_cast_i32_f32.compute_shader": ("f27e143f69e3c639", "20e91bd9d21cb6bf"),
-    "test_cast_u8_f32.compute_shader": ("ce8c067f25b7f08e", "2ce12ab744e38128"),
-    "test_cast_f32_i32.compute_shader": ("eb0e056c35fdfe8a", "6a91d142f3d26455"),
-    "test_cast_f32_f32.compute_shader": ("cde5b6a2e2843093", "2c1f523bbd8b27db"),
-    "test_cast_f32_f64.compute_shader": ("af1ad9a7d4e30354", "e8002a174b37a3bd"),
-    "test_cast_i64_i16.compute_shader": ("10c505c2b17eacbd", "08bd815ef3f0a61d"),
-    "test_cast_i16_u8.compute_shader": ("6e8194a9404d6144", "fcf9cf35888a7853"),
-    "test_cast_vec_ivec2_vec2.compute_shader": ("bc7939af856f30b9", "77a7a6631214747e"),
-    "test_cast_vec_any_vec4.compute_shader": ("56f57a24e6f7b1f0", "8e0706970ef4b96d"),
-    "test_cast_ivec2_bvec2.compute_shader": ("5dde79b57409789e", "ae5234f16cde6ab0"),
-    "test_abstract_types.compute_shader": ("1f162c00b2a27ff3", "da14fa30609f3ae3"),
+    "test_cast_i32_f32.compute_shader": ("0f97715bd46e44f1", "3b0c6f178767a8cd"),
+    "test_cast_u8_f32.compute_shader": ("db621633396816ab", "3e3dc34627aaadb0"),
+    "test_cast_f32_i32.compute_shader": ("9e5240879e527c42", "1b46c9c18b1db5e2"),
+    "test_cast_f32_f32.compute_shader": ("3e9af418d6a59b2f", "c2fa66c20a9d8611"),
+    "test_cast_f32_f64.compute_shader": ("ffdd61ca192a6af2", "1ac03ec3f7570676"),
+    "test_cast_i64_i16.compute_shader": ("820ac5faf4b9ef5c", "a00193423c6f7b75"),
+    "test_cast_i16_u8.compute_shader": ("5160ad257f473715", "7a60c84c49da3d29"),
+    "test_cast_vec_ivec2_vec2.compute_shader": ("faaf97ec5191ff47", "cba7c8b531b02618"),
+    "test_cast_vec_any_vec4.compute_shader": ("663a0a466eefd578", "be9371f5e0173df4"),
+    "test_cast_ivec2_bvec2.compute_shader": ("f97e8c25daf81ba2", "a15c1cd87f9eccba"),
+    "test_abstract_types.compute_shader": ("4573e2bdbc07a59a", "b9d922b0b9cfcecf"),
 }
 
 if __name__ == "__main__":

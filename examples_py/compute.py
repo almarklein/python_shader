@@ -8,21 +8,23 @@ from pyshader import python2shader, i32, f32, ivec3, Array
 
 @python2shader
 def compute_shader_copy(
-    index: ("input", "GlobalInvocationId", i32),
+    index: ("input", "GlobalInvocationId", ivec3),
     data1: ("buffer", 0, Array(i32)),
     data2: ("buffer", 1, Array(i32)),
 ):
-    data2[index] = data1[index]
+    i = index.x
+    data2[i] = data1[i]
 
 
 @python2shader
 def compute_shader_multiply(
-    index: ("input", "GlobalInvocationId", i32),
+    index: ("input", "GlobalInvocationId", ivec3),
     data1: ("buffer", 0, Array(i32)),
     data2: ("buffer", 1, Array(f32)),
     data3: ("buffer", 2, Array(f32)),
 ):
-    data3[index] = f32(data1[index]) * data2[index]
+    i = index.x
+    data3[i] = f32(data1[i]) * data2[i]
 
 
 @python2shader

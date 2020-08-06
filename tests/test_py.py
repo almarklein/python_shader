@@ -69,20 +69,20 @@ def test_no_duplicate_constants():
 def test_compute_shader():
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32),
+        index: ("input", "GlobalInvocationId", ivec3),
         data1: ("buffer", 0, Array(i32)),
         data2: ("buffer", 1, Array(i32)),
     ):
-        data2[index] = data1[index]
+        data2[index.x] = data1[index.x]
 
 
 def test_cannot_assign_same_slot():
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32),
+        index: ("input", "GlobalInvocationId", ivec3),
         data1: ("buffer", 0, Array(i32)),
         data2: ("buffer", 0, Array(i32)),
     ):
-        data2[index] = data1[index]
+        data2[index.x] = data1[index.x]
 
     with raises(pyshader.ShaderError) as err:
         pyshader.python2shader(compute_shader).to_spirv()
@@ -147,10 +147,10 @@ def test_tuple_unpacking():
     # store ops in the bytecode itself, and seems to even ditch unused variables.
     @python2shader_and_validate_nobc
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32),
+        index: ("input", "GlobalInvocationId", ivec3),
         data2: ("buffer", 1, "Array(vec2)"),
     ):
-        i = f32(index)
+        i = f32(index.x)
         a, b = 1.0, 2.0  # Cover Python storing this as a tuple const
         c, d = a + i, b + 1.0
         c, d = d, c
@@ -160,7 +160,7 @@ def test_tuple_unpacking():
         c, d, _ = c, d, 0.0  # 3-tuple
         c, d, _, _ = c, d, 0.0, 0.0  # 4-tuple
         c, d, _, _, _ = c, d, 0.0, 0.0, 0.0  # 5-tuple
-        data2[index] = vec2(c, d)
+        data2[index.x] = vec2(c, d)
 
     skip_if_no_wgpu()
 
@@ -265,12 +265,12 @@ HASHES = {
     "test_null_shader.vertex_shader": ("bc099a07b86d70f2", "a48ffae9d0f09a5c"),
     "test_triangle_shader.vertex_shader": ("000514d8367ef0fa", "53d4b596bc25b5a0"),
     "test_triangle_shader.fragment_shader": ("6da8c966525c9c7f", "6febd7dab6d72c8d"),
-    "test_compute_shader.compute_shader": ("7b03b3564a72be3c", "2e48d89fc164c79b"),
+    "test_compute_shader.compute_shader": ("7cf577981390626b", "47d2f371faa48ed0"),
     "test_texture_2d_f32.fragment_shader": ("564804a234e76fe1", "2fe982d3e5542180"),
     "test_texture_1d_i32.fragment_shader": ("0c1ad1a8f909c442", "7f4ad10ae75030fa"),
     "test_texture_3d_r16i.fragment_shader": ("f1069cfd9c74fa1d", "14f0b7e61c2ea4dc"),
     "test_texcomp_2d_rg32i.compute_shader": ("7dbaa7fe613cf33d", "609468500982bfbd"),
-    "test_tuple_unpacking.compute_shader": ("8ae5274a8ed79b8f", "41c7e5016c8686ed"),
+    "test_tuple_unpacking.compute_shader": ("d48f10f99c448f65", "4158f1eb0a23c9d6"),
 }
 
 

@@ -11,7 +11,7 @@ import ctypes
 
 import pyshader
 
-from pyshader import f32, i32, vec2, vec4, Array  # noqa
+from pyshader import f32, i32, ivec3, vec2, vec4, Array  # noqa
 
 import wgpu.backends.rs  # noqa
 from wgpu.utils import compute_with_buffers
@@ -30,10 +30,11 @@ THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 def test_add_sub1():
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
         data1: ("buffer", 0, Array(f32)),
         data2: ("buffer", 1, Array(vec2)),
     ):
+        index = index_xyz.x
         a = data1[index]
         data2[index] = vec2(a + 1.0, a - 1.0)
 
@@ -53,10 +54,11 @@ def test_add_sub1():
 def test_add_sub2():
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
         data1: ("buffer", 0, Array(f32)),
         data2: ("buffer", 1, Array(vec2)),
     ):
+        index = index_xyz.x
         a = data1[index]
         data2[index] = vec2(a + 1.0, a - 1.0) + 20.0
 
@@ -76,10 +78,11 @@ def test_add_sub2():
 def test_add_sub3():
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
         data1: ("buffer", 0, Array(f32)),
         data2: ("buffer", 1, Array(vec2)),
     ):
+        index = index_xyz.x
         a = data1[index]
         a -= -1.0
         b = vec2(a, a)
@@ -102,10 +105,11 @@ def test_add_sub3():
 def test_mul_div1():
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
         data1: ("buffer", 0, Array(f32)),
         data2: ("buffer", 1, Array(vec2)),
     ):
+        index = index_xyz.x
         a = data1[index]
         data2[index] = vec2(a * 2.0, a / 2.0)
 
@@ -125,10 +129,11 @@ def test_mul_div1():
 def test_mul_div2():
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
         data1: ("buffer", 0, Array(f32)),
         data2: ("buffer", 1, Array(vec2)),
     ):
+        index = index_xyz.x
         a = data1[index]
         data2[index] = 2.0 * vec2(a * 2.0, a / 2.0) * 3.0
 
@@ -148,10 +153,11 @@ def test_mul_div2():
 def test_mul_div3():
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
         data1: ("buffer", 0, Array(f32)),
         data2: ("buffer", 1, Array(vec2)),
     ):
+        index = index_xyz.x
         a = data1[index]
         a /= -1.0
         b = vec2(a, a)
@@ -174,10 +180,11 @@ def test_mul_div3():
 def test_mul_dot():
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
         data1: ("buffer", 0, Array(f32)),
         data2: ("buffer", 1, Array(f32)),
     ):
+        index = index_xyz.x
         a = vec2(data1[index], data1[index])
         data2[index] = a @ a
 
@@ -196,10 +203,11 @@ def test_mul_dot():
 def test_integer_div():
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
         data1: ("buffer", 0, Array(i32)),
         data2: ("buffer", 1, Array(i32)),
     ):
+        index = index_xyz.x
         a = data1[index]
         data2[index] = 12 // a
 
@@ -223,10 +231,11 @@ def test_mul_modulo():
     # the SpirV code matches that (fmod and frem).
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
         data1: ("buffer", 0, Array(vec2)),
         data2: ("buffer", 1, Array(vec2)),
     ):
+        index = index_xyz.x
         a = data1[index]
         data2[index] = vec2(a.x % a.y, math.fmod(a.x, a.y))
 
@@ -248,8 +257,10 @@ def test_mul_modulo():
 def test_math_constants():
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32), data2: ("buffer", 1, Array(f32)),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
+        data2: ("buffer", 1, Array(f32)),
     ):
+        index = index_xyz.x
         if index % 2 == 0:
             data2[index] = math.pi
         else:
@@ -272,10 +283,11 @@ def test_pow():
     # note hat a**2 is converted to a*a and a**0.5 to sqrt(a)
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
         data1: ("buffer", 0, Array(f32)),
         data2: ("buffer", 1, Array(vec4)),
     ):
+        index = index_xyz.x
         a = data1[index]
         data2[index] = vec4(a ** 2, a ** 0.5, a ** 3.0, a ** 3.1)
 
@@ -297,10 +309,11 @@ def test_pow():
 def test_sqrt():
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
         data1: ("buffer", 0, Array(f32)),
         data2: ("buffer", 1, Array(vec4)),
     ):
+        index = index_xyz.x
         a = data1[index]
         data2[index] = vec4(a ** 0.5, math.sqrt(a), stdlib.sqrt(a), 0.0)
 
@@ -322,10 +335,11 @@ def test_sqrt():
 def test_length():
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
         data1: ("buffer", 0, Array(vec2)),
         data2: ("buffer", 1, Array(f32)),
     ):
+        index = index_xyz.x
         data2[index] = length(data1[index])
 
     skip_if_no_wgpu()
@@ -344,10 +358,11 @@ def test_length():
 def test_normalize():
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
         data1: ("buffer", 0, Array(f32)),
         data2: ("buffer", 1, Array(vec2)),
     ):
+        index = index_xyz.x
         v = data1[index]
         data2[index] = normalize(vec2(v, v))
 
@@ -374,11 +389,12 @@ def test_normalize():
 def test_abs():
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
         data1: ("buffer", 0, Array(f32)),
         data2: ("buffer", 1, Array(i32)),
         data3: ("buffer", 2, Array(vec2)),
     ):
+        index = index_xyz.x
         v1 = abs(data1[index])  # float
         v2 = abs(data2[index])  # int
         data3[index] = vec2(f32(v1), v2)
@@ -400,11 +416,12 @@ def test_abs():
 def test_min_max_clamp():
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
         data1: ("buffer", 0, Array(vec4)),
         data2: ("buffer", 1, Array(vec4)),
         data3: ("buffer", 2, Array(vec4)),
     ):
+        index = index_xyz.x
         v = data1[index].x
         mi = data1[index].y
         ma = data1[index].z
@@ -442,10 +459,11 @@ def test_min_max_clamp():
 def test_mix():
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", i32),
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
         data1: ("buffer", 0, Array(vec4)),
         data2: ("buffer", 1, Array(vec4)),
     ):
+        index = index_xyz.x
         v = data1[index]
         v1 = mix(v.x, v.y, v.z)
         v2 = mix(vec2(v.x, v.x), vec2(v.y, v.y), v.z)
@@ -523,23 +541,23 @@ def skip_if_no_wgpu():
 
 
 HASHES = {
-    "test_add_sub1.compute_shader": ("f5f5e1f5d546615f", "28eb40c2d6fc4bae"),
-    "test_add_sub2.compute_shader": ("eac80cea3cae0305", "b869d9a18c6c1b0f"),
-    "test_add_sub3.compute_shader": ("ff8f23434e6d6879", "f86fb3117bc27a07"),
-    "test_mul_div1.compute_shader": ("15609b10642943d4", "7c507a2328783a5f"),
-    "test_mul_div2.compute_shader": ("f4c102543e3f0339", "65c31c651314e6d4"),
-    "test_mul_div3.compute_shader": ("3aec875ee04bc331", "c33955ab2704b4c3"),
-    "test_mul_dot.compute_shader": ("980e7c16fe94780e", "19197aeb7ba5d248"),
-    "test_integer_div.compute_shader": ("3e957da5a67c96a8", "c6f2e94c674cced8"),
-    "test_mul_modulo.compute_shader": ("28c42b8b719b94cf", "7be06aae36d734d5"),
-    "test_math_constants.compute_shader": ("425b33e1d60a6105", "364c1eefd753d2ca"),
-    "test_pow.compute_shader": ("c83ff35156e57f86", "1be3f8c02bb3bf88"),
-    "test_sqrt.compute_shader": ("ff0f19a5401a60d1", "b9893cebec2d359e"),
-    "test_length.compute_shader": ("bcb9fb5793f33610", "a02eded64ed47b19"),
-    "test_normalize.compute_shader": ("644816afceb0ec7f", "757e0ee7ec7447b0"),
-    "test_abs.compute_shader": ("09922efbd3b835a9", "5cbc8ca4c02d642f"),
-    "test_min_max_clamp.compute_shader": ("6e6d0773366ebc46", "efaffe7913b237a2"),
-    "test_mix.compute_shader": ("72a61c4e3964238f", "7cd066629c81ba50"),
+    "test_add_sub1.compute_shader": ("3bdf249b7e6ce45e", "190bd581995e808c"),
+    "test_add_sub2.compute_shader": ("10ea5a72af487b16", "17bfe20b20624d26"),
+    "test_add_sub3.compute_shader": ("4ff5bff237e0b96e", "2011cd551df2b6c6"),
+    "test_mul_div1.compute_shader": ("0e9854a92bac477d", "ec4d10e20af8e21d"),
+    "test_mul_div2.compute_shader": ("4ba1931590fd6fda", "c49d559d3dbed15c"),
+    "test_mul_div3.compute_shader": ("5c6f7c0981876429", "8efc0cc5a17395fd"),
+    "test_mul_dot.compute_shader": ("44f867303a729e3c", "e5323035a7b3836d"),
+    "test_integer_div.compute_shader": ("b05915cd4e656440", "54dd33a397291e15"),
+    "test_mul_modulo.compute_shader": ("b9624a1f133f3403", "b0c5d1abeb81374c"),
+    "test_math_constants.compute_shader": ("d6fdb0cbb1b08caa", "d88258cca2e92957"),
+    "test_pow.compute_shader": ("f1608be168bf2db5", "e7308be66567d988"),
+    "test_sqrt.compute_shader": ("90775b15ad4e929d", "56b1448fb7539aad"),
+    "test_length.compute_shader": ("144126e877d20255", "3804cc12ac090591"),
+    "test_normalize.compute_shader": ("c69eeb4188aa3768", "640b90123ad3bd11"),
+    "test_abs.compute_shader": ("eae3bf85343b08cf", "d0b2cc5f56c93193"),
+    "test_min_max_clamp.compute_shader": ("83386f293773bf56", "d6ec65081fb0c809"),
+    "test_mix.compute_shader": ("988bb1c094a9cbc5", "ee6250f503431a07"),
 }
 
 
