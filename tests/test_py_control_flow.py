@@ -680,7 +680,9 @@ def test_discard():
 
     # A fragment shader for drawing red dots
     @python2shader_and_validate
-    def fragment_shader(in_coord: ("input", "PointCoord", vec2),):
+    def fragment_shader(
+        in_coord: ("input", "PointCoord", vec2),
+    ):
         r2 = ((in_coord.x - 0.5) * 2.0) ** 2 + ((in_coord.y - 0.5) * 2.0) ** 2
         if r2 > 1.0:
             return  # discard

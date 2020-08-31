@@ -8,7 +8,7 @@ import subprocess
 
 
 def glsl2spirv(glsl_code, shader_type):
-    """ Compile GLSL to SpirV and return as bytes.
+    """Compile GLSL to SpirV and return as bytes.
 
     Note: needs glslc from the Vulkan SDK!
     """
@@ -44,7 +44,7 @@ def glsl2spirv(glsl_code, shader_type):
 
 
 def assemble(spirv_assembly_text):
-    """ Create a SPIR-V binary module from SPIR-V assembly text. This makes it
+    """Create a SPIR-V binary module from SPIR-V assembly text. This makes it
     possible to disassemble your SpirV module, tweak the assembly text and try
     with these changes. Also supports comments by starting a line with a "#".
 
@@ -80,7 +80,7 @@ def assemble(spirv_assembly_text):
 
 
 def disassemble(spirv):
-    """ Disassemble the generated binary code using spirv-dis, and return as a string.
+    """Disassemble the generated binary code using spirv-dis, and return as a string.
 
     Note: needs spirv-dis from spirv-tools or the Vulkan SDK!
     """
@@ -108,7 +108,7 @@ def disassemble(spirv):
 
 
 def validate(spirv):
-    """ Validate the generated binary code by running spirv-val. Raises an
+    """Validate the generated binary code by running spirv-val. Raises an
     errror if the SpirV was found to be invalid.
 
     Note: needs spirv-val from spirv-tools or the Vulkan SDK!

@@ -17,6 +17,7 @@ def vertex_shader(
 # A fragment shader that applies a uniform color to the mesh
 @python2shader
 def fragment_shader_flat(
-    color: ("uniform", (0, 1), vec3), out_color: ("output", 0, vec4),
+    color: ("uniform", (0, 1), vec3),
+    out_color: ("output", 0, vec4),
 ):
     out_color = vec4(color, 1.0)  # noqa

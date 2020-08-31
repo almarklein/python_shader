@@ -31,8 +31,7 @@ def str_to_words(s):
 
 
 class AnyId:
-    """ Anything that has an id in a SpirV module
-    """
+    """Anything that has an id in a SpirV module"""
 
     def __init__(self, name=""):
         self.name = name
@@ -62,8 +61,7 @@ class AnyId:
 
 
 class TypeId(AnyId):
-    """ A type in a SpirV module.
-    """
+    """A type in a SpirV module."""
 
     def __init__(self, type, name=""):
         super().__init__(name=name)
@@ -71,8 +69,7 @@ class TypeId(AnyId):
 
 
 class ValueId(AnyId):
-    """ Anything that represents a concrete value in a SpirV module.
-    """
+    """Anything that represents a concrete value in a SpirV module."""
 
     def __init__(self, type, name=""):
         super().__init__(name=name)
@@ -80,7 +77,7 @@ class ValueId(AnyId):
 
 
 class VariableAccessId(ValueId):
-    """ A chain of access into a SpirV variable. The type arg is the type
+    """A chain of access into a SpirV variable. The type arg is the type
     for the eventual value.
     """
 
@@ -91,8 +88,7 @@ class VariableAccessId(ValueId):
         self.indices = indices  # ValueId's
 
     def index(self, index, field=None):
-        """ Index into the variable chain, so we go one level deeper.
-        """
+        """Index into the variable chain, so we go one level deeper."""
         assert isinstance(index, ValueId)
         assert issubclass(index.type, _types.Int)
         indices = list(self.indices) + [index]
@@ -118,8 +114,7 @@ class VariableAccessId(ValueId):
             raise ShaderError(f"VariableAccessId cannot index into {self.type}")
 
     def resolve_chain(self, gen):
-        """ Generate OpAccessChain instruction and return pointer id object for result.
-        """
+        """Generate OpAccessChain instruction and return pointer id object for result."""
         if len(self.indices) == 0:
             return self.variable
         else:
@@ -139,16 +134,14 @@ class VariableAccessId(ValueId):
         return result_id
 
     def resolve_load(self, gen):
-        """ Generate OpAccessChain instruction followed by OpLoad and return result id.
-        """
+        """Generate OpAccessChain instruction followed by OpLoad and return result id."""
         temp_id = self.resolve_chain(gen)
         id, type_id = gen.obtain_value(self.type)
         gen.gen_func_instruction(cc.OpLoad, type_id, id, temp_id)
         return id
 
     def resolve_store(self, gen, val):
-        """ Generate OpAccessChain instruction followed by OpStore.
-        """
+        """Generate OpAccessChain instruction followed by OpStore."""
         temp_id = self.resolve_chain(gen)
         gen.gen_func_instruction(cc.OpStore, temp_id, val)
         return val
@@ -158,7 +151,7 @@ class VariableAccessId(ValueId):
 
 
 class WordPlaceholder:
-    """ Object that holds an integer value (or 4 bytes), which value
+    """Object that holds an integer value (or 4 bytes), which value
     can be changed as more of the code is parsed. This e.g. allows
     specifying types with knowledge that we encounter later in the
     program.
@@ -173,14 +166,14 @@ class WordPlaceholder:
 
 
 class BaseSpirVGenerator:
-    """ Base class that can be used by compiler implementations in the
+    """Base class that can be used by compiler implementations in the
     last compile step to generate the SpirV code. It has an internal
     representation of SpirV module and provides an API to generate
     instructions. This class it not aware of our bytecode representation.
     """
 
     def convert(self, input):
-        """ Generate the Spir-V code. After this, dump() can be used to
+        """Generate the Spir-V code. After this, dump() can be used to
         produce the binary blob that represents the Spir-V module.
         """
 
@@ -194,8 +187,7 @@ class BaseSpirVGenerator:
         self._post_convert()
 
     def _convert(self, input):
-        """ Subclasses should implement this.
-        """
+        """Subclasses should implement this."""
         raise NotImplementedError()  # noqa
 
     def _init(self):
@@ -240,7 +232,7 @@ class BaseSpirVGenerator:
         }
 
     def _post_convert(self):
-        """ After most of the generation has been done, we set the required capabilities
+        """After most of the generation has been done, we set the required capabilities
         and massage the order of instructions a bit.
         """
 
@@ -320,8 +312,7 @@ class BaseSpirVGenerator:
     # %% Utility for compiler
 
     def to_text(self):
-        """ Generate a textual (dis-assembly-like) representation.
-        """
+        """Generate a textual (dis-assembly-like) representation."""
 
         lines = []
         edge = 22
@@ -368,8 +359,7 @@ class BaseSpirVGenerator:
         return "\n".join(lines)
 
     def dump(self):
-        """ Generated a bytes object representing the Spir-V module.
-        """
+        """Generated a bytes object representing the Spir-V module."""
 
         f = io.BytesIO()
 
@@ -426,20 +416,18 @@ class BaseSpirVGenerator:
         self._sections["functions"].append((opcode, *words))
 
     def obtain_id(self, name=""):
-        """ Get a new raw id for anything that's not a value or type.
-        """
+        """Get a new raw id for anything that's not a value or type."""
         return AnyId(name=name)
 
     def obtain_value(self, the_type, name=""):
-        """ Create id for a new value. Returns (value_id, type_id).
-        """
+        """Create id for a new value. Returns (value_id, type_id)."""
         type_id = self.obtain_type_id(the_type)
         value_id = ValueId(the_type)
         return value_id, type_id
         # todo: return only value, and support value.type_id?
 
     def obtain_constant(self, value, the_type=None):
-        """ Get the id object for the constant of given value.
+        """Get the id object for the constant of given value.
         Existing constants are re-used.
         """
         # First derive SpirV type from value
@@ -472,7 +460,7 @@ class BaseSpirVGenerator:
         return self._constants[key]
 
     def obtain_variable(self, the_type, storage_class, name=""):
-        """ Create a variable in the current scope. Generates an OpVariable
+        """Create a variable in the current scope. Generates an OpVariable
         definition instruction and returns a VariableAccessId to access it.
         """
         # Create id and type_id
@@ -493,7 +481,7 @@ class BaseSpirVGenerator:
         return VariableAccessId(var_id, storage_class, the_type, name=name)
 
     def obtain_type_id(self, the_type):
-        """ Get the id for the given type. Generates a type
+        """Get the id for the given type. Generates a type
         definition instruction as needed.
         """
         if isinstance(the_type, tuple):
@@ -598,7 +586,7 @@ class BaseSpirVGenerator:
         return type_id
 
     def obtain_extended_instruction_set(self, set_name):
-        """ Obtain the extended instruction set object by the instruction set name.
+        """Obtain the extended instruction set object by the instruction set name.
         The used instruction sets are defined near the top of the SpirV file. The
         resulting id is used in OpExtInst instructions.
         """

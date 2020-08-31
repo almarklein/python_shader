@@ -51,7 +51,8 @@ def test_triangle_shader():
 
     @python2shader_and_validate
     def fragment_shader(
-        in_color: ("input", 0, vec3), out_color: ("output", 0, vec4),
+        in_color: ("input", 0, vec3),
+        out_color: ("output", 0, vec4),
     ):
         out_color = vec4(in_color, 1.0)  # noqa
 
@@ -134,7 +135,8 @@ def test_texcomp_2d_rg32i():
 
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", ivec3), tex: ("texture", 0, "2d rg32i"),
+        index: ("input", "GlobalInvocationId", ivec3),
+        tex: ("texture", 0, "2d rg32i"),
     ):
         color = tex.read(index.xy)
         color = ivec4(color.x + 1, color.y + 2, color.z + 3, color.a + 4)
@@ -175,7 +177,9 @@ def test_tuple_unpacking():
 
 
 def test_fail_unvalid_names():
-    def compute_shader(index: ("input", "GlobalInvocationId", ivec3),):
+    def compute_shader(
+        index: ("input", "GlobalInvocationId", ivec3),
+    ):
         color = foo  # noqa
 
     with raises(pyshader.ShaderError):
@@ -183,7 +187,9 @@ def test_fail_unvalid_names():
 
 
 def test_fail_unvalid_stlib_name():
-    def compute_shader(index: ("input", "GlobalInvocationId", ivec3),):
+    def compute_shader(
+        index: ("input", "GlobalInvocationId", ivec3),
+    ):
         color = stdlib.foo  # noqa
 
     with raises(pyshader.ShaderError):
@@ -191,7 +197,9 @@ def test_fail_unvalid_stlib_name():
 
 
 def test_cannot_use_unresolved_globals():
-    def compute_shader(index: ("input", "GlobalInvocationId", ivec3),):
+    def compute_shader(
+        index: ("input", "GlobalInvocationId", ivec3),
+    ):
         color = stdlib + 1.0  # noqa
 
     with raises(pyshader.ShaderError):
@@ -200,13 +208,15 @@ def test_cannot_use_unresolved_globals():
 
 def test_cannot_call_non_funcs():
     def compute_shader1(
-        index: ("input", "GlobalInvocationId", ivec3), tex: ("texture", 0, "2d rg32i"),
+        index: ("input", "GlobalInvocationId", ivec3),
+        tex: ("texture", 0, "2d rg32i"),
     ):
         a = 1.0
         a(1.0)
 
     def compute_shader2(
-        index: ("input", "GlobalInvocationId", ivec3), tex: ("texture", 0, "2d rg32i"),
+        index: ("input", "GlobalInvocationId", ivec3),
+        tex: ("texture", 0, "2d rg32i"),
     ):
         a = 1.0()  # noqa
 
@@ -217,15 +227,21 @@ def test_cannot_call_non_funcs():
 
 
 def test_cannot_use_tuples_in_other_ways():
-    def compute_shader1(index: ("input", "GlobalInvocationId", ivec3),):
+    def compute_shader1(
+        index: ("input", "GlobalInvocationId", ivec3),
+    ):
         v = 3.0, 4.0  # noqa
 
-    def compute_shader2(index: ("input", "GlobalInvocationId", ivec3),):
+    def compute_shader2(
+        index: ("input", "GlobalInvocationId", ivec3),
+    ):
         a = 3.0
         b = 4.0
         v = a, b  # noqa
 
-    def compute_shader3(index: ("input", "GlobalInvocationId", ivec3),):
+    def compute_shader3(
+        index: ("input", "GlobalInvocationId", ivec3),
+    ):
         v = vec2(3.0, 4.0)
         a, b = v
 

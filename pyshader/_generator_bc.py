@@ -40,15 +40,14 @@ image_formats_that_need_no_ext = {
 
 
 class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
-    """ A generator that operates on our own well-defined bytecode.
+    """A generator that operates on our own well-defined bytecode.
 
     In essence, this class implements BaseSpirVGenerator by implementing
     the opcode methods of OpCodeDefinitions.
     """
 
     def show_bytecode(self):
-        """ For debugging purposes.
-        """
+        """For debugging purposes."""
         for x in self._bytecode:
             print(x)
 
@@ -247,7 +246,11 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             vec_sample_type = _types.Vector(4, tex.sample_type)
             result_id, type_id = self.obtain_value(vec_sample_type)
             self.gen_func_instruction(
-                cc.OpImageRead, type_id, result_id, tex, coord,
+                cc.OpImageRead,
+                type_id,
+                result_id,
+                tex,
+                coord,
             )
             self._stack.append(result_id)
         elif funcname in ("imageStore", "write"):
@@ -657,30 +660,47 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
                 iodict[subname] = var_access.index(index_id, i)
 
     def _annotate_uniform_subtype(self, type_id, subtype, i, offset):
-        """ Annotates the given uniform struct subtype and return its size in bytes.
-        """
+        """Annotates the given uniform struct subtype and return its size in bytes."""
         a = "annotations"
         if issubclass(subtype, _types.Matrix):
             # Stride for col or row depending on what is major
             stride = subtype.rows * ctypes.sizeof(subtype.subtype._ctype)
             self.gen_instruction(
-                "annotations", cc.OpMemberDecorate, type_id, i, cc.Decoration_ColMajor,
+                "annotations",
+                cc.OpMemberDecorate,
+                type_id,
+                i,
+                cc.Decoration_ColMajor,
             )
             self.gen_instruction(
-                a, cc.OpMemberDecorate, type_id, i, cc.Decoration_MatrixStride, stride,
+                a,
+                cc.OpMemberDecorate,
+                type_id,
+                i,
+                cc.Decoration_MatrixStride,
+                stride,
             )
             self.gen_instruction(
-                a, cc.OpMemberDecorate, type_id, i, cc.Decoration_Offset, offset,
+                a,
+                cc.OpMemberDecorate,
+                type_id,
+                i,
+                cc.Decoration_Offset,
+                offset,
             )
         else:
             self.gen_instruction(
-                a, cc.OpMemberDecorate, type_id, i, cc.Decoration_Offset, offset,
+                a,
+                cc.OpMemberDecorate,
+                type_id,
+                i,
+                cc.Decoration_Offset,
+                offset,
             )
         return ctypes.sizeof(subtype._as_ctype())
 
     def get_texture_sampler(self, texture, sampler):
-        """ texture and sampler are bot VariableAccessId.
-        """
+        """texture and sampler are bot VariableAccessId."""
         key = (id(texture), id(sampler))
         if key not in self._texture_samplers:
             tex_type_id = self.obtain_type_id(texture.type)
@@ -1377,7 +1397,10 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             self.gen_func_instruction(cc.OpSelectionMerge, merge_label, 0)
         # Generate the branch instruction
         self.gen_func_instruction(
-            cc.OpBranchConditional, condition, branch1_label, branch2_label,
+            cc.OpBranchConditional,
+            condition,
+            branch1_label,
+            branch2_label,
         )
 
     def co_branch_loop(self, iter_label, continue_label, merge_label):

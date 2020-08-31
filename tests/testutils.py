@@ -9,8 +9,7 @@ import pyshader
 
 
 def iters_equal(iter1, iter2):
-    """ Assert that the given iterators are equal.
-    """
+    """Assert that the given iterators are equal."""
     iter1, iter2 = list(iter1), list(iter2)
     if len(iter1) != len(iter2):
         return False
@@ -20,8 +19,7 @@ def iters_equal(iter1, iter2):
 
 
 def iters_close(iter1, iter2):
-    """ Assert that the given iterators are near-equal.
-    """
+    """Assert that the given iterators are near-equal."""
     iter1, iter2 = list(iter1), list(iter2)
     if len(iter1) != len(iter2):
         return False
@@ -37,8 +35,7 @@ def iters_close(iter1, iter2):
 
 
 def validate_module(shader_module, hashes, check_bytecode=True):
-    """ Validate the given shader module against the given hashes.
-    """
+    """Validate the given shader module against the given hashes."""
 
     func = shader_module.input
     assert callable(func)
@@ -87,7 +84,7 @@ def validate_module(shader_module, hashes, check_bytecode=True):
 
 
 def run_test_and_print_new_hashes(ns):
-    """ Run all tests in th given namespace (e.g. globals()), and print
+    """Run all tests in th given namespace (e.g. globals()), and print
     the new hashes. This will force validate_module() to validate the
     SpirV code.
     """
@@ -148,7 +145,11 @@ def _determine_can_use_wgpu_lib():
     code = "import wgpu.utils; wgpu.utils.get_default_device()"
     try:
         subprocess.check_output(
-            [sys.executable, "-c", code,]
+            [
+                sys.executable,
+                "-c",
+                code,
+            ]
         )
     except Exception:
         return False

@@ -39,7 +39,7 @@ meta_model = metamodel_from_str(grammar, classes=[])
 
 
 def wasl2shader(code, shader_type=None):
-    """ Compile WASL code to a ShaderModule object.
+    """Compile WASL code to a ShaderModule object.
 
     WASL is our own defined domain specific language (DSL) to write shaders.
     It is highly experimental. The code is parsed using textx, the resulting
@@ -58,8 +58,7 @@ def wasl2shader(code, shader_type=None):
 
 
 class Wasl2Bytecode:
-    """ Compile WASL AST to bytecode.
-    """
+    """Compile WASL AST to bytecode."""
 
     def convert(self, ast):
         self._opcodes = []

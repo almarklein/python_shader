@@ -20,6 +20,7 @@ def vertex_shader(
 
 @python2shader
 def fragment_shader(
-    color=("input", 0, vec3), out_color=("output", 0, vec4),
+    color=("input", 0, vec3),
+    out_color=("output", 0, vec4),
 ):
     out_color = vec4(color, 1.0)  # noqa

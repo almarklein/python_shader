@@ -15,7 +15,7 @@ EXTENDED_ARG = dis.opmap["EXTENDED_ARG"]
 
 
 def python2shader(func):
-    """ Convert a Python function to a ShaderModule object.
+    """Convert a Python function to a ShaderModule object.
 
     Takes the bytecode of the given function and converts it to our
     internal bytecode. From there it can be converted to binary SpirV.
@@ -46,15 +46,14 @@ def python2shader(func):
 
 
 class PyBytecode2Bytecode:
-    """ Convert Python bytecode to our own well-defined bytecode.
+    """Convert Python bytecode to our own well-defined bytecode.
     Python bytecode depends on other variables on the code object, and differs
     between Python functions. This class converts this, so that the next step
     of code generation becomes simpler.
     """
 
     def show_bytecode(self):
-        """ For debugging purposes.
-        """
+        """For debugging purposes."""
         pprint_bytecode(self._co)
 
     def convert(self, py_func, shader_type):

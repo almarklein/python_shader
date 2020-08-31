@@ -20,7 +20,8 @@ from testutils import validate_module, run_test_and_print_new_hashes
 def test_index():
     @python2shader_and_validate
     def compute_shader(
-        index: ("input", "GlobalInvocationId", ivec3), data2: ("buffer", 1, Array(i32)),
+        index: ("input", "GlobalInvocationId", ivec3),
+        data2: ("buffer", 1, Array(i32)),
     ):
         data2[index.x] = index.x
 

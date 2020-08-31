@@ -21,8 +21,7 @@ _subtypes = {}
 
 
 def _create_type(name, base, props):
-    """ Create a new type, memoize on name.
-    """
+    """Create a new type, memoize on name."""
     if name not in _subtypes:
         assert not props.get("is_abstract", True), "can only create concrete types"
         _subtypes[name] = type(name, (base,), props)
@@ -30,8 +29,7 @@ def _create_type(name, base, props):
 
 
 def type_from_name(name):
-    """ Get a ShaderType from its name.
-    """
+    """Get a ShaderType from its name."""
     original_name = name
     name = name.replace(" ", "").lower()
     return _type_from_name(name, original_name)
@@ -77,7 +75,7 @@ def _type_from_name(name, original_name):
 
 
 def _select_between_braces(s, original_name):
-    """ Assuming s starts with an opening brace, return the part between
+    """Assuming s starts with an opening brace, return the part between
     braces and the position of the comma's at the root level.
     """
     assert s[0] == "("
@@ -98,8 +96,7 @@ def _select_between_braces(s, original_name):
 
 
 def shadertype_as_ctype(shadertype):
-    """ Get a ctypes type equivalent to the given ShaderType.
-    """
+    """Get a ctypes type equivalent to the given ShaderType."""
     if isinstance(shadertype, str):
         shadertype = type_from_name(shadertype)
     if not isinstance(shadertype, type) and issubclass(shadertype, ShaderType):
@@ -114,8 +111,7 @@ def shadertype_as_ctype(shadertype):
 
 
 class ShaderType:
-    """ The root base class of all GPU types.
-    """
+    """The root base class of all GPU types."""
 
     is_abstract = True
 
@@ -135,40 +131,34 @@ class ShaderType:
 
 
 class Scalar(ShaderType):
-    """ Base class for scalar types (float, int, bool).
-    """
+    """Base class for scalar types (float, int, bool)."""
 
 
 class Numeric(Scalar):
-    """ Base class for numeric scalars (float, int).
-    """
+    """Base class for numeric scalars (float, int)."""
 
 
 class Float(Numeric):
-    """ Base class for float numerics (f16, f32, f64).
-    """
+    """Base class for float numerics (f16, f32, f64)."""
 
 
 class Int(Numeric):
-    """ Base class for int numerics (i16, i32, i64).
-    """
+    """Base class for int numerics (i16, i32, i64)."""
 
 
 class Composite(ShaderType):
-    """ Base class for composite types (Vector, Matrix, Aggregates).
-    """
+    """Base class for composite types (Vector, Matrix, Aggregates)."""
 
 
 class Aggregate(Composite):
-    """ Base class for Array and Struct types.
-    """
+    """Base class for Array and Struct types."""
 
 
 # %% Abstract types (but can be used to construct composite types)
 
 
 class Vector(Composite):
-    """ Base class for Vector types. Concrete types are templated based on
+    """Base class for Vector types. Concrete types are templated based on
     length and subtype.
     """
 
@@ -200,7 +190,7 @@ class Vector(Composite):
 
 
 class Matrix(Composite):
-    """ Base class for Matrix types. Concrete types are templated based on
+    """Base class for Matrix types. Concrete types are templated based on
     cols, rows and subtype. Subtype can only be Float.
     """
 
@@ -237,7 +227,7 @@ class Matrix(Composite):
 
 
 class Array(Aggregate):
-    """ Base class for Array types. Concrete types are templated based on
+    """Base class for Array types. Concrete types are templated based on
     length and subtype. Subtype can be any ShaderType except void.
     """
 
@@ -278,8 +268,7 @@ class Array(Aggregate):
 
 
 class Struct(Aggregate):
-    """ Base class for Struct types. Not implemented.
-    """
+    """Base class for Struct types. Not implemented."""
 
     def __new__(cls, **kwargs):
         if cls.is_abstract:
