@@ -290,3 +290,17 @@ void main() {
 }
 """
 )
+
+# %% arrays
+
+print_glsl2spirv_comp(
+    """
+#version 450
+
+void main() {
+    uint index = gl_GlobalInvocationID.x;
+    uint arr[3] = uint[3](1, 2, 3);
+    arr[0] = 4;
+}
+"""
+)

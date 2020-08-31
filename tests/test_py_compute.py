@@ -157,6 +157,38 @@ def test_copy_vec4():
     assert iters_equal(out[2][3::4], range(15))
 
 
+def test_array1():
+    @python2shader_and_validate
+    def compute_shader(
+        index: ("input", "GlobalInvocationId", ivec3),
+        data2: ("buffer", 0, Array(i32)),
+    ):
+        i = index.x
+        data1 = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+        data2[i] = data1[i]
+
+    skip_if_no_wgpu()
+    out = compute_with_buffers({}, {0: (10, "i")}, compute_shader, n=10)
+    assert list(out[0]) == list(range(10))
+
+
+def test_array2():
+    @python2shader_and_validate
+    def compute_shader(
+        index: ("input", "GlobalInvocationId", ivec3),
+        data2: ("buffer", 0, Array(i32)),
+    ):
+        i = index.x
+        data1 = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+        for j in range(10):
+            data1[j] = data1[j] * 2
+        data2[i] = data1[i]
+
+    skip_if_no_wgpu()
+    out = compute_with_buffers({}, {0: (10, "i")}, compute_shader, n=10)
+    assert list(out[0]) == list(range(0, 20, 2))
+
+
 # %% Utils for this module
 
 

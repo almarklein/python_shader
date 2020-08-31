@@ -92,6 +92,7 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         saved_in_blocks = {}  # name -> set of labels
         self._need_name_var_save = {}  # label -> set of names
         self._need_name_var_load = {}  # label -> set of names
+        # todo: can be smarter, not needed when save is done once
         for opcode, *args in bytecode:
             if opcode == "co_label":
                 cur_block_label = args[0]
@@ -739,7 +740,7 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             # load it. Thereafter we won't need to load it again (in this block).
             current_label = self._current_branch["label"]
             names_that_need_load = self._need_name_var_load.get(current_label, set())
-            if name in names_that_need_load:
+            if name in names_that_need_load and name in self._name_variables:
                 ob = self._name_variables[name].resolve_load(self)
                 self._name_ids[name] = ob
                 names_that_need_load.discard(name)
@@ -789,41 +790,10 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         index = self._stack.pop()
         container = self._stack.pop()
 
-        # Get type of object and index
-        element_type = container.type.subtype
-        # assert index.type is int
-
         if isinstance(container, VariableAccessId):
-            result_id = container.index(index)
-
+            result_id = container.index(index)  # result is also a VariableAccessId
         elif issubclass(container.type, _types.Array):
-
-            # todo: maybe ... the variable should be created only once ...
-            # ... instead of every time it gets indexed
-            # Put the array into a variable
-            var_access = self.obtain_variable(container.type, cc.StorageClass_Function)
-            container_variable = var_access.variable
-            var_access.resolve_store(self, container.id)
-
-            # Prepare result id and type
-            result_id, result_type_id = self.obtain_value(element_type)
-
-            # Create pointer into the array
-            pointer1 = self.obtain_id("pointer")
-            pointer2 = self.obtain_id("pointer")
-            self.gen_instruction(
-                "types",
-                cc.OpTypePointer,
-                pointer1,
-                cc.StorageClass_Function,
-                result_type_id,
-            )
-            self.gen_func_instruction(
-                cc.OpInBoundsAccessChain, pointer1, pointer2, container_variable, index
-            )
-
-            # Load the element from the array
-            self.gen_func_instruction(cc.OpLoad, result_type_id, result_id, pointer2)
+            raise RuntimeError("Array shoud be VariableAccessId")  # pragma: no cover
         else:
             raise ShaderError("Can only index from Arrays")
 
@@ -1149,6 +1119,8 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         # Sort the names to obtain consistent bytecode.
         for name in sorted(self._need_name_var_save.get(label, ())):
             ob = self._name_ids[name]  # Get the last value
+            if isinstance(ob, VariableAccessId):
+                continue  # already a variable
             if name not in self._name_variables:
                 self._name_variables[name] = self.obtain_variable(
                     ob.type, cc.StorageClass_Function, name
@@ -1598,10 +1570,13 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         # Create array class
         array_type = _types.Array(n, element_type)
 
-        result_id, type_id = self.obtain_value(array_type)
+        var_id, type_id = self.obtain_value(array_type)
         self.gen_func_instruction(
-            cc.OpCompositeConstruct, type_id, result_id, *composite_ids
+            cc.OpCompositeConstruct, type_id, var_id, *composite_ids
         )
         # todo: or OpConstantComposite
 
-        return result_id
+        # Return as a variable access object
+        var_access = self.obtain_variable(array_type, cc.StorageClass_Function)
+        var_access.resolve_store(self, var_id)
+        return var_access
