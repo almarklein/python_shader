@@ -1514,8 +1514,10 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
 
         n, t = vector_type.length, vector_type.subtype  # noqa
         composite_ids = []
+        composite_length = 0
 
         # Deconstruct
+        can_be_constant = True
         for arg in args:
             if not isinstance(arg, ValueId):
                 raise RuntimeError("Expected a SpirV object")
@@ -1523,38 +1525,60 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
                 comp_id = arg
                 if arg.type is not t:
                     comp_id = self._convert_scalar(t, arg)
+                    can_be_constant = False
                 composite_ids.append(comp_id)
+                composite_length += 1
             elif issubclass(arg.type, _types.Vector):
-                # todo: a contiguous subset of the scalars consumed can be represented by a vector operand instead!
-                # -> I think this means we can simply do composite_ids.append(arg)
-                for i in range(arg.type.length):
-                    comp_id, comp_type_id = self.obtain_value(arg.type.subtype)
-                    self.gen_func_instruction(
-                        cc.OpCompositeExtract, comp_type_id, comp_id, arg, i
-                    )
-                    if arg.type.subtype is not t:
+                if arg.type.subtype is t:
+                    # We can just include the vectors
+                    composite_ids.append(arg)
+                    composite_length += arg.type.length
+                else:
+                    # Otherwise do the long approach
+                    can_be_constant = False  # because of func instruction
+                    for i in range(arg.type.length):
+                        comp_id, comp_type_id = self.obtain_value(arg.type.subtype)
+                        self.gen_func_instruction(
+                            cc.OpCompositeExtract, comp_type_id, comp_id, arg, i
+                        )
                         comp_id = self._convert_scalar(t, comp_id)
-                    composite_ids.append(comp_id)
+                        composite_ids.append(comp_id)
+                        composite_length += 1
             else:
                 raise ShaderError(f"Invalid type to compose vector: {arg.type}")
 
         # Check the length
-        if len(composite_ids) != n:
+        if composite_length != n:
             raise ShaderError(
                 f"{vector_type} did not expect {len(composite_ids)} elements"
             )
 
         assert (
-            len(composite_ids) >= 2
+            composite_length >= 2
         ), "When constructing a vector, there must be at least two Constituent operands."
 
         # Construct
-        result_id, vector_type_id = self.obtain_value(vector_type)
-        self.gen_func_instruction(
-            cc.OpCompositeConstruct, vector_type_id, result_id, *composite_ids
-        )
-        # todo: or OpConstantComposite
-        return result_id
+        if can_be_constant and all(arg in self._constants.values() for arg in args):
+            # Construct or re-use constant
+            key = (vector_type.__name__,) + tuple(f"%{arg.id}" for arg in args)
+            if key not in self._constants:
+                result_id, vector_type_id = self.obtain_value(vector_type)
+                self.gen_instruction(
+                    "types",
+                    cc.OpConstantComposite,
+                    vector_type_id,
+                    result_id,
+                    *composite_ids,
+                )
+                self._constants[key] = result_id
+            return self._constants[key]
+        else:
+            # Construct in function
+            result_id, vector_type_id = self.obtain_value(vector_type)
+            self.gen_func_instruction(
+                cc.OpCompositeConstruct, vector_type_id, result_id, *composite_ids
+            )
+            return result_id
 
     def _array_packing(self, args):
         n = len(args)
@@ -1570,13 +1594,25 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         # Create array class
         array_type = _types.Array(n, element_type)
 
-        var_id, type_id = self.obtain_value(array_type)
-        self.gen_func_instruction(
-            cc.OpCompositeConstruct, type_id, var_id, *composite_ids
-        )
-        # todo: or OpConstantComposite
+        if all(arg in self._constants.values() for arg in args):
+            # Construct or re-use constant
+            key = (array_type.__name__,) + tuple(f"%{arg.id}" for arg in args)
+            if key not in self._constants:
+                var_id, type_id = self.obtain_value(array_type)
+                self.gen_instruction(
+                    "types", cc.OpConstantComposite, type_id, var_id, *composite_ids
+                )
+                self._constants[key] = var_id
+            var_id = self._constants[key]
+        else:
+            # Construct the array *now*
+            var_id, type_id = self.obtain_value(array_type)
+            self.gen_func_instruction(
+                cc.OpCompositeConstruct, type_id, var_id, *composite_ids
+            )
 
         # Return as a variable access object
+        # This is a mutable copy of the (potentially) constant data
         var_access = self.obtain_variable(array_type, cc.StorageClass_Function)
         var_access.resolve_store(self, var_id)
         return var_access

@@ -64,7 +64,10 @@ def test_no_duplicate_constants():
 
     m = pyshader.python2shader(vertex_shader)
     text = pyshader.dev.disassemble(m.to_spirv())
-    assert 2 <= text.count("OpConst") <= 3
+    # One for 1.0, one for 0.0
+    assert text.count("OpConstant %float") == 2
+    # One for the vector, one for the array
+    assert text.count("OpConstantComposite") == 2
 
 
 def test_compute_shader():
