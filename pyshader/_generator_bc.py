@@ -92,13 +92,14 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         saved_in_blocks = {}  # name -> set of labels
         self._need_name_var_save = {}  # label -> set of names
         self._need_name_var_load = {}  # label -> set of names
-        # todo: can be smarter, not needed when save is done once
+        name_store_count = {}
         for opcode, *args in bytecode:
             if opcode == "co_label":
                 cur_block_label = args[0]
             elif opcode == "co_store_name":
                 name = args[0]
                 saved_in_blocks.setdefault(name, set()).add(cur_block_label)
+                name_store_count[name] = name_store_count.get(name, 0) + 1
             elif opcode == "co_load_name":
                 name = args[0]
                 blocks_where_name_is_saved = saved_in_blocks.get(name, ())
@@ -111,6 +112,9 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         for names in self._need_name_var_load.values():
             for name in names:
                 blocks_where_name_is_saved = saved_in_blocks.get(name, ())
+                store_count = name_store_count.get(name, 0)
+                if store_count == 1 and blocks_where_name_is_saved == {""}:
+                    continue  # not needed
                 for block_label in blocks_where_name_is_saved:
                     s = self._need_name_var_save.setdefault(block_label, set())
                     s.add(name)
