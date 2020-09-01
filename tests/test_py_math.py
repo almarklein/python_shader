@@ -542,15 +542,15 @@ def skip_if_no_wgpu():
 
 HASHES = {
     "test_add_sub1.compute_shader": ("3bdf249b7e6ce45e", "190bd581995e808c"),
-    "test_add_sub2.compute_shader": ("10ea5a72af487b16", "17bfe20b20624d26"),
-    "test_add_sub3.compute_shader": ("4ff5bff237e0b96e", "2011cd551df2b6c6"),
+    "test_add_sub2.compute_shader": ("10ea5a72af487b16", "79fadb010f62426b"),
+    "test_add_sub3.compute_shader": ("4ff5bff237e0b96e", "61ab1041aa9ff0f5"),
     "test_mul_div1.compute_shader": ("0e9854a92bac477d", "ec4d10e20af8e21d"),
     "test_mul_div2.compute_shader": ("4ba1931590fd6fda", "c49d559d3dbed15c"),
     "test_mul_div3.compute_shader": ("5c6f7c0981876429", "8efc0cc5a17395fd"),
     "test_mul_dot.compute_shader": ("44f867303a729e3c", "e5323035a7b3836d"),
     "test_integer_div.compute_shader": ("b05915cd4e656440", "54dd33a397291e15"),
     "test_mul_modulo.compute_shader": ("b9624a1f133f3403", "b0c5d1abeb81374c"),
-    "test_math_constants.compute_shader": ("d6fdb0cbb1b08caa", "d88258cca2e92957"),
+    "test_math_constants.compute_shader": ("d6fdb0cbb1b08caa", "028831acdd2d35f8"),
     "test_pow.compute_shader": ("f1608be168bf2db5", "e7308be66567d988"),
     "test_sqrt.compute_shader": ("90775b15ad4e929d", "56b1448fb7539aad"),
     "test_length.compute_shader": ("144126e877d20255", "3804cc12ac090591"),

@@ -282,8 +282,8 @@ def skip_if_no_wgpu():
 
 HASHES = {
     "test_null_shader.vertex_shader": ("bc099a07b86d70f2", "a48ffae9d0f09a5c"),
-    "test_triangle_shader.vertex_shader": ("000514d8367ef0fa", "53d4b596bc25b5a0"),
-    "test_triangle_shader.fragment_shader": ("6da8c966525c9c7f", "6febd7dab6d72c8d"),
+    "test_triangle_shader.vertex_shader": ("000514d8367ef0fa", "928cd41a713e3878"),
+    "test_triangle_shader.fragment_shader": ("6da8c966525c9c7f", "1dc83bfcd11e229b"),
     "test_compute_shader.compute_shader": ("7cf577981390626b", "47d2f371faa48ed0"),
     "test_texture_2d_f32.fragment_shader": ("564804a234e76fe1", "2fe982d3e5542180"),
     "test_texture_1d_i32.fragment_shader": ("0c1ad1a8f909c442", "7f4ad10ae75030fa"),
