@@ -869,7 +869,8 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             raise ShaderError(self.errinfo(ob) + "Cannot store to uniform")
 
         # Store where the result can now be fetched by name (within this block)
-        ob.name = name.split(".")[-1]
+        if not ob.name:
+            ob.name = name.split(".")[-1]
         self._name_ids[name] = ob
 
     def co_load_index(self):
