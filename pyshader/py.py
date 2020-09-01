@@ -239,8 +239,10 @@ class PyBytecode2Bytecode:
 
         self._pointer = 0
         while self._pointer < len(self._py_bytecode):
-            i = self._pointer
             opname, arg = self._next()
+            # Get index to this instruction. Do this after calling next(), because
+            # it may have jumped over EXTENDED_ARG instructions.
+            i = self._pointer - 2
             if "JUMP" in opname:
                 assert opname in jump_ops
                 jumps[i] = (i + 2 + arg) if opname == "JUMP_FORWARD" else arg
@@ -485,27 +487,41 @@ class PyBytecode2Bytecode:
 
     def _next(self):
         assert self._pointer % 2 == 0
+        # Skip over extended args first, easier to backtrack later
+        while self._py_bytecode[self._pointer] == EXTENDED_ARG:
+            self._pointer += 2
+        # Get opcode
         opcode = self._py_bytecode[self._pointer]
+        opname = dis.opname[opcode]
+        # Get arg value
         arg = self._py_bytecode[self._pointer + 1]
-        # Resolve name
-        opcode = dis.opname[opcode]
-        # Resolve EXTENDED_ARG
         n, i = 1, self._pointer
         while self._py_bytecode[i - 2] == EXTENDED_ARG:
             arg += self._py_bytecode[i - 1] * 256 ** n
             n += 1
             i -= 2
+        # Done
         self._pointer += 2
-        return opcode, arg
+        return opname, arg
 
     def _peek(self, pos=None):
+        # Get initial position
         pos = self._pointer if pos is None else pos
-        res = self._py_bytecode[pos]
+        # Move forward until we are at an actual instruction
+        if pos % 2 == 0:
+            while self._py_bytecode[pos] == EXTENDED_ARG:
+                pos += 2
+        else:
+            while self._py_bytecode[pos - 1] == EXTENDED_ARG:
+                pos += 2
+        # Now get the result, which is either the instruction, or its value
         if pos % 2 == 0:
             # Resolve name
+            res = self._py_bytecode[pos]
             res = dis.opname[res]
         else:
-            # Resolve EXTENDED_ARG
+            # Resolve value, taking EXTENDED_ARG into account
+            res = self._py_bytecode[pos]
             n, i = 1, pos - 1
             while self._py_bytecode[i - 2] == EXTENDED_ARG:
                 res += self._py_bytecode[i - 1] * 256 ** n
@@ -1127,6 +1143,11 @@ class PyBytecode2Bytecode:
     def _op_break_loop(self, arg):
         # Python < 3.8
         self.emit(op.co_branch, self._loop_stack[-1]["merge_label"])
+        # Python sometimes includes a bytecode that is never touched to jump
+        # to the beginneing of the loop. Detect and ignore.
+        if self._peek() == "JUMP_ABSOLUTE":
+            if self._peek(self._pointer + 1) == self._loop_stack[-1]["start"]:
+                self._next()  # skip it
 
     def _op_continue_loop(self, target):
         # This bytecode op is present in Python < 3.8, but does not seem to be

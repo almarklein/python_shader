@@ -440,7 +440,7 @@ def test_loop4():
     assert res == [0, 32, 64, 96, 128, 160, 192, 224, 256, 288]
 
 
-def test_loop5():
+def test_loop5a():
     # Break - this one is interesting because the stop criterion is combined with the break
     # This is a consequence of the logic to detect and simplify or-logic
 
@@ -460,6 +460,27 @@ def test_loop5():
     skip_if_no_wgpu()
     res = generate_list_of_floats_from_shader(10, compute_shader)
     assert res == [0, 1, 2, 3, 4, 5, 6, 7, 7, 7]
+
+
+def test_loop5b():
+    # Another break (a case fixed in #51)
+
+    @python2shader_and_validate
+    def compute_shader(
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
+        data2: ("buffer", 1, Array(f32)),
+    ):
+        index = index_xyz.x
+        val = 0.0
+        for i in range(index):
+            val = val + 1.0
+            if i == 7:
+                break
+        data2[index] = val
+
+    skip_if_no_wgpu()
+    res = generate_list_of_floats_from_shader(10, compute_shader)
+    assert res == [1, 2, 3, 4, 5, 6, 7, 8, 8, 8]
 
 
 def test_loop6():
@@ -542,7 +563,53 @@ def test_while1():
     assert res == [0, 2, 2, 4, 4, 6, 6, 8, 8, 10]
 
 
-def test_while2():
+def test_while2a():
+    # Test while with break
+
+    @python2shader_and_validate
+    def compute_shader(
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
+        data2: ("buffer", 1, Array(f32)),
+    ):
+        index = index_xyz.x
+        val = 0.0
+        i = -1
+        while i < index - 1:
+            i = i + 1
+            if i == 7:
+                break
+            val = val + 1.0
+        data2[index] = val
+
+    skip_if_no_wgpu()
+    res = generate_list_of_floats_from_shader(10, compute_shader)
+    assert res == [0, 1, 2, 3, 4, 5, 6, 7, 7, 7]
+
+
+def test_while2b():
+    # Test while with break (a case fixed in #51)
+
+    @python2shader_and_validate
+    def compute_shader(
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
+        data2: ("buffer", 1, Array(f32)),
+    ):
+        index = index_xyz.x
+        val = 0.0
+        i = -1
+        while i < index - 1:
+            i = i + 1
+            val = val + 1.0
+            if i == 7:
+                break
+        data2[index] = val
+
+    skip_if_no_wgpu()
+    res = generate_list_of_floats_from_shader(10, compute_shader)
+    assert res == [1, 2, 3, 4, 5, 6, 7, 8, 8, 8]
+
+
+def test_while2c():
     # Test while with continue and break
 
     @python2shader_and_validate
@@ -732,6 +799,13 @@ def test_long_bytecode():
             d = a + b + c + 7
             e = a + b + c + d + 8 - 3  # 100
             data2[index] = f32(e - 57)
+        # This loop has not effect on the output, but it does touch on
+        # compiler code. In particular code related to control flow in
+        # the situation where the byte addresses are larger than 255
+        # so that EXTENDED_ARG instructions are used.
+        for i in range(12):
+            if i > index:
+                break
 
     skip_if_no_wgpu()
     res = generate_list_of_floats_from_shader(10, compute_shader)
