@@ -45,6 +45,23 @@ def python2shader(func):
     return ShaderModule(func, bytecode, f"shader from {func.__name__}")
 
 
+def get_line_bumps_from_code_object(co):
+    """Get a list of tuples that define what instruction mark the beginning
+    of a new line.
+    """
+    # https://svn.python.org/projects/python/branches/pep-0384/Objects/lnotab_notes.txt
+    lineno, addr = co.co_firstlineno, 0
+    line_bumps = []
+    for i in range(0, len(co.co_lnotab), 2):
+        addr_incr = co.co_lnotab[i]
+        line_incr = co.co_lnotab[i + 1]
+        addr += addr_incr
+        lineno += line_incr
+        if line_incr:
+            line_bumps.append((addr, lineno))
+    return line_bumps
+
+
 class PyBytecode2Bytecode:
     """Convert Python bytecode to our own well-defined bytecode.
     Python bytecode depends on other variables on the code object, and differs
@@ -66,6 +83,11 @@ class PyBytecode2Bytecode:
         self._py_func = py_func
         self._co = self._py_func.__code__
         self._py_bytecode = self._co.co_code
+
+        # Get line bumps, and add an element for ease of use
+        self._line_bumps = get_line_bumps_from_code_object(self._co)
+        self._line_bumps.append((len(self._co.co_code), self._line_bumps[-1][1]))
+        self._line_bump_index = len(self._line_bumps) - 1
 
         self._opcodes = []  # The resulting "bytecode"
 
@@ -91,6 +113,11 @@ class PyBytecode2Bytecode:
 
         # The loop_info objects are popped from the above lists and put on this stack
         self._loop_stack = [{}]  # prepend empty dict to be able to do get()
+
+        # Mark start or source (meta info for debugging)
+        # Note that the co_firstlineno may well point to the line "@python2shader"
+        self.emit(op.co_src_filename, self._co.co_filename)
+        self.emit(op.co_src_linenr, self._co.co_firstlineno)
 
         # todo: allow user to specify name otherwise?
         entrypoint_name = "main"  # py_func.__name__
@@ -179,6 +206,7 @@ class PyBytecode2Bytecode:
 
     def _convert(self):
 
+        self._line_bump_index = 0
         self._pointer = 0
         while self._pointer < len(self._py_bytecode):
             if (
@@ -512,6 +540,11 @@ class PyBytecode2Bytecode:
             arg += self._py_bytecode[i - 1] * 256 ** n
             n += 1
             i -= 2
+        # Increase line number?
+        if self._pointer >= self._line_bumps[self._line_bump_index][0]:
+            linenr = self._line_bumps[self._line_bump_index][1]
+            self._line_bump_index += 1
+            self.emit(op.co_src_linenr, linenr)
         # Done
         self._pointer += 2
         return opname, arg

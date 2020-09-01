@@ -47,6 +47,14 @@ class OpCodeDefinitions:
     can subclass this class and implement the methods.
     """
 
+    def co_src_filename(self, filename):
+        """Mark that the following instructions correspond to the given filename."""
+        raise NotImplementedError()
+
+    def co_src_linenr(self, linenr):
+        """Mark that the following instructions correspond to the given linenr."""
+        raise NotImplementedError()
+
     def co_func(self, name):
         """Define a function. WIP"""
         raise NotImplementedError()

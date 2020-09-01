@@ -2,6 +2,7 @@
 Implements generating SpirV code from our bytecode.
 """
 
+import os
 import ctypes
 
 from ._generator_base import (
@@ -124,7 +125,7 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             method = getattr(self, opcode.lower(), None)
             if method is None:
                 # pprint_bytecode(self._co)
-                raise RuntimeError(f"Cannot parse {opcode} yet.")
+                raise RuntimeError(self.errinfo() + f"Cannot parse {opcode} yet.")
             else:
                 method(*args)
 
@@ -135,8 +136,46 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             self._labels[label_value] = label_id
         return self._labels[label_value]
 
+    def errinfo(self, *variables):
+        """Get error info for the current moment during compiling
+        (source filename and line number) and including the names of the given
+        variables.
+        """
+        filename = getattr(self, "_src_filename", "")
+        linenr = getattr(self, "_src_linenr", 0)  # first line is 1 (not 0)
+        text = ""
+        # Start with basic info about the line
+        if filename:
+            text += f'\n  Source file "{filename}"'
+            if linenr:
+                text += f", line {linenr}"
+            # todo: function name ...
+            text += "\n"
+        # If possible, also add the line's source code
+        if filename and os.path.isfile(filename):
+            with open(filename, "rt", encoding="utf-8") as f:
+                lines = f.read().splitlines()
+            try:
+                text += "    " + lines[linenr - 1].strip() + "\n"
+            except IndexError:
+                pass
+        # Include variable names
+        if variables:
+            names = [variable.name or "?" for variable in variables]
+            text += "  Related variables: " + ", ".join(names) + "\n"
+        # Done
+        if text:
+            text += "  "
+        return text
+
+    def co_src_filename(self, filename):
+        self._src_filename = filename
+
+    def co_src_linenr(self, linenr):
+        self._src_linenr = linenr
+
     def co_func(self, name):
-        raise ShaderError("No sub-functions yet")
+        raise ShaderError(self.errinfo() + "No sub-functions yet")
 
     def co_entrypoint(self, name, shader_type, execution_modes):
         # Special function definition that acts as an entrypoint
@@ -188,7 +227,9 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
 
     def co_func_end(self):
         if self._current_branch is not self._root_branch:
-            raise RuntimeError("Function ends with unresolved sub-branches!")
+            raise RuntimeError(
+                self.errinfo() + "Function ends with unresolved sub-branches!"
+            )
         # End function or entrypoint
         self.gen_func_instruction(cc.OpReturn)
         self.gen_func_instruction(cc.OpFunctionEnd)
@@ -200,7 +241,7 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         if self._execution_model_flag == cc.ExecutionModel_Fragment:
             self.gen_func_instruction(cc.OpKill)
         else:
-            raise ShaderError("Unexpected return/discard")
+            raise ShaderError(self.errinfo() + "Unexpected return/discard")
 
     def co_call(self, funcname, nargs):
 
@@ -227,7 +268,9 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             if ty is not None:
                 self._stack.append(self._typecast(ty, args))
             else:
-                raise ShaderError(f"Using invalid function call: {funcname}")
+                raise ShaderError(
+                    self.errinfo() + f"Using invalid function call: {funcname}"
+                )
 
     def _typecast(self, ty, args):
         assert not ty.is_abstract
@@ -237,7 +280,9 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             result = self._array_packing(args)
         elif issubclass(ty, _types.Scalar):
             if len(args) != 1:
-                raise ShaderError("Scalar convert needs exactly one argument.")
+                raise ShaderError(
+                    self.errinfo() + "Scalar convert needs exactly one argument."
+                )
             result = self._convert_scalar(ty, args[0])
         return result
 
@@ -247,7 +292,10 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             self._capabilities.add(cc.Capability_StorageImageReadWithoutFormat)
             tex.depth.value, tex.sampled.value = 0, 2
             if coord.type not in (_types.i32, _types.ivec2, _types.ivec3):
-                raise ShaderError("Expected texture coords to be i32, ivec2 or ivec3.")
+                raise ShaderError(
+                    self.errinfo(tex, coord)
+                    + "Expected texture coords to be i32, ivec2 or ivec3."
+                )
             vec_sample_type = _types.Vector(4, tex.sample_type)
             result_id, type_id = self.obtain_value(vec_sample_type)
             self.gen_func_instruction(
@@ -263,14 +311,19 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             self._capabilities.add(cc.Capability_StorageImageWriteWithoutFormat)
             tex.depth.value, tex.sampled.value = 0, 2
             if coord.type not in (_types.i32, _types.ivec2, _types.ivec3):
-                raise ShaderError("Expected texture coords to be i32, ivec2 or ivec3.")
+                raise ShaderError(
+                    self.errinfo(tex, coord)
+                    + "Expected texture coords to be i32, ivec2 or ivec3."
+                )
             if tex.sample_type is _types.i32 and color.type is not _types.ivec4:
                 raise ShaderError(
-                    f"Expected texture value to be ivec4, not {color.type}"
+                    self.errinfo(tex, coord, color)
+                    + f"Expected texture value to be ivec4, not {color.type}"
                 )
             elif tex.sample_type is _types.f32 and color.type is not _types.vec4:
                 raise ShaderError(
-                    f"Expected texture value to be vec4, not {color.type}"
+                    self.errinfo(tex, coord, color)
+                    + f"Expected texture value to be vec4, not {color.type}"
                 )
             self.gen_func_instruction(cc.OpImageWrite, tex, coord, color)
             self._stack.append(None)  # this call returns None, gets popped
@@ -290,7 +343,7 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             )
             self._stack.append(result_id)
         else:
-            raise RuntimeError(f"Unknown texture func {funcname}")
+            raise RuntimeError(self.errinfo() + f"Unknown texture func {funcname}")
 
     def _ext_instruction_call(self, funcname, args):
         # An extension instruction call. If there is an info dict for
@@ -304,34 +357,39 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         set_name = "GLSL.std.450"  # The most common
 
         info = ext_functions.get(funcname, None)
+        arg0 = args[0]
+        ty = arg0.type
 
         if info:
             # One of the many float/vec-float functions that we can handle automatically
             set_name, nr, nargs = info["set_name"], info["nr"], info["nargs"]
             # Check
-            ty = args[0].type
             if issubclass(ty, _types.Float):
                 pass  # ok
             elif issubclass(ty, _types.Vector) and issubclass(ty.subtype, _types.Float):
                 pass  # ok
             else:
-                raise ShaderError(f"Arg 0 of {funcname} must be float or float-vector.")
+                raise ShaderError(
+                    self.errinfo(arg0)
+                    + f"Arg 0 of {funcname} must be float or float-vector."
+                )
             for i in range(1, len(args)):
                 if args[i].type is not ty:
                     raise ShaderError(
-                        f"Arg {i} of {funcname} must be float or float-vector."
+                        self.errinfo(args[i])
+                        + f"Arg {i} of {funcname} must be float or float-vector."
                     )
             # Get result object
             result_type = info["result_type"]
             if result_type == "same":
-                result_type = args[0].type
+                result_type = arg0.type
             elif result_type == "component":
-                result_type = args[0].type.subtype
+                result_type = arg0.type.subtype
             else:
                 result_type = s_types.type_from_name(result_type)
         elif funcname == "abs":
             nargs = 1
-            result_type = ty = args[0].type
+            result_type = ty
             if issubclass(ty, _types.Float):
                 nr = 4
             elif issubclass(ty, _types.Int):
@@ -341,10 +399,12 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             elif issubclass(ty, _types.Vector) and issubclass(ty.subtype, _types.Int):
                 nr = 5
             else:
-                raise ShaderError("abs() expects (vector of) int or float.")
+                raise ShaderError(
+                    self.errinfo(arg0) + "abs() expects (vector of) int or float."
+                )
         elif funcname == "sign":
             nargs = 1
-            result_type = ty = args[0].type
+            result_type = ty
             if issubclass(ty, _types.Float):
                 nr = 6
             elif issubclass(ty, _types.Int):
@@ -354,17 +414,21 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             elif issubclass(ty, _types.Vector) and issubclass(ty.subtype, _types.Int):
                 nr = 7
             else:
-                raise ShaderError("sign() expects (vector of) int or float.")
+                raise ShaderError(
+                    self.errinfo(arg0) + "sign() expects (vector of) int or float."
+                )
         elif funcname == "matrix_inverse":
             nargs = 1
-            result_type = ty = args[0].type
+            result_type = ty
             if issubclass(ty, _types.Matrix) and ty.rows == ty.cols:
                 nr = 34
             else:
-                raise ShaderError("matrix_inverse() expects square matrix.")
+                raise ShaderError(
+                    self.errinfo(arg0) + "matrix_inverse() expects square matrix."
+                )
         elif funcname == "min":
             nargs = 2
-            result_type = ty = args[0].type
+            result_type = ty
             if issubclass(ty, _types.Float):
                 nr = 37
             elif issubclass(ty, _types.Int):
@@ -374,10 +438,12 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             elif issubclass(ty, _types.Vector) and issubclass(ty.subtype, _types.Int):
                 nr = 39
             else:
-                raise ShaderError("min() expects (vector of) int or float.")
+                raise ShaderError(
+                    self.errinfo(*args) + "min() expects (vector of) int or float."
+                )
         elif funcname == "max":
             nargs = 2
-            result_type = ty = args[0].type
+            result_type = ty
             if issubclass(ty, _types.Float):
                 nr = 40
             elif issubclass(ty, _types.Int):
@@ -387,10 +453,12 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             elif issubclass(ty, _types.Vector) and issubclass(ty.subtype, _types.Int):
                 nr = 42
             else:
-                raise ShaderError("max() expects (vector of) int or float.")
+                raise ShaderError(
+                    self.errinfo(*args) + "max() expects (vector of) int or float."
+                )
         elif funcname == "clamp":
             nargs = 3
-            result_type = ty = args[0].type
+            result_type = ty
             if issubclass(ty, _types.Float):
                 nr = 43
             elif issubclass(ty, _types.Int):
@@ -400,11 +468,13 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             elif issubclass(ty, _types.Vector) and issubclass(ty.subtype, _types.Int):
                 nr = 45
             else:
-                raise ShaderError("clamp() expects (vector of) int or float.")
+                raise ShaderError(
+                    self.errinfo(*args) + "clamp() expects (vector of) int or float."
+                )
         elif funcname == "mix":
             nargs = 3
             nr = 46
-            result_type = ty = args[0].type
+            result_type = ty
             if issubclass(ty, _types.Float):
                 pass
             elif issubclass(ty, _types.Vector) and issubclass(ty.subtype, _types.Float):
@@ -419,14 +489,19 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
                     )
                     args[2] = result_id
             else:
-                raise ShaderError("mix() expects (vector of) float.")
+                raise ShaderError(
+                    self.errinfo(*args) + "mix() expects (vector of) float."
+                )
         else:
-            raise RuntimeError(f"Unknown extension instruction {funcname}")
+            raise ShaderError(
+                self.errinfo() + f"Unknown extension instruction {funcname}"
+            )
 
         # Check
         if nargs != len(args):
             raise ShaderError(
-                f"Ext function {funcname} expects {info['nargs']} args, got {nargs}."
+                self.errinfo(*args)
+                + f"Ext function {funcname} expects {info['nargs']} args, got {nargs}."
             )
 
         # Generate instruction
@@ -472,7 +547,7 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             storage_class, iodict = cc.StorageClass_UniformConstant, self._texture
             location_or_binding = cc.Decoration_Binding
         else:
-            raise ShaderError(f"Invalid IO kind {kind}")
+            raise ShaderError(self.errinfo() + f"Invalid IO kind {kind}")
 
         # Check if slot is taken.
         if kind in ("input", "output"):
@@ -485,7 +560,8 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         if slotmap_key in self._slotmap:
             other_name = self._slotmap[slotmap_key]
             raise ShaderError(
-                f"The {namespace_id} {slot} for {name} already taken by {other_name}."
+                self.errinfo()
+                + f"The {namespace_id} {slot} for {name} already taken by {other_name}."
             )
         else:
             self._slotmap[slotmap_key] = name
@@ -526,7 +602,10 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
                 dim = cc.Dim_Cube
                 arrayed = 1 if "cube-array" in type_info else 0
             else:
-                raise ShaderError("Texture type info does not specify dimensionality.")
+                raise ShaderError(
+                    self.errinfo()
+                    + "Texture type info does not specify dimensionality."
+                )
             # Get format
             fmt = cc.ImageFormat_Unknown
             sample_type = None  # can be set through format or specified explicitly
@@ -552,7 +631,8 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
                 sample_type = _types.f32
             if sample_type is None:  # note that it can have been set from fmt
                 raise ShaderError(
-                    "Texture type info does not specify format nor sample type."
+                    self.errinfo()
+                    + "Texture type info does not specify format nor sample type."
                 )
             # Get whether the texture is sampled - 0: unknown, 1: sampled, 2: storage
             sampled = WordPlaceholder(0)  # -> to be set later
@@ -643,7 +723,9 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             try:
                 slot = cc.builtins[slot]
             except KeyError:
-                raise ShaderError(f"Not a known builtin io variable: {slot}")
+                raise ShaderError(
+                    self.errinfo() + f"Not a known builtin io variable: {slot}"
+                )
             self.gen_instruction(
                 "annotations", cc.OpDecorate, var_id, cc.Decoration_BuiltIn, slot
             )
@@ -651,13 +733,15 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         # Store internal info to derefererence the variables
         if subtypes is None:
             if name in iodict:
-                raise ShaderError(f"{kind} {name} already exists")
+                raise ShaderError(self.errinfo() + f"{kind} {name} already exists")
             iodict[name] = var_access
         else:
             for i, subname in enumerate(subtypes):
                 index_id = self.obtain_constant(i)
                 if subname in iodict:
-                    raise ShaderError(f"{kind} {subname} already exists")
+                    raise ShaderError(
+                        self.errinfo() + f"{kind} {subname} already exists"
+                    )
                 iodict[subname] = var_access.index(index_id, i)
                 iodict[subname].name = subname.split(".")[-1]
 
@@ -768,7 +852,7 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             ob = self._texture[name]
             assert isinstance(ob, VariableAccessId)
         else:
-            raise ShaderError(f"Using invalid variable: {name}")
+            raise ShaderError(self.errinfo() + f"Using invalid variable: {name}")
         self._stack.append(ob)
 
     def co_store_name(self, name):
@@ -780,9 +864,9 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             ac = self._buffer[name]
             ac.resolve_store(self, ob)
         elif name in self._input:
-            raise ShaderError("Cannot store to input")
+            raise ShaderError(self.errinfo(ob) + "Cannot store to input")
         elif name in self._uniform:
-            raise ShaderError("Cannot store to uniform")
+            raise ShaderError(self.errinfo(ob) + "Cannot store to uniform")
 
         # Store where the result can now be fetched by name (within this block)
         ob.name = name.split(".")[-1]
@@ -795,9 +879,13 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         if isinstance(container, VariableAccessId):
             result_id = container.index(index)  # result is also a VariableAccessId
         elif issubclass(container.type, _types.Array):
-            raise RuntimeError("Array shoud be VariableAccessId")  # pragma: no cover
+            raise RuntimeError(
+                self.errinfo() + "Array shoud be VariableAccessId"
+            )  # pragma: no cover
         else:
-            raise ShaderError("Can only index from Arrays")
+            raise ShaderError(
+                self.errinfo(container, index) + "Can only index from Arrays"
+            )
 
         self._stack.append(result_id)
 
@@ -816,22 +904,28 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             ac = ob.index(index)
             if val.type is not ac.type:
                 raise ShaderError(
-                    f"Cannot set-index a {val.type.__name__} object in a {ac.type.__name__} container."
+                    self.errinfo(ob, val)
+                    + f"Cannot set-index a {val.type.__name__} object in a {ac.type.__name__} container."
                 )
             # Then resolve the chain to a store op
             ac.resolve_store(self, val)
         else:
-            raise ShaderError(f"Cannot set-index on {ob}")
+            raise ShaderError(
+                self.errinfo(ob) + f"Cannot set-index on {ob.type.__name__}"
+            )
 
     def co_load_attr(self, name):
         ob = self._stack.pop()
 
         if not isinstance(getattr(ob, "type"), type):
-            raise ShaderError("Invalid attribute access")
+            raise ShaderError(self.errinfo(ob) + "Invalid attribute access")
         elif isinstance(ob, VariableAccessId) and issubclass(ob.type, _types.Struct):
             # Struct attribute access
             if name not in ob.type.keys:
-                raise ShaderError(f"Attribute {name} invalid for {ob.type.__name__}.")
+                raise ShaderError(
+                    self.errinfo(ob)
+                    + f"Attribute {name} invalid for {ob.type.__name__}."
+                )
             # Create new variable access for this attr op
             index = ob.type.keys.index(name)
             ac = ob.index(self.obtain_constant(index), index)
@@ -849,7 +943,9 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
                 elif c in "waq":
                     indices.append(3)
                 else:
-                    raise ShaderError(f"Invalid vector attribute {name}")
+                    raise ShaderError(
+                        self.errinfo(ob) + f"Invalid vector attribute {name}"
+                    )
             if len(indices) == 1:
                 if isinstance(ob, VariableAccessId):
                     index_id = self.obtain_constant(indices[0])
@@ -870,7 +966,7 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             self._stack.append(result_id)
         else:
             # todo: not implemented for non VariableAccessId
-            raise ShaderError(f"Unsupported attribute access {name}")
+            raise ShaderError(self.errinfo(ob) + f"Unsupported attribute access {name}")
 
     def co_load_constant(self, value):
         id = self.obtain_constant(value)
@@ -905,12 +1001,16 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             elif issubclass(reftype1, _types.Int):
                 opcode = cc.OpSNegate
             else:
-                raise ShaderError(f"Cannot {op.upper()} values of type {tn1}.")
+                raise ShaderError(
+                    self.errinfo(val1) + f"Cannot {op.upper()} values of type {tn1}."
+                )
         elif op == "not":
             if issubclass(reftype1, _types.boolean):
                 opcode = cc.OpLogicalNot
             else:
-                raise ShaderError(f"Cannot {op.upper()} values of type {tn1}.")
+                raise ShaderError(
+                    self.errinfo(val1) + f"Cannot {op.upper()} values of type {tn1}."
+                )
 
         # Emit code
         result_id, type_id = self.obtain_value(type1)
@@ -965,7 +1065,8 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         if reftype1 is not reftype2:
             # Let's start by excluding cases where the subtypes differ.
             raise ShaderError(
-                f"Cannot {op.upper()} two values with different (sub)types: {tn1} and {tn2}"
+                self.errinfo(val1, val2)
+                + f"Cannot {op.upper()} two values with different (sub)types: {tn1} and {tn2}"
             )
 
         elif type1 is type2 and issubclass(type1, scalar_or_vector):
@@ -985,13 +1086,17 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             elif issubclass(reftype1, _types.boolean):
                 opcode = LOPS[op]
             else:
-                raise ShaderError(f"Cannot {op.upper()} values of type {tn1}.")
+                raise ShaderError(
+                    self.errinfo(val1, val2)
+                    + f"Cannot {op.upper()} values of type {tn1}."
+                )
 
         elif issubclass(type1, _types.Scalar) and issubclass(type2, _types.Vector):
             # Convenience - add/mul vectors with scalars
             if not issubclass(reftype1, _types.Float):
                 raise ShaderError(
-                    f"Scalar {op.upper()} Vector only supported for float subtype."
+                    self.errinfo(val1, val2)
+                    + f"Scalar {op.upper()} Vector only supported for float subtype."
                 )
             result_id, type_id = self.obtain_value(type2)  # result is vector
             if op == "mul":
@@ -1006,7 +1111,8 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             # Convenience - add/mul vectors with scalars, opposite order
             if not issubclass(reftype1, _types.Float):
                 raise ShaderError(
-                    f"Vector {op.upper()} Scalar only supported for float subtype."
+                    self.errinfo(val1, val2)
+                    + f"Vector {op.upper()} Scalar only supported for float subtype."
                 )
             result_id, type_id = self.obtain_value(type1)  # result is vector
             if op == "mul":
@@ -1019,11 +1125,17 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
 
         elif op != "mul":
             # The remaining cases are all limited to multiplication
-            raise ShaderError(f"Cannot {op.upper()} {tn1} and {tn2}, multiply only.")
+            raise ShaderError(
+                self.errinfo(val1, val2)
+                + f"Cannot {op.upper()} {tn1} and {tn2}, multiply only."
+            )
 
         elif not issubclass(reftype1, _types.Float):
             # The remaining cases are all limited to float types
-            raise ShaderError(f"Cannot {op.upper()} {tn1} and {tn2}, float only.")
+            raise ShaderError(
+                self.errinfo(val1, val2)
+                + f"Cannot {op.upper()} {tn1} and {tn2}, float only."
+            )
 
         # With that out of the way, the remaining cases are quite short to write.
 
@@ -1031,7 +1143,8 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             # Multiply two matrices
             if type1.cols != type2.rows:
                 raise ShaderError(
-                    f"Cannot {op.upper()} two matrices with incompatible shapes."
+                    self.errinfo(val1, val2)
+                    + f"Cannot {op.upper()} two matrices with incompatible shapes."
                 )
             type3 = _types.Matrix(type2.cols, type1.rows, type1.subtype)
             result_id, type_id = self.obtain_value(type3)
@@ -1052,7 +1165,9 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         elif issubclass(type1, _types.Matrix) and issubclass(type2, _types.Vector):
             # Matrix times Vector
             if type2.length != type1.cols:
-                raise ShaderError(f"Incompatible shape for {tn1} x {tn2}")
+                raise ShaderError(
+                    self.errinfo(val1, val2) + f"Incompatible shape for {tn1} x {tn2}"
+                )
             type3 = _types.Vector(type1.rows, type1.subtype)
             result_id, type_id = self.obtain_value(type3)
             opcode = cc.OpMatrixTimesVector
@@ -1060,13 +1175,18 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         elif issubclass(type1, _types.Vector) and issubclass(type2, _types.Matrix):
             # Vector times Matrix
             if type1.length != type2.rows:
-                raise ShaderError(f"Incompatible shape for {tn1} x {tn2}")
+                raise ShaderError(
+                    self.errinfo(val1, val2) + f"Incompatible shape for {tn1} x {tn2}"
+                )
             type3 = _types.Vector(type2.cols, type2.subtype)
             result_id, type_id = self.obtain_value(type3)
             opcode = cc.OpVectorTimesMatrix
 
         else:
-            raise ShaderError(f"Cannot {op.upper()} values of {tn1} and {tn2}.")
+            raise ShaderError(
+                self.errinfo(val1, val2)
+                + f"Cannot {op.upper()} values of {tn1} and {tn2}."
+            )
 
         self.gen_func_instruction(opcode, type_id, result_id, id1, id2)
         self._stack.append(result_id)
@@ -1077,7 +1197,10 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
 
         # Get reference type
         if val1.type is not val2.type:
-            raise ShaderError("Cannot compare values that do not have the same type.")
+            raise ShaderError(
+                self.errinfo(val1, val2)
+                + "Cannot compare values that do not have the same type."
+            )
         if issubclass(val1.type, _types.Vector):
             reftype = val1.type.subtype
             result_type = _types.Vector(val1.type.length, _types.boolean)
@@ -1103,7 +1226,10 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             prefix = "OpS" if "Than" in opname_suffix else "OpI"
             opcode = getattr(cc, prefix + opname_suffix)
         else:
-            raise ShaderError(f"Cannot compare values of {val1.type.__name__}.")
+            raise ShaderError(
+                self.errinfo(val1, val2)
+                + f"Cannot compare values of {val1.type.__name__}."
+            )
 
         # Generate instruction
         result_id, type_id = self.obtain_value(result_type)
@@ -1132,7 +1258,8 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             var_access = self._name_variables[name]
             if ob.type is not var_access.type:
                 raise ShaderError(
-                    f"Name {name} used for different types {ob.type} and {var_access.type}"
+                    self.errinfo()
+                    + f"Name {name} used for different types {ob.type} and {var_access.type}"
                 )
             var_access.resolve_store(self, ob)
 
@@ -1268,7 +1395,8 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         # If all is well, we're now left with a single branch. Make it the current.
         if len(leaf_branches) != 1:
             raise ShaderError(
-                f"New block ({new_label}) should start with 1 unmerged branches, got {[b['label'] for b in leaf_branches]}"
+                self.errinfo()
+                + f"New block ({new_label}) should start with 1 unmerged branches, got {[b['label'] for b in leaf_branches]}"
             )
         self._current_branch = leaf_branches[0]
 
@@ -1417,7 +1545,8 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         condition = self._stack.pop()
         if val1.type is not val2.type:
             raise ShaderError(
-                "Incompatible types in op_selec: {val1.type.__name__} and {val2.type.__name__}"
+                self.errinfo(val1, val2)
+                + "Incompatible types in op_select: {val1.type.__name__} and {val2.type.__name__}"
             )
         result_id, type_id = self.obtain_value(val1.type)
         self.gen_func_instruction(
@@ -1434,7 +1563,9 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         if not (
             issubclass(arg.type, _types.Vector) and arg.type.length == out_type.length
         ):
-            raise ShaderError("Vector conversion needs vectors of equal length.")
+            raise ShaderError(
+                self.errinfo() + "Vector conversion needs vectors of equal length."
+            )
         return self._convert_scalar_or_vector(
             out_type, out_type.subtype, arg, arg.type.subtype
         )
@@ -1470,7 +1601,9 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
                     cc.OpSelect, type_id, result_id, arg, one, zero
                 )
             else:
-                raise ShaderError(f"Cannot convert to float: {arg.type}")
+                raise ShaderError(
+                    self.errinfo(arg) + f"Cannot convert to float: {arg.type}"
+                )
 
         elif issubclass(out_el_type, _types.Int):
             if issubclass(arg_el_type, _types.Float):
@@ -1486,7 +1619,9 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
                     cc.OpSelect, type_id, result_id, arg, one, zero
                 )
             else:
-                raise ShaderError(f"Cannot convert to int: {arg.type}")
+                raise ShaderError(
+                    self.errinfo(arg) + f"Cannot convert to int: {arg.type}"
+                )
 
         elif issubclass(out_el_type, _types.boolean):
             if issubclass(arg_el_type, _types.Float):
@@ -1500,9 +1635,11 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             elif issubclass(arg_el_type, _types.boolean):
                 return arg  # actually covered above
             else:
-                raise ShaderError(f"Cannot convert to bool: {arg.type}")
+                raise ShaderError(
+                    self.errinfo(arg) + f"Cannot convert to bool: {arg.type}"
+                )
         else:
-            raise ShaderError(f"Cannot convert to {out_type}")
+            raise ShaderError(self.errinfo(arg) + f"Cannot convert to {out_type}")
 
         return result_id
 
@@ -1524,7 +1661,7 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         can_be_constant = True
         for arg in args:
             if not isinstance(arg, ValueId):
-                raise RuntimeError("Expected a SpirV object")
+                raise RuntimeError(self.errinfo() + "Expected a SpirV object")
             if issubclass(arg.type, _types.Scalar):
                 comp_id = arg
                 if arg.type is not t:
@@ -1549,12 +1686,15 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
                         composite_ids.append(comp_id)
                         composite_length += 1
             else:
-                raise ShaderError(f"Invalid type to compose vector: {arg.type}")
+                raise ShaderError(
+                    self.errinfo(arg) + f"Invalid type to compose vector: {arg.type}"
+                )
 
         # Check the length
         if composite_length != n:
             raise ShaderError(
-                f"{vector_type} did not expect {len(composite_ids)} elements"
+                self.errinfo(*args)
+                + f"{vector_type} did not expect {len(composite_ids)} elements"
             )
 
         assert (
@@ -1587,7 +1727,7 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
     def _array_packing(self, args):
         n = len(args)
         if n == 0:
-            raise ShaderError("No support for zero-sized arrays.")
+            raise ShaderError(self.errinfo() + "No support for zero-sized arrays.")
 
         # Check that all args have the same type
         element_type = args[0].type

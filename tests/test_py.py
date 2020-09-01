@@ -185,8 +185,10 @@ def test_fail_unvalid_names():
     ):
         color = foo  # noqa
 
-    with raises(pyshader.ShaderError):
+    with raises(pyshader.ShaderError) as info:
         pyshader.python2shader(compute_shader)
+
+    # assert "color = foo" in str(info.value).lower()
 
 
 def test_fail_unvalid_stlib_name():
@@ -195,8 +197,10 @@ def test_fail_unvalid_stlib_name():
     ):
         color = stdlib.foo  # noqa
 
-    with raises(pyshader.ShaderError):
+    with raises(pyshader.ShaderError) as info:
         pyshader.python2shader(compute_shader)
+
+    # assert "color = stdlib.foo" in str(info.value).lower()
 
 
 def test_cannot_use_unresolved_globals():
@@ -205,8 +209,10 @@ def test_cannot_use_unresolved_globals():
     ):
         color = stdlib + 1.0  # noqa
 
-    with raises(pyshader.ShaderError):
+    with raises(pyshader.ShaderError) as info:
         pyshader.python2shader(compute_shader)
+
+    # assert "color = stdlib + 1.0" in str(info.value).lower()
 
 
 def test_cannot_call_non_funcs():
@@ -256,6 +262,21 @@ def test_cannot_use_tuples_in_other_ways():
 
     with raises(pyshader.ShaderError):
         pyshader.python2shader(compute_shader3)
+
+
+def test_cannot_add_int_and_floats():
+    def compute_shader1(
+        index: ("input", "GlobalInvocationId", ivec3),
+    ):
+        foo = 3.0
+        bar = foo + index.x  # noqa
+
+    x = pyshader.python2shader(compute_shader1)
+    with raises(pyshader.ShaderError) as info:
+        x.to_spirv()
+    err = info.value.args[0]
+    assert "source file" in err.lower()
+    assert "bar = foo + index.x" in err.lower()
 
 
 # %% Utils for this module
