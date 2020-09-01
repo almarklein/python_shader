@@ -970,9 +970,16 @@ class PyBytecode2Bytecode:
 
     def _op_jump_absolute(self, target):
         label = self._get_label(target)
-        if label.startswith("Lm") and self._opcodes[-1][0] == "co_pop_top":
-            # This is a break in Python 3.8+ - I think it pops the iterator
-            self._opcodes.pop(-1)
+        if label.startswith("Lm") and target == self._loop_stack[-1]["end"]:
+            # This is a break in Python 3.8+
+            if self._opcodes[-1][0] == "co_pop_top":
+                # In Python bytecode, I think this is supposed to pop the iter
+                self._opcodes.pop(-1)
+            if self._peek() == "JUMP_ABSOLUTE":
+                # Python sometimes includes a bytecode that is never touched to jump
+                # to the beginneing of the loop. Detect and ignore.
+                if self._peek(self._pointer + 1) == self._loop_stack[-1]["start"]:
+                    self._next()  # skip it
         self.emit(op.co_branch, label)
 
     def _op_jump_forward(self, delta):
