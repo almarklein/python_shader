@@ -94,21 +94,33 @@ class VariableAccessId(ValueId):
         indices = list(self.indices) + [index]
         if issubclass(self.type, _types.Struct):
             assert isinstance(field, int)
+            name = f"{self.name}.{self.type.keys[field]}" if self.name else ""
             return VariableAccessId(
                 self.variable,
                 self.storage_class,
                 self.type.get_subtype(field),
                 *indices,
+                name=name,
             )
         elif issubclass(self.type, _types.Array):
             assert field is None
+            name = f"{self.name}[{index.name or '..'}]" if self.name else ""
             return VariableAccessId(
-                self.variable, self.storage_class, self.type.subtype, *indices
+                self.variable,
+                self.storage_class,
+                self.type.subtype,
+                *indices,
+                name=name,
             )
         elif issubclass(self.type, _types.Vector):
             assert field is None
+            name = f"{self.name}[{index.name or '..'}]" if self.name else ""
             return VariableAccessId(
-                self.variable, self.storage_class, self.type.subtype, *indices
+                self.variable,
+                self.storage_class,
+                self.type.subtype,
+                *indices,
+                name=name,
             )
         else:
             raise ShaderError(f"VariableAccessId cannot index into {self.type}")
@@ -422,7 +434,7 @@ class BaseSpirVGenerator:
     def obtain_value(self, the_type, name=""):
         """Create id for a new value. Returns (value_id, type_id)."""
         type_id = self.obtain_type_id(the_type)
-        value_id = ValueId(the_type)
+        value_id = ValueId(the_type, name)
         return value_id, type_id
         # todo: return only value, and support value.type_id?
 
@@ -449,7 +461,7 @@ class BaseSpirVGenerator:
         # Make sure that we have it
         key = the_type.__name__, value
         if key not in self._constants:
-            id, type_id = self.obtain_value(the_type)
+            id, type_id = self.obtain_value(the_type, str(value))
             if the_type is _types.boolean:
                 opcode = cc.OpConstantTrue if value else cc.OpConstantFalse
                 self.gen_instruction("types", opcode, type_id, id)

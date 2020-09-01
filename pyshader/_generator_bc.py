@@ -492,12 +492,10 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
 
         # Get the root variable
         if kind in ("input", "output"):
-            var_name = "var-" + name
             var_type = _types.type_from_name(typename)
             subtypes = None
         elif kind in ("uniform", "buffer"):
             # Block - Consider the variable to be a struct
-            var_name = "var-" + name
             var_type = _types.type_from_name(typename)
             # Block needs to be a struct
             if issubclass(var_type, _types.Struct):
@@ -505,13 +503,10 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             else:
                 subtypes = {name: var_type}
                 var_type = _types.Struct(**subtypes)
-                var_name = "var-" + var_type.__name__
         elif kind == "sampler":
-            var_name = "var-" + name
             var_type = (cc.OpTypeSampler,)
             subtypes = None
         elif kind == "texture":
-            var_name = "var-" + name
             # Get a list of type info parts
             type_info = typename.lower().replace(",", " ").split()
             # Get dimension of the texture, and whether it is arrayed
@@ -574,6 +569,7 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
 
         # Create VariableAccessId object
         type_id = self.obtain_type_id(var_type)
+        var_name = name.split(".")[-1]
         var_access = self.obtain_variable(var_type, storage_class, var_name)
         var_id = var_access.variable
 
@@ -663,6 +659,7 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
                 if subname in iodict:
                     raise ShaderError(f"{kind} {subname} already exists")
                 iodict[subname] = var_access.index(index_id, i)
+                iodict[subname].name = subname.split(".")[-1]
 
     def _annotate_uniform_subtype(self, type_id, subtype, i, offset):
         """Annotates the given uniform struct subtype and return its size in bytes."""
@@ -788,6 +785,7 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             raise ShaderError("Cannot store to uniform")
 
         # Store where the result can now be fetched by name (within this block)
+        ob.name = name.split(".")[-1]
         self._name_ids[name] = ob
 
     def co_load_index(self):
@@ -867,6 +865,8 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
                 self.gen_func_instruction(
                     cc.OpVectorShuffle, type_id, result_id, ob, ob, *indices
                 )
+            if ob.name:  # overload name: "foo[0]" -> "foo.x"
+                result_id.name = f"{ob.name}.{name}"
             self._stack.append(result_id)
         else:
             # todo: not implemented for non VariableAccessId
