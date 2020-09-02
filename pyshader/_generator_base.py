@@ -147,7 +147,7 @@ class VariableAccessId(ValueId):
             return self.variable
         else:
             result_type_id = gen.obtain_type_id(self.type)
-            pointer_id = gen.obtain_id("pointer")
+            pointer_id = gen.obtain_id()
             gen.gen_instruction(
                 "types",
                 cc.OpTypePointer,
@@ -155,7 +155,7 @@ class VariableAccessId(ValueId):
                 self.storage_class,
                 result_type_id,
             )
-            result_id = gen.obtain_id("access-chain-result")
+            result_id = gen.obtain_id()
             gen.gen_func_instruction(
                 cc.OpAccessChain, pointer_id, result_id, self.variable, *self.indices
             )
@@ -164,7 +164,7 @@ class VariableAccessId(ValueId):
     def resolve_load(self, gen):
         """Generate OpAccessChain instruction followed by OpLoad and return result id."""
         temp_id = self.resolve_chain(gen)
-        id, type_id = gen.obtain_value(self.type)
+        id, type_id = gen.obtain_value(self.type, self.name)
         gen.gen_func_instruction(cc.OpLoad, type_id, id, temp_id)
         return id
 
@@ -432,16 +432,17 @@ class BaseSpirVGenerator:
     # %% Utils for subclasses
 
     def gen_instruction(self, section_name, opcode, *words):
-        words = [
-            word.resolve(self) if isinstance(word, AnyId) else word for word in words
-        ]
-        self._sections[section_name].append((opcode, *words))
+        # Resolve all args for this instruction
+        words_resolved = []
+        for word in words:
+            if isinstance(word, AnyId):
+                word = word.resolve(self)
+            words_resolved.append(word)
+        # Store
+        self._sections[section_name].append((opcode, *words_resolved))
 
     def gen_func_instruction(self, opcode, *words):
-        words = [
-            word.resolve(self) if isinstance(word, AnyId) else word for word in words
-        ]
-        self._sections["functions"].append((opcode, *words))
+        self.gen_instruction("functions", opcode, *words)
 
     def obtain_id(self, name=""):
         """Get a new raw id for anything that's not a value or type."""
@@ -494,7 +495,7 @@ class BaseSpirVGenerator:
         # Create id and type_id
         var_id, var_type_id = self.obtain_value(the_type, name)
         #  Create pointer for variable
-        var_pointer_id = self.obtain_id("pointer")
+        var_pointer_id = self.obtain_id()
         self.gen_instruction(
             "types", cc.OpTypePointer, var_pointer_id, storage_class, var_type_id
         )

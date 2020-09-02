@@ -57,6 +57,46 @@ def test_triangle_shader():
         out_color = vec4(in_color, 1.0)  # noqa
 
 
+def test_bytecode_output_src_opcodes():
+    def compute_shader():
+        a = 2  # noqa
+
+    m = pyshader.python2shader(compute_shader)
+    bc = m.to_bytecode()
+    instructions = [x[0] for x in bc]
+    assert instructions == [
+        "co_src_filename",
+        "co_src_linenr",
+        "co_entrypoint",
+        "co_src_linenr",
+        "co_load_constant",
+        "co_store_name",
+        "co_func_end",
+    ]
+
+
+@mark.skipif(not can_use_vulkan_sdk, reason="No Vulkan SDK")
+def test_spirv_output_opnames():
+    def compute_shader(
+        index: ("input", "GlobalInvocationId", ivec3),
+        data1: ("buffer", 0, Array(i32)),
+    ):
+        a = 2
+        b = a  # noqa
+        c = a + 1  # noqa
+
+    m = pyshader.python2shader(compute_shader)
+    text = pyshader.dev.disassemble(m.to_spirv())
+
+    # Check opname
+    assert text.count("OpName") == 5
+    assert 'OpName %main "main"' in text
+    assert 'OpName %index "index"' in text
+    assert 'OpName %data1 "data1"' in text
+    assert 'OpName %a "a"' in text
+    assert 'OpName %c "c"' in text
+
+
 @mark.skipif(not can_use_vulkan_sdk, reason="No Vulkan SDK")
 def test_no_duplicate_constants():
     def vertex_shader():
