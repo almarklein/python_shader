@@ -1,3 +1,4 @@
+import os
 import math
 import inspect
 from dis import dis as pprint_bytecode
@@ -49,6 +50,7 @@ def get_line_bumps_from_code_object(co):
     """Get a list of tuples that define what instruction mark the beginning
     of a new line.
     """
+    # Convert Python's specific compressed format to a list of (absolute) tuples.
     # https://svn.python.org/projects/python/branches/pep-0384/Objects/lnotab_notes.txt
     lineno, addr = co.co_firstlineno, 0
     line_bumps = []
@@ -59,6 +61,10 @@ def get_line_bumps_from_code_object(co):
         lineno += line_incr
         if line_incr:
             line_bumps.append((addr, lineno))
+    # Add an entry at the beginning (co_firstlineno may not match the first entry)
+    line_bumps.insert(0, (-1, co.co_firstlineno))
+    # Add an entry at the end, making processing easier.
+    line_bumps.append((len(co.co_code), line_bumps[-1][1]))
     return line_bumps
 
 
@@ -86,8 +92,7 @@ class PyBytecode2Bytecode:
 
         # Get line bumps, and add an element for ease of use
         self._line_bumps = get_line_bumps_from_code_object(self._co)
-        self._line_bumps.append((len(self._co.co_code), self._line_bumps[-1][1]))
-        self._line_bump_index = len(self._line_bumps) - 1
+        self._line_bump_index = len(self._line_bumps) - 2  # set at the last line
 
         self._opcodes = []  # The resulting "bytecode"
 
@@ -177,7 +182,7 @@ class PyBytecode2Bytecode:
         ob = self._stack.pop()
         if not allow_global:
             if isinstance(ob, str) and ob.startswith("."):
-                raise ShaderError(f"Invalid use of (global) {ob[1:]}")
+                raise ShaderError(self.errinfo() + f"Invalid use of (global) {ob[1:]}")
         return ob
 
     def emit(self, opcode, *args):
@@ -187,7 +192,8 @@ class PyBytecode2Bytecode:
             argnames = [fcode.co_varnames[i] for i in range(fcode.co_argcount)][1:]
             if len(args) != len(argnames):
                 raise RuntimeError(
-                    f"Got {len(args)} args for {opcode}({', '.join(argnames)})"
+                    self.errinfo()
+                    + f"Got {len(args)} args for {opcode}({', '.join(argnames)})"
                 )
 
         if opcode == "co_branch":
@@ -235,7 +241,8 @@ class PyBytecode2Bytecode:
             if method is None:
                 pprint_bytecode(self._co)
                 raise RuntimeError(
-                    f"Cannot parse py's {opname} yet (no {method_name}())."
+                    self.errinfo()
+                    + f"Cannot parse py's {opname} yet (no {method_name}())."
                 )
             else:
                 method(arg)
@@ -541,9 +548,9 @@ class PyBytecode2Bytecode:
             n += 1
             i -= 2
         # Increase line number?
-        if self._pointer >= self._line_bumps[self._line_bump_index][0]:
-            linenr = self._line_bumps[self._line_bump_index][1]
+        if self._pointer >= self._line_bumps[self._line_bump_index + 1][0]:
             self._line_bump_index += 1
+            linenr = self._line_bumps[self._line_bump_index][1]
             self.emit(op.co_src_linenr, linenr)
         # Done
         self._pointer += 2
@@ -585,6 +592,37 @@ class PyBytecode2Bytecode:
             # starting with "L" will not be renamed.
             self._labels[pointer_pos] = str(pointer_pos)
         return self._labels[pointer_pos]
+
+    def errinfo(self, *variable_names):
+        """Get error info for the current moment during compiling
+        (source filename and line number) and including the names of the given
+        variables.
+        """
+        filename = self._co.co_filename
+        linenr = self._line_bumps[self._line_bump_index][1]
+        text = ""
+        # Start with basic info about the line
+        if filename:
+            text += f'\n  Source file "{filename}"'
+            if linenr:
+                text += f", line {linenr}"
+            text += ", in " + self._py_func.__name__
+            text += "\n"
+        # If possible, also add the line's source code
+        if filename and os.path.isfile(filename):
+            with open(filename, "rt", encoding="utf-8") as f:
+                lines = f.read().splitlines()
+            try:
+                text += "    " + lines[linenr - 1].strip() + "\n"
+            except IndexError:
+                pass
+        # Include variable names
+        if variable_names:
+            text += "  Related variables: " + ", ".join(variable_names) + "\n"
+        # Done
+        if text:
+            text += "  "
+        return text
 
     # %%
 
@@ -683,19 +721,24 @@ class PyBytecode2Bytecode:
         elif isinstance(ob, tuple):
             if self._peek() != "UNPACK_SEQUENCE":
                 raise ShaderError(
-                    "Const tuples are not supported (though you can do `a, b = c, d`)"
+                    self.errinfo()
+                    + "Const tuples are not supported (though you can do `a, b = c, d`)"
                 )
             for x in ob:
                 if isinstance(x, (float, int, bool)):
                     self.emit(op.co_load_constant, x)
                     self._stack.append(x)
                 else:
-                    raise ShaderError("Only float/int/bool constants supported.")
+                    raise ShaderError(
+                        self.errinfo() + "Only float/int/bool constants supported."
+                    )
             self._stack.append(("tuple", len(ob)))  # signal for UNPACK_SEQUENCE
         elif ob is None:
             self._stack.append(None)  # Probably for the function return value
         else:
-            raise ShaderError("Only float/int/bool constants supported.")
+            raise ShaderError(
+                self.errinfo() + "Only float/int/bool constants supported."
+            )
 
     def _op_load_global(self, i):
         # Loading a global in Python can mean different things. We need
@@ -727,7 +770,7 @@ class PyBytecode2Bytecode:
             # Builtin functions that we resolve in this compiler
             self._stack.append(".py." + name)
         else:
-            raise ShaderError(f"Unknown variable name {name!r}")
+            raise ShaderError(self.errinfo() + f"Unknown variable name {name!r}")
         # todo: loading constants from the Python globals() scope
         # todo: loading other Python shader functions
 
@@ -740,7 +783,7 @@ class PyBytecode2Bytecode:
             self._stack.append(None)
         elif ob == ".stdlib":
             if name not in stdlib_func_names:
-                raise ShaderError(f"No stdlib function {name}")
+                raise ShaderError(self.errinfo() + f"No stdlib function {name}")
             self._stack.append(".stdlib." + name)  # new global on the stack
         elif ob.startswith(".math"):
             ob = getattr(math, name, None)
@@ -752,7 +795,7 @@ class PyBytecode2Bytecode:
             elif name in stdlib_func_names:
                 self._stack.append(".stdlib." + name)  # new global on the stack
             else:
-                raise ShaderError(f"No math constant/function {name}")
+                raise ShaderError(self.errinfo() + f"No math constant/function {name}")
         elif ob.startswith("texture."):
             # Calling a texture sampling function as a method on a texture
             # object. Not a global! We need to communicate to call_funcion/call_method
@@ -761,7 +804,9 @@ class PyBytecode2Bytecode:
             self._stack.append("texture." + name)
         elif ob.startswith("."):
             # Catch invalid use of globals
-            raise ShaderError(f"Cannot load attribute '{name}' from '{ob}'")
+            raise ShaderError(
+                self.errinfo() + f"Cannot load attribute '{name}' from '{ob}'"
+            )
         else:
             self.emit(op.co_load_attr, name)
             self._stack.append(None)
@@ -773,13 +818,13 @@ class PyBytecode2Bytecode:
     def _op_load_deref(self, arg):
         # ext_ob_name = self._co.co_freevars[i]
         # ext_ob = self._py_func.__closure__[i]
-        raise ShaderError("Shaders cannot be used as closures atm.")
+        raise ShaderError(self.errinfo() + "Shaders cannot be used as closures atm.")
 
     def _op_store_attr(self, i):
         name = self._co.co_names[i]
         ob = self._stack_pop()
         value = self._stack_pop()  # noqa
-        raise ShaderError(f"{ob}.{name} store")
+        raise ShaderError(self.errinfo() + f"{ob}.{name} store")
 
     def _op_call_function(self, nargs):
         args = [self._stack_pop(True) for i in range(nargs)]
@@ -788,7 +833,7 @@ class PyBytecode2Bytecode:
         func = self._stack_pop(True)  # allow global
 
         if not isinstance(func, str):
-            raise ShaderError(f"Cannot call object '{func}'.")
+            raise ShaderError(self.errinfo() + f"Cannot call object '{func}'.")
         self._call_function(func, args)
 
     def _op_call_method(self, nargs):
@@ -817,7 +862,7 @@ class PyBytecode2Bytecode:
                     args.append(arg)
         for arg in args:
             if isinstance(arg, str) and arg.startswith("."):
-                raise ShaderError(f"Cannot call {func} with arg {arg}")
+                raise ShaderError(self.errinfo() + f"Cannot call {func} with arg {arg}")
 
         if func.startswith("texture."):
             # A texture function called as a method of a texture object
@@ -843,7 +888,9 @@ class PyBytecode2Bytecode:
                 self._peek(self._pointer) == "GET_ITER"
                 and self._peek(self._pointer + 2) == "FOR_ITER"
             ):
-                raise ShaderError("range() can only be used as a for-loop iter.")
+                raise ShaderError(
+                    self.errinfo() + "range() can only be used as a for-loop iter."
+                )
             loop_info = self._loops_to_handle[0]
             assert loop_info["start"] == self._pointer + 2
             loop_info["range_is_set"] = True
@@ -856,18 +903,20 @@ class PyBytecode2Bytecode:
             elif nargs == 3:
                 step = args[2]
                 if not (isinstance(step, int) and step > 0):
-                    raise ShaderError("range() step must be a constant int > 0")
+                    raise ShaderError(
+                        self.errinfo() + "range() step must be a constant int > 0"
+                    )
             else:
-                raise ShaderError("range() must have 1, 2 or 3 args.")
+                raise ShaderError(self.errinfo() + "range() must have 1, 2 or 3 args.")
             self._stack.append("range")
             # nothing to emit yet
         elif func.startswith((".stdlib.", ".math.")):
             self.emit(op.co_call, funcname, nargs)
             self._stack.append(None)
         elif func.startswith("."):
-            raise ShaderError(f"Unknown external function {func}.")
+            raise ShaderError(self.errinfo() + f"Unknown external function {func}.")
         else:
-            raise ShaderError(f"Cannot call object {func}.")
+            raise ShaderError(self.errinfo() + f"Cannot call object {func}.")
 
     def _op_binary_subscr(self, arg):
         index = self._stack_pop()
@@ -890,7 +939,8 @@ class PyBytecode2Bytecode:
             self._stack.append(("tuple", n))
         else:
             raise ShaderError(
-                "Tuples are not supported (though you can do `a, b = c, d`)"
+                self.errinfo()
+                + "Tuples are not supported (though you can do `a, b = c, d`)"
             )
 
     def _op_unpack_sequence(self, n):
@@ -902,10 +952,13 @@ class PyBytecode2Bytecode:
                 objects = [self._stack.pop() for i in range(n)]
                 self._stack.extend(objects)
             else:
-                raise ShaderError(f"Cannot unpack a {x[1]} tuple into a {n}-tuple")
+                raise ShaderError(
+                    self.errinfo() + f"Cannot unpack a {x[1]} tuple into a {n}-tuple"
+                )
         else:
             raise ShaderError(
-                "Cannot unpack arbitrary sequences (though you can do `a, b = c, d`)"
+                self.errinfo()
+                + "Cannot unpack arbitrary sequences (though you can do `a, b = c, d`)"
             )
 
     def _op_build_list(self, n):
@@ -916,11 +969,11 @@ class PyBytecode2Bytecode:
         self.emit(op.co_load_array, n)
 
     def _op_build_map(self, arg):
-        raise ShaderError("Dict not allowed in Shader-Python")
+        raise ShaderError(self.errinfo() + "Dict not allowed in Shader-Python")
 
     def _op_build_const_key_map(self, arg):
         # The version of BUILD_MAP specialized for constant keys. Py3.6+
-        raise ShaderError("Dict not allowed in Shader-Python")
+        raise ShaderError(self.errinfo() + "Dict not allowed in Shader-Python")
 
     def _op_unary_positive(self, arg):
         self._stack_pop()
@@ -1007,7 +1060,9 @@ class PyBytecode2Bytecode:
     def _op_compare_op(self, arg):
         cmp = cmp_op[arg]
         if cmp not in ("<", "<=", "==", "!=", ">", ">="):
-            raise ShaderError(f"Compare op {cmp} not supported in shaders.")
+            raise ShaderError(
+                self.errinfo() + f"Compare op {cmp} not supported in shaders."
+            )
         self._stack_pop()
         self._stack_pop()
         self._stack.append(None)
@@ -1070,14 +1125,16 @@ class PyBytecode2Bytecode:
         # but maybe we should avoid that temptation, as it does not fit
         # a strongly typed language well ...
         raise ShaderError(
-            "Implicit bool conversions not supported. Maybe use ``x if y else z``?"
+            self.errinfo()
+            + "Implicit bool conversions not supported. Maybe use ``x if y else z``?"
         )
 
     def _op_jump_if_false_or_pop(self, target):
         # Same as _op_jump_if_true_or_pop, but for AND
         # self._insert_at[target] = ("co_binary_op", "and")
         raise ShaderError(
-            "Implicit bool conversions not supported. Maybe use ``x if y else z``?"
+            self.errinfo()
+            + "Implicit bool conversions not supported. Maybe use ``x if y else z``?"
         )
 
     def _start_loop(self, loop_info):
@@ -1090,7 +1147,7 @@ class PyBytecode2Bytecode:
         if loop_info["type"] == "for":
             # Check that the range is set
             if not loop_info.get("range_is_set"):
-                raise ShaderError("Shader for-loop must use range()")
+                raise ShaderError(self.errinfo() + "Shader for-loop must use range()")
 
             # Consume next codepoint - the storing of the iter value
             assert self._peek(self._pointer) == "FOR_ITER"
@@ -1159,7 +1216,9 @@ class PyBytecode2Bytecode:
             # The continue_label and merge_label get emitted in _end_loop
 
         else:
-            raise RuntimeError(f"invalid loop type {loop_info['type'] }")
+            raise RuntimeError(
+                self.errinfo() + f"invalid loop type {loop_info['type'] }"
+            )
 
     def _end_loop(self):
 
@@ -1212,7 +1271,7 @@ class PyBytecode2Bytecode:
     def _op_get_iter(self, arg):
         func = self._stack_pop()
         if func != "range":
-            raise ShaderError("Can only use a loop with range()")
+            raise ShaderError(self.errinfo() + "Can only use a loop with range()")
         self._stack.append(func)
         # Note: in op_call_function we've already made sure that there are three arg values on the stack
 

@@ -149,7 +149,7 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             text += f'\n  Source file "{filename}"'
             if linenr:
                 text += f", line {linenr}"
-            # todo: function name ...
+            # todo: function name or entrypoint name...
             text += "\n"
         # If possible, also add the line's source code
         if filename and os.path.isfile(filename):

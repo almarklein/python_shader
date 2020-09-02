@@ -188,7 +188,7 @@ def test_fail_unvalid_names():
     with raises(pyshader.ShaderError) as info:
         pyshader.python2shader(compute_shader)
 
-    # assert "color = foo" in str(info.value).lower()
+    assert "color = foo" in str(info.value).lower()
 
 
 def test_fail_unvalid_stlib_name():
@@ -200,7 +200,7 @@ def test_fail_unvalid_stlib_name():
     with raises(pyshader.ShaderError) as info:
         pyshader.python2shader(compute_shader)
 
-    # assert "color = stdlib.foo" in str(info.value).lower()
+    assert "color = stdlib.foo" in str(info.value).lower()
 
 
 def test_cannot_use_unresolved_globals():
@@ -212,7 +212,7 @@ def test_cannot_use_unresolved_globals():
     with raises(pyshader.ShaderError) as info:
         pyshader.python2shader(compute_shader)
 
-    # assert "color = stdlib + 1.0" in str(info.value).lower()
+    assert "color = stdlib + 1.0" in str(info.value).lower()
 
 
 def test_cannot_call_non_funcs():
