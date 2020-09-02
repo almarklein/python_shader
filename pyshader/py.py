@@ -165,7 +165,14 @@ class PyBytecode2Bytecode:
 
         if opcode == "co_branch":
             assert not self._opcodes[-1][0].startswith("co_branch")
+
         self._opcodes.append((opcode, *args))
+
+        if opcode == "co_src_linenr":
+            if self._opcodes[-2][0] == "co_label":
+                # Swap the last two items so that a co_src_linenr does not
+                # get in between a co_label and a co_branch
+                self._opcodes.insert(-1, self._opcodes.pop(-1))
 
     def dump(self):
         return self._opcodes
@@ -377,7 +384,7 @@ class PyBytecode2Bytecode:
         # Sometimes Python bytecode contains an empty block (i.e. code
         # jumpt to a location, from which it jumps to another location
         # immediately). In such cases, the control flow can be
-        # incosistent, with some branches jumping to that empty block,
+        # inconsistent, with some branches jumping to that empty block,
         # and some skipping it. The code below finds such empty blocks
         # and resolve them.
 
@@ -432,6 +439,10 @@ class PyBytecode2Bytecode:
                     # Register this branch (note that this may overwrite keys, which is ok)
                     conditional_branches[args[0]] = args[1], i
                     conditional_branches[args[1]] = args[0], i
+                elif "store" in opcode:
+                    # If there's any store ops here, this cannot have been an OR,
+                    # and we should not touch it, otherwise we break the flow.
+                    cur_block = None
 
         while True:
             block = _get_block_to_resolve()
@@ -443,6 +454,7 @@ class PyBytecode2Bytecode:
             labels2 = self._opcodes[i_cond][1:]  # the common block and the else
             # Rip out the current label
             selection = self._opcodes[i_label + 1 : i_cond]
+            # assert all(op[0] != "co_src_linenr" for op in selection
             self._opcodes[i_label : i_cond + 1] = []
             # Determine how to combine these
             if labels1[0] == labels2[0]:  # comp1 is true or comp2 is true

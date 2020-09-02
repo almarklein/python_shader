@@ -480,7 +480,7 @@ def test_loop5b():
 
     skip_if_no_wgpu()
     res = generate_list_of_floats_from_shader(10, compute_shader)
-    assert res == [1, 2, 3, 4, 5, 6, 7, 8, 8, 8]
+    assert res == [0, 1, 2, 3, 4, 5, 6, 7, 8, 8]
 
 
 def test_loop6():
@@ -606,7 +606,7 @@ def test_while2b():
 
     skip_if_no_wgpu()
     res = generate_list_of_floats_from_shader(10, compute_shader)
-    assert res == [1, 2, 3, 4, 5, 6, 7, 8, 8, 8]
+    assert res == [0, 1, 2, 3, 4, 5, 6, 7, 8, 8]
 
 
 def test_while2c():
@@ -847,13 +847,13 @@ HASHES = {
     "test_loop3.compute_shader": ("805d244ecbec89a3", "e28248c791f968aa"),
     "test_loop4.compute_shader": ("7d5d1636c3089f12", "19334d653b577aa8"),
     "test_loop5a.compute_shader": ("e440f9ea91fe58b0", "9ae28cf01dab0146"),
-    "test_loop5b.compute_shader": ("1c7173d60f762c01", "aa7453cffb274e8a"),
+    "test_loop5b.compute_shader": ("883e27baae98bc79", "9db12fec43e924f2"),
     "test_loop6.compute_shader": ("0b3ab9bf77604e59", "d7b96d62d793f55b"),
     "test_loop7.compute_shader": ("40e2d0c552374106", "a723ca922aa4fe08"),
     "test_loop8.compute_shader": ("1a738fac4a40cba8", "eabae8e7dd73a3ce"),
     "test_while1.compute_shader": ("a2f299b8d41c44ec", "0d48dbe264b95186"),
-    "test_while2a.compute_shader": ("f2383f5c31d55bc8", "db753904ad6b9849"),
-    "test_while2b.compute_shader": ("8fc8bb3646c33a24", "bd293d4fa7609708"),
+    "test_while2a.compute_shader": ("da2e0f8b5f774aaa", "175ffa0c869ee2cc"),
+    "test_while2b.compute_shader": ("e62ae12b9c5d511b", "dab05da15ffbefa4"),
     "test_while2c.compute_shader": ("af3144327a1feedb", "0148bb35441d3811"),
     "test_while3.compute_shader": ("c21d6893f2bf240f", "8d55837a9d599f99"),
     "test_while4.compute_shader": ("aff8b8bea6131cdf", "a201040dfdbd1d57"),
