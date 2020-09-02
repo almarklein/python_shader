@@ -399,15 +399,15 @@ def skip_if_no_wgpu():
 
 
 HASHES = {
-    "test_null_shader.vertex_shader": ("bc099a07b86d70f2", "a48ffae9d0f09a5c"),
-    "test_triangle_shader.vertex_shader": ("000514d8367ef0fa", "928cd41a713e3878"),
-    "test_triangle_shader.fragment_shader": ("6da8c966525c9c7f", "1dc83bfcd11e229b"),
-    "test_compute_shader.compute_shader": ("7cf577981390626b", "47d2f371faa48ed0"),
-    "test_texture_2d_f32.fragment_shader": ("564804a234e76fe1", "2fe982d3e5542180"),
-    "test_texture_1d_i32.fragment_shader": ("0c1ad1a8f909c442", "7f4ad10ae75030fa"),
-    "test_texture_3d_r16i.fragment_shader": ("f1069cfd9c74fa1d", "14f0b7e61c2ea4dc"),
-    "test_texcomp_2d_rg32i.compute_shader": ("7dbaa7fe613cf33d", "609468500982bfbd"),
-    "test_tuple_unpacking.compute_shader": ("d48f10f99c448f65", "4158f1eb0a23c9d6"),
+    "test_null_shader.vertex_shader": ("48108edb5b1c0e41", "171625fefed67e8c"),
+    "test_triangle_shader.vertex_shader": ("cc50531eb103adbc", "8f801ce9aa7322d3"),
+    "test_triangle_shader.fragment_shader": ("1fb9ac2969c3467f", "0d05efee45389ad9"),
+    "test_compute_shader.compute_shader": ("89feca670f2325cc", "c044d933e7470332"),
+    "test_texture_2d_f32.fragment_shader": ("d471d10490e32cec", "712f06338d1d1718"),
+    "test_texture_1d_i32.fragment_shader": ("673a5764bbd88c9a", "cb2706cc3dd78235"),
+    "test_texture_3d_r16i.fragment_shader": ("c2356e873c1cde18", "0fe621b980af050e"),
+    "test_texcomp_2d_rg32i.compute_shader": ("f86b16343b2479c2", "3acb0f16483ef404"),
+    "test_tuple_unpacking.compute_shader": ("ea0ec876206a3a00", "f8da75cc86d88303"),
 }
 
 
