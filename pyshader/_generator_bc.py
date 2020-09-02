@@ -867,10 +867,10 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             raise ShaderError(self.errinfo(ob) + "Cannot store to input")
         elif name in self._uniform:
             raise ShaderError(self.errinfo(ob) + "Cannot store to uniform")
+        else:
+            ob = ob.clone(name=name.split(".")[-1])
 
         # Store where the result can now be fetched by name (within this block)
-        if not ob.name:
-            ob.name = name.split(".")[-1]
         self._name_ids[name] = ob
 
     def co_load_index(self):

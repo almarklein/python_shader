@@ -75,10 +75,18 @@ class ValueId(AnyId):
         super().__init__(name=name)
         self.type = type
 
+    def clone(self, name=""):
+        assert self.id is not None
+        x = ValueId(self.type, name)
+        x.id = self.id
+        return x
+
 
 class VariableAccessId(ValueId):
     """A chain of access into a SpirV variable. The type arg is the type
-    for the eventual value.
+    for the eventual value. This is a subclass of ValueId because it can usually
+    be used in place of one. However, it's only a wrapper class, and it's id
+    is always None.
     """
 
     def __init__(self, variable, storage_class, type, *indices, name=""):
@@ -86,6 +94,14 @@ class VariableAccessId(ValueId):
         self.variable = variable  # ValueId representing the SpirV Variable
         self.storage_class = storage_class
         self.indices = indices  # ValueId's
+        # self.id -> not used
+
+    def clone(self, name=""):
+        assert self.variable.id is not None
+        x = VariableAccessId(
+            self.variable, self.storage_class, self.type, *self.indices, name=name
+        )
+        return x
 
     def index(self, index, field=None):
         """Index into the variable chain, so we go one level deeper."""

@@ -276,7 +276,64 @@ def test_cannot_add_int_and_floats():
         x.to_spirv()
     err = info.value.args[0]
     assert "source file" in err.lower()
+    assert "test_py.py" in err.lower()
     assert "bar = foo + index.x" in err.lower()
+
+
+def test_errror_reports_the_correct_name1():
+    # Sometimes, an object can be known by multiple names ...
+
+    def compute_shader1(
+        index: ("input", "GlobalInvocationId", ivec3),
+    ):
+        foo = 3.0
+        bar = foo  # noqa
+        spam = foo + 1  # noqa
+
+    def compute_shader2(
+        index: ("input", "GlobalInvocationId", ivec3),
+    ):
+        foo = 3.0
+        bar = foo  # noqa
+        spam = bar + 1  # noqa
+
+    with raises(pyshader.ShaderError) as info1:
+        pyshader.python2shader(compute_shader1).to_spirv()
+    assert "spam = foo + 1" in str(info1.value).lower()
+    assert "variables: foo, 1" in str(info1.value).lower()
+
+    with raises(pyshader.ShaderError) as info2:
+        pyshader.python2shader(compute_shader2).to_spirv()
+    assert "spam = bar + 1" in str(info2.value).lower()
+    assert "variables: bar, 1" in str(info2.value).lower()
+
+
+def test_errror_reports_the_correct_name2():
+    # ... and sometimes that name is an array (a VariableAccessId internally)
+
+    def compute_shader1(
+        index: ("input", "GlobalInvocationId", ivec3),
+    ):
+        foo = [1, 2, 3]
+        bar = foo  # noqa
+        spam = foo[0] + 1.0  # noqa
+
+    def compute_shader2(
+        index: ("input", "GlobalInvocationId", ivec3),
+    ):
+        foo = [1, 2, 3]
+        bar = foo  # noqa
+        spam = bar[0] + 1.0  # noqa
+
+    with raises(pyshader.ShaderError) as info1:
+        pyshader.python2shader(compute_shader1).to_spirv()
+    assert "spam = foo[0] + 1.0" in str(info1.value).lower()
+    assert "variables: foo[0], 1.0" in str(info1.value).lower()
+
+    with raises(pyshader.ShaderError) as info2:
+        pyshader.python2shader(compute_shader2).to_spirv()
+    assert "spam = bar[0] + 1.0" in str(info2.value).lower()
+    assert "variables: bar[0], 1.0" in str(info2.value).lower()
 
 
 # %% Utils for this module
