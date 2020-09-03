@@ -40,14 +40,23 @@ def validate_module(shader_module, hashes, check_bytecode=True):
     func = shader_module.input
     assert callable(func)
 
-    # Get steps of code: Python, bytecode, spirv
+    # Compose key to identify this function by
     key = func.__qualname__.replace(".<locals>.", ".")
-    bc = shader_module.to_bytecode()
-    for i in range(len(bc)):
-        if bc[i][0] == "co_src_filename":
-            bc[i] = "co_src_filename", "<stripped>"
-    text_bc = pyshader.opcodes.bc2str(bc)
-    assert bc == pyshader.opcodes.str2bc(text_bc)
+
+    # Get bytecode as text, with debug info removed. The co_src_filename
+    # is obviously different on different machines, so we don't want
+    # that info in the hash. The line numbers should be the same. Except
+    # they're not. I suspect pytest's magic somehow adds (extreme) line
+    # numps in the python-bytecode of some test shaders ...
+    bc1 = shader_module.to_bytecode()
+    bc2 = []
+    for i in range(len(bc1)):
+        if bc1[i][0] not in ("co_src_filename", "co_src_linenr"):
+            bc2.append(bc1[i])
+    text_bc = pyshader.opcodes.bc2str(bc2)
+    assert bc2 == pyshader.opcodes.str2bc(text_bc)  # Quick sanity check
+
+    # Get the SpirV code as bytes.
     byte_sp = shader_module.to_spirv()
 
     # print(text_bc)
