@@ -55,16 +55,17 @@ def test(shader_name):
 
 
 HASHES = {
-    "compute.compute_shader_copy": ("0fef618daddaf07d", "c044d933e7470332"),
-    "compute.compute_shader_multiply": ("49e95d04924391ff", "0df83cd3720f30b3"),
-    "compute.compute_shader_tex_colorwap": ("c62f87032d09582f", "ccfda69295d76e89"),
-    "mesh.vertex_shader": ("968d9fec3eddcee7", "5ec14e2b0f605cc8"),
-    "mesh.fragment_shader_flat": ("3dfcac8707287b7e", "ebf558649fa38414"),
-    "textures.compute_shader_tex_add": ("db13b6f7281e0688", "6f8ed6d74fe38e68"),
-    "textures.fragment_shader_tex": ("afb38a886eab7c1b", "a3074e9bc3cfce20"),
-    "triangle.vertex_shader": ("0557cb689b4d7c7c", "07bcc4f5a508dc7d"),
-    "triangle.fragment_shader": ("6d17c1397c52cfad", "9c70b7411171ec9a"),
+    "compute.compute_shader_copy": ("0fef618daddaf07d", "c7570b16d25a33d0"),
+    "compute.compute_shader_multiply": ("49e95d04924391ff", "3f3ee31245b9d16b"),
+    "compute.compute_shader_tex_colorwap": ("c62f87032d09582f", "d87f2f8b15c73213"),
+    "mesh.vertex_shader": ("968d9fec3eddcee7", "80db45b376a75fe3"),
+    "mesh.fragment_shader_flat": ("3dfcac8707287b7e", "bca0edd57ffb8e98"),
+    "textures.compute_shader_tex_add": ("db13b6f7281e0688", "4e37bc570b6462eb"),
+    "textures.fragment_shader_tex": ("afb38a886eab7c1b", "28c84baac74b973e"),
+    "triangle.vertex_shader": ("0557cb689b4d7c7c", "757bf0a23c44feec"),
+    "triangle.fragment_shader": ("6d17c1397c52cfad", "4c6ac6942205ebfc"),
 }
+
 
 if __name__ == "__main__":
     run_test_and_print_new_hashes(globals())

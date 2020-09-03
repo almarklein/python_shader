@@ -400,16 +400,15 @@ def skip_if_no_wgpu():
 
 HASHES = {
     "test_null_shader.vertex_shader": ("48108edb5b1c0e41", "171625fefed67e8c"),
-    "test_triangle_shader.vertex_shader": ("cc50531eb103adbc", "8f801ce9aa7322d3"),
-    "test_triangle_shader.fragment_shader": ("1fb9ac2969c3467f", "0d05efee45389ad9"),
-    "test_compute_shader.compute_shader": ("89feca670f2325cc", "c044d933e7470332"),
-    "test_texture_2d_f32.fragment_shader": ("d471d10490e32cec", "712f06338d1d1718"),
-    "test_texture_1d_i32.fragment_shader": ("673a5764bbd88c9a", "cb2706cc3dd78235"),
-    "test_texture_3d_r16i.fragment_shader": ("c2356e873c1cde18", "0fe621b980af050e"),
-    "test_texcomp_2d_rg32i.compute_shader": ("f86b16343b2479c2", "3acb0f16483ef404"),
-    "test_tuple_unpacking.compute_shader": ("ea0ec876206a3a00", "f8da75cc86d88303"),
+    "test_triangle_shader.vertex_shader": ("cc50531eb103adbc", "25c7995a78d88149"),
+    "test_triangle_shader.fragment_shader": ("1fb9ac2969c3467f", "6195678be1133cd3"),
+    "test_compute_shader.compute_shader": ("89feca670f2325cc", "c7570b16d25a33d0"),
+    "test_texture_2d_f32.fragment_shader": ("d471d10490e32cec", "3e453a2a6d4bae82"),
+    "test_texture_1d_i32.fragment_shader": ("673a5764bbd88c9a", "ceb99eb55f125a0c"),
+    "test_texture_3d_r16i.fragment_shader": ("c2356e873c1cde18", "7cb52e6be0b25f4d"),
+    "test_texcomp_2d_rg32i.compute_shader": ("f86b16343b2479c2", "8683b939108878c6"),
+    "test_tuple_unpacking.compute_shader": ("ea0ec876206a3a00", "c893e0ad65342ac4"),
 }
-
 
 # Run this as a script to get new hashes when needed
 if __name__ == "__main__":
