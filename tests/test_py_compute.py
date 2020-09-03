@@ -205,12 +205,12 @@ def skip_if_no_wgpu():
 
 
 HASHES = {
-    "test_index.compute_shader": ("6fe59ef53ffe96a8", "dd1da5d13e42420d"),
-    "test_copy.compute_shader": ("a87ea3f5b91eca4d", "c7570b16d25a33d0"),
-    "test_copy_vec2.compute_shader": ("64a7a8c09a545873", "837368b75ddb30b7"),
-    "test_copy_vec4.compute_shader": ("41a45f8daff76efd", "334ec26aa0376093"),
-    "test_array1.compute_shader": ("044d14e616e998db", "238b070fac21bd22"),
-    "test_array2.compute_shader": ("24696e9c03e547b7", "3bca29371908ee1e"),
+    "test_index.compute_shader": ("fc4587cbf1c662fa", "dd1da5d13e42420d"),
+    "test_copy.compute_shader": ("7cf577981390626b", "c7570b16d25a33d0"),
+    "test_copy_vec2.compute_shader": ("5e0bd906a652ec4a", "837368b75ddb30b7"),
+    "test_copy_vec4.compute_shader": ("243e410cd456593e", "334ec26aa0376093"),
+    "test_array1.compute_shader": ("cbc64b40fe63d646", "238b070fac21bd22"),
+    "test_array2.compute_shader": ("457ca294721bd18f", "3bca29371908ee1e"),
 }
 
 

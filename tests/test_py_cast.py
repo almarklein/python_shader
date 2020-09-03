@@ -287,17 +287,17 @@ def skip_if_no_wgpu():
 
 
 HASHES = {
-    "test_cast_i32_f32.compute_shader": ("ae7f3bb9566e7978", "b02da83d7493ecd8"),
-    "test_cast_u8_f32.compute_shader": ("b8c6643fab7622cd", "9871e8b94a8fead5"),
-    "test_cast_f32_i32.compute_shader": ("c0c27e888dc924b6", "9d226c5ab71fc9fc"),
-    "test_cast_f32_f32.compute_shader": ("8f63dd8ce600b992", "8e13bec446e7002f"),
-    "test_cast_f32_f64.compute_shader": ("a4d451ba03762840", "a3967435ff87e1d2"),
-    "test_cast_i64_i16.compute_shader": ("03bad424fa8c8cd7", "dccd1737a6a5fa69"),
-    "test_cast_i16_u8.compute_shader": ("b2c4e091a009f856", "270482e2512ff339"),
-    "test_cast_vec_ivec2_vec2.compute_shader": ("03a81259830965cb", "e1234315d79348d9"),
-    "test_cast_vec_any_vec4.compute_shader": ("699c8dc9c684d3cf", "222df0015243ae37"),
-    "test_cast_ivec2_bvec2.compute_shader": ("ccfe285d7cda02de", "72019ea3b054b277"),
-    "test_abstract_types.compute_shader": ("77d534e183e8bdff", "04bc280a4814a077"),
+    "test_cast_i32_f32.compute_shader": ("0f97715bd46e44f1", "b02da83d7493ecd8"),
+    "test_cast_u8_f32.compute_shader": ("db621633396816ab", "9871e8b94a8fead5"),
+    "test_cast_f32_i32.compute_shader": ("9e5240879e527c42", "9d226c5ab71fc9fc"),
+    "test_cast_f32_f32.compute_shader": ("3e9af418d6a59b2f", "8e13bec446e7002f"),
+    "test_cast_f32_f64.compute_shader": ("ffdd61ca192a6af2", "a3967435ff87e1d2"),
+    "test_cast_i64_i16.compute_shader": ("820ac5faf4b9ef5c", "dccd1737a6a5fa69"),
+    "test_cast_i16_u8.compute_shader": ("5160ad257f473715", "270482e2512ff339"),
+    "test_cast_vec_ivec2_vec2.compute_shader": ("faaf97ec5191ff47", "e1234315d79348d9"),
+    "test_cast_vec_any_vec4.compute_shader": ("663a0a466eefd578", "222df0015243ae37"),
+    "test_cast_ivec2_bvec2.compute_shader": ("f97e8c25daf81ba2", "72019ea3b054b277"),
+    "test_abstract_types.compute_shader": ("4573e2bdbc07a59a", "04bc280a4814a077"),
 }
 
 if __name__ == "__main__":
