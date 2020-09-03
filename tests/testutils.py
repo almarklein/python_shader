@@ -43,6 +43,9 @@ def validate_module(shader_module, hashes, check_bytecode=True):
     # Get steps of code: Python, bytecode, spirv
     key = func.__qualname__.replace(".<locals>.", ".")
     bc = shader_module.to_bytecode()
+    for i in range(len(bc)):
+        if bc[i][0] == "co_src_filename":
+            bc[i] = "co_src_filename", "<stripped>"
     text_bc = pyshader.opcodes.bc2str(bc)
     assert bc == pyshader.opcodes.str2bc(text_bc)
     byte_sp = shader_module.to_spirv()
