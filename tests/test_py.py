@@ -89,12 +89,12 @@ def test_spirv_output_opnames():
     text = pyshader.dev.disassemble(m.to_spirv())
 
     # Check opname
-    assert text.count("OpName") == 5
+    assert text.count("OpName") in (5, 6)
     assert 'OpName %main "main"' in text
     assert 'OpName %index "index"' in text
     assert 'OpName %data1 "data1"' in text
-    assert 'OpName %a "a"' in text
-    assert 'OpName %c "c"' in text
+    assert 'OpName %1 "1"' in text
+    assert 'OpName %2 "2"' in text
 
 
 @mark.skipif(not can_use_vulkan_sdk, reason="No Vulkan SDK")

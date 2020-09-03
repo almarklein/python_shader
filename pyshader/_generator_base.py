@@ -478,12 +478,14 @@ class BaseSpirVGenerator:
         # Make sure that we have it
         key = the_type.__name__, value
         if key not in self._constants:
-            id, type_id = self.obtain_value(the_type, str(value))
+            name = repr(value).lower()
+            id, type_id = self.obtain_value(the_type, name)
             if the_type is _types.boolean:
                 opcode = cc.OpConstantTrue if value else cc.OpConstantFalse
                 self.gen_instruction("types", opcode, type_id, id)
             else:
                 self.gen_instruction("types", cc.OpConstant, type_id, id, bb)
+            self.gen_instruction("debug", cc.OpName, id.id, name)
             self._constants[key] = id
         # Return cached
         return self._constants[key]
@@ -506,6 +508,9 @@ class BaseSpirVGenerator:
         self.gen_instruction(
             where, cc.OpVariable, var_pointer_id, var_id, storage_class
         )
+        # Mark the name of this variable
+        if name:
+            self.gen_instruction("debug", cc.OpName, var_id.id, name)
         # Return object that can be used to access the variable with multi-level indexing
         return VariableAccessId(var_id, storage_class, the_type, name=name)
 

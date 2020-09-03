@@ -80,7 +80,6 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         # Keep track what id a name was saved by. Some need to be stored in variables.
         self._name_ids = {}  # name -> ValueId
         self._name_variables = {}  # name -> VariableAccessId
-        self._opname_ids = set()  # Keep track what id's we emitted OpName for
 
         # Labels for control flow
         self._labels = {}
@@ -199,7 +198,6 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         self.gen_instruction(
             "entry_points", cc.OpEntryPoint, execution_model_flag, entry_point_id, name
         )
-        self.gen_instruction("debug", cc.OpName, self._entry_point_id.id, name)
 
         # Define execution modes for each entry point
         assert isinstance(execution_modes, dict)
@@ -226,6 +224,7 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             cc.OpFunction, return_type_id, func_id, func_control, func_type_id
         )
         self.gen_func_instruction(cc.OpLabel, self.obtain_id())
+        self.gen_instruction("debug", cc.OpName, func_id.id, name)
 
     def co_func_end(self):
         if self._current_branch is not self._root_branch:
@@ -654,7 +653,6 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         var_name = name.split(".")[-1]
         var_access = self.obtain_variable(var_type, storage_class, var_name)
         var_id = var_access.variable
-        self.gen_instruction("debug", cc.OpName, var_id.id, var_name)
 
         # On textures, store some more info that we need when sampling
         if kind == "texture":
@@ -876,11 +874,8 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             # an OpVariable. This may simplify things (e.g. this
             # associating multiple names to a value), and I reckon that
             # the driver will optimize that out.
-
-            # Add debug info to SpirV module
-            if ob.name and ob.id is not None and ob.id not in self._opname_ids:
-                self._opname_ids.add(ob.id)
-                self.gen_instruction("debug", cc.OpName, ob.id, name)
+            # This is also why we (for now) only emit OpName for variables
+            # and constants, and not for id's stored here.
 
         # Store where the result can now be fetched by name (within this block)
         self._name_ids[name] = ob
