@@ -17,8 +17,7 @@ def compute_shader_tex_add(
     tex1=("texture", 0, "2d rg16i"),
     tex2=("texture", 1, "2d r32f"),
 ):
-    val = tex1.read(index.xy).xy  # ivec2
-    val = vec2(val)  # cast to vec2
+    val = vec2(tex1.read(index.xy).xy)  # ivec2 -> vec2
     tex2.write(index.xy, vec4(val.x + val.y, 0.0, 0.0, 0.0))
 
 
