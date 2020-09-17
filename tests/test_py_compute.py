@@ -189,6 +189,20 @@ def test_array2():
     assert list(out[0]) == list(range(0, 20, 2))
 
 
+def test_array3():
+    @python2shader_and_validate
+    def compute_shader(
+        index: ("input", "GlobalInvocationId", ivec3),
+        data2: ("buffer", 0, Array(i32)),
+    ):
+        i = index.x
+        data2[i] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9][i] * 2
+
+    skip_if_no_wgpu()
+    out = compute_with_buffers({}, {0: (10, "i")}, compute_shader, n=10)
+    assert list(out[0]) == list(range(0, 20, 2))
+
+
 # %% Utils for this module
 
 

@@ -544,6 +544,48 @@ def test_loop8():
     assert res == [0, 0, 0, 0, 1, 1, 2, 2, 3, 3]
 
 
+def test_loop9():
+    # This is a very specific shader (volumeslice from pygfx) that produces
+    # wrong results at some point, which was the notch needed to implement
+    # variables using VarAccessId objects.
+    @python2shader_and_validate
+    def compute_shader(
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
+        data2: ("buffer", 1, Array(f32)),
+    ):
+        ed2pl = [[0, 4], [0, 3], [0, 5], [0, 2], [1, 5], [1, 3], [1, 4], [1, 2]]
+        intersect_flag = [0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0]
+        i = 1
+        plane_index = ed2pl[i][0]
+        vertices = [i, 0, 0, 0, 0, 0]
+        i_start = i
+        i_last = i
+        max_iter = 6
+        for iter in range(1, max_iter):
+            for i in range(12):
+                if i != i_last and intersect_flag[i] == 1:
+                    if ed2pl[i][0] == plane_index:
+                        vertices[iter] = i
+                        plane_index = ed2pl[i][1]
+                        i_last = i
+                        break
+                    elif ed2pl[i][1] == plane_index:
+                        vertices[iter] = i
+                        plane_index = ed2pl[i][0]
+                        i_last = i
+                        break
+            if i_last == i_start:
+                max_iter = iter
+                break
+        index = index_xyz.x
+        data2[index] = f32(vertices[index])
+
+    skip_if_no_wgpu()
+    vertices = generate_list_of_floats_from_shader(6, compute_shader)
+    print(vertices)
+    assert vertices == [1, 3, 7, 5, 1, 0]
+
+
 def test_while1():
     # A simple while loop!
 
