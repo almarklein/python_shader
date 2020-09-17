@@ -77,48 +77,13 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         # We keep track of sampler for each combination of texture and sampler
         self._texture_samplers = {}
 
-        # Keep track what id a name was saved by. Some need to be stored in variables.
-        self._name_ids = {}  # name -> ValueId
+        # Keep track VariableAccessId objects for variable names
         self._name_variables = {}  # name -> VariableAccessId
 
         # Labels for control flow
         self._labels = {}
         self._root_branch = {"depth": 0, "label": "", "children": ()}
         self._current_branch = self._root_branch
-
-        # Pre-parse the bytecode, to detect what variables names need
-        # to be stored in a func-variable, and what can be used via the
-        # (faster and easier) SSA form.
-        cur_block_label = ""
-        saved_in_blocks = {}  # name -> set of labels
-        self._need_name_var_save = {}  # label -> set of names
-        self._need_name_var_load = {}  # label -> set of names
-        name_store_count = {}
-        for opcode, *args in bytecode:
-            if opcode == "co_label":
-                cur_block_label = args[0]
-            elif opcode == "co_store_name":
-                name = args[0]
-                saved_in_blocks.setdefault(name, set()).add(cur_block_label)
-                name_store_count[name] = name_store_count.get(name, 0) + 1
-            elif opcode == "co_load_name":
-                name = args[0]
-                blocks_where_name_is_saved = saved_in_blocks.get(name, ())
-                if cur_block_label in blocks_where_name_is_saved:
-                    pass  # no need to use a variable
-                else:
-                    s = self._need_name_var_load.setdefault(cur_block_label, set())
-                    s.add(name)
-        # Also mark the blocks where we need to save the variable
-        for names in self._need_name_var_load.values():
-            for name in names:
-                blocks_where_name_is_saved = saved_in_blocks.get(name, ())
-                store_count = name_store_count.get(name, 0)
-                if store_count == 1 and blocks_where_name_is_saved == {""}:
-                    continue  # not needed
-                for block_label in blocks_where_name_is_saved:
-                    s = self._need_name_var_save.setdefault(block_label, set())
-                    s.add(name)
 
         # Parse
         for opcode, *args in bytecode:
@@ -820,23 +785,20 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
         self._stack.extend(obs)
 
     def co_load_name(self, name):
-        # store a variable that is used in an inner scope.
-        if name in self._name_ids:
-            # First check if we need to load the name from a variable. If we do,
-            # load it. Thereafter we won't need to load it again (in this block).
-            current_label = self._current_branch["label"]
-            names_that_need_load = self._need_name_var_load.get(current_label, set())
-            if name in names_that_need_load and name in self._name_variables:
-                ob = self._name_variables[name].resolve_load(self)
-                self._name_ids[name] = ob
-                names_that_need_load.discard(name)
-            ob = self._name_ids[name]
+        # load a variable that is used in an inner scope.
+        if name in self._name_variables:
+            # Load a variable name. If it's an array or struct, we leave
+            # it as is, so we can index into it. Otherwise we resolve
+            # now, otherwise we run into problems because the resolving
+            # will be lazy and may happen too late in certain use-cases.
+            var_access = self._name_variables[name]
+            if issubclass(var_access.type, (_types.Array, _types.Struct)):
+                ob = var_access
+            else:
+                ob = var_access.resolve_load(self)
         elif name in self._input:
             ob = self._input[name]
             assert isinstance(ob, VariableAccessId)
-            # We could make it quicker for next time, but we loose the deeper access
-            # ob = ob.resolve_load(self)
-            # self._name_ids[name] = ob
         elif name in self._output:
             ob = self._output[name]
             assert isinstance(ob, VariableAccessId)
@@ -868,17 +830,24 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
             raise ShaderError(self.errinfo(ob) + "Cannot store to input")
         elif name in self._uniform:
             raise ShaderError(self.errinfo(ob) + "Cannot store to uniform")
+        elif isinstance(ob, VariableAccessId) and issubclass(
+            ob.type, (_types.Array, _types.Struct)
+        ):
+            # A mutable data object, re-use the variable
+            self._name_variables[name] = ob.clone(name=name.split(".")[-1])
         else:
-            ob = ob.clone(name=name.split(".")[-1])
-            # Note that with GLSL, any named variable is turned into
-            # an OpVariable. This may simplify things (e.g. this
-            # associating multiple names to a value), and I reckon that
-            # the driver will optimize that out.
-            # This is also why we (for now) only emit OpName for variables
-            # and constants, and not for id's stored here.
-
-        # Store where the result can now be fetched by name (within this block)
-        self._name_ids[name] = ob
+            # Create variable if needed, store into it
+            if name not in self._name_variables:
+                self._name_variables[name] = self.obtain_variable(
+                    ob.type, cc.StorageClass_Function, name
+                )
+            var_access = self._name_variables[name]
+            if ob.type is not var_access.type:
+                raise ShaderError(
+                    self.errinfo()
+                    + f"Inconsistent types for variable {name!r}: {ob.type.__name__} and {var_access.type.__name__}"
+                )
+            var_access.resolve_store(self, ob)
 
     def co_load_index(self):
         index = self._stack.pop()
@@ -1248,28 +1217,7 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
 
     def _before_moving_out_of_a_block(self):
         label = self._current_branch["label"]
-        self._store_variables_for_other_blocks(label)
         self._store_stack_for_phi_op(label)
-
-    def _store_variables_for_other_blocks(self, label):
-        # Before we wrap up the current block ...
-        # We may need to store variable to use in other blocks
-        # Sort the names to obtain consistent bytecode.
-        for name in sorted(self._need_name_var_save.get(label, ())):
-            ob = self._name_ids[name]  # Get the last value
-            if isinstance(ob, VariableAccessId):
-                continue  # already a variable
-            if name not in self._name_variables:
-                self._name_variables[name] = self.obtain_variable(
-                    ob.type, cc.StorageClass_Function, name
-                )
-            var_access = self._name_variables[name]
-            if ob.type is not var_access.type:
-                raise ShaderError(
-                    self.errinfo()
-                    + f"Name {name} used for different types {ob.type} and {var_access.type}"
-                )
-            var_access.resolve_store(self, ob)
 
     def _store_stack_for_phi_op(self, label):
         # Sometimes, when we jump out of a block, the stack is not
@@ -1763,7 +1711,7 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
                 cc.OpCompositeConstruct, type_id, var_id, *composite_ids
             )
 
-        # Return as a variable access object
+        # Return as a variable access object - so it's trivial to index into it.
         # This is a mutable copy of the (potentially) constant data
         var_access = self.obtain_variable(array_type, cc.StorageClass_Function)
         var_access.resolve_store(self, var_id)
