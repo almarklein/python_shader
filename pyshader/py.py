@@ -179,6 +179,12 @@ class PyBytecode2Bytecode:
         self.emit(op.co_func_end)
 
     def _stack_pop(self, allow_global=False):
+        if not self._stack:
+            # Hacky fix for 3.8. Python normally does not have values
+            # on the stack between jumps, but 3.8 can in certain
+            # scenarios. I'm pretty sure that these scenarios are out
+            # of scope of PyShader anyway.
+            return
         ob = self._stack.pop()
         if not allow_global:
             if isinstance(ob, str) and ob.startswith("."):
