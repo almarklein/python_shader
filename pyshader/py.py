@@ -68,54 +68,6 @@ def get_line_bumps_from_code_object(co):
     return line_bumps
 
 
-# class PyBytecode:
-#
-#     def __init__(self, py_bytecode):
-#         self._py_bytecode = py_bytecode
-#         self._new_bytecode = []
-#         self._expand()
-#
-#     def _expand(self):
-#         py_bytecode = self._py_bytecode
-#         new_bytecode = self._new_bytecode
-#         new_bytecode.clear()
-#
-#         pos = 0
-#         while pos < len(py_bytecode):
-#             assert pos % 2 == 0
-#             # Skip over extended args first, easier to backtrack later
-#             while py_bytecode[pos] == EXTENDED_ARG:
-#                 pos += 2
-#             # Get opcode
-#             opcode = py_bytecode[pos]
-#             opname = dis.opname[opcode]
-#             # Get arg value
-#             arg = py_bytecode[pos + 1]
-#             n, i = 1, pos
-#             while py_bytecode[i - 2] == EXTENDED_ARG:
-#                 arg += py_bytecode[i - 1] * 256 ** n
-#                 n += 1
-#                 i -= 2
-#             # Increase line number?
-#             if pos >= self._line_bumps[self._line_bump_index + 1][0]:
-#                 self._line_bump_index += 1
-#                 linenr = self._line_bumps[self._line_bump_index][1]
-#                 self.emit(op.co_src_linenr, linenr)
-#             # Done
-#             pos += 2
-#             new_bytecode.append(opname, arg)  # todo: linenr?
-#
-#     def __len__(self):
-#         return len(self._new_bytecode)
-#
-#     def __getitem__(self, i):
-#         return self._new_bytecode[i]
-#
-#     def pointer2index(self, pos):
-#         ..
-
-
-
 class PyBytecode2Bytecode:
     """Convert Python bytecode to our own well-defined bytecode.
     Python bytecode depends on other variables on the code object, and differs
