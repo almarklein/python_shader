@@ -68,6 +68,54 @@ def get_line_bumps_from_code_object(co):
     return line_bumps
 
 
+# class PyBytecode:
+#
+#     def __init__(self, py_bytecode):
+#         self._py_bytecode = py_bytecode
+#         self._new_bytecode = []
+#         self._expand()
+#
+#     def _expand(self):
+#         py_bytecode = self._py_bytecode
+#         new_bytecode = self._new_bytecode
+#         new_bytecode.clear()
+#
+#         pos = 0
+#         while pos < len(py_bytecode):
+#             assert pos % 2 == 0
+#             # Skip over extended args first, easier to backtrack later
+#             while py_bytecode[pos] == EXTENDED_ARG:
+#                 pos += 2
+#             # Get opcode
+#             opcode = py_bytecode[pos]
+#             opname = dis.opname[opcode]
+#             # Get arg value
+#             arg = py_bytecode[pos + 1]
+#             n, i = 1, pos
+#             while py_bytecode[i - 2] == EXTENDED_ARG:
+#                 arg += py_bytecode[i - 1] * 256 ** n
+#                 n += 1
+#                 i -= 2
+#             # Increase line number?
+#             if pos >= self._line_bumps[self._line_bump_index + 1][0]:
+#                 self._line_bump_index += 1
+#                 linenr = self._line_bumps[self._line_bump_index][1]
+#                 self.emit(op.co_src_linenr, linenr)
+#             # Done
+#             pos += 2
+#             new_bytecode.append(opname, arg)  # todo: linenr?
+#
+#     def __len__(self):
+#         return len(self._new_bytecode)
+#
+#     def __getitem__(self, i):
+#         return self._new_bytecode[i]
+#
+#     def pointer2index(self, pos):
+#         ..
+
+
+
 class PyBytecode2Bytecode:
     """Convert Python bytecode to our own well-defined bytecode.
     Python bytecode depends on other variables on the code object, and differs
@@ -338,9 +386,9 @@ class PyBytecode2Bytecode:
 
         # Now we know the end (but there may be two positions to jump to)
         assert len(jumps_to_start) > 0
-        our_ends = [jumps_to_start[-1] + 2]
+        our_ends = [self._get_next_pos(jumps_to_start[-1], 2)]
         if self._peek(our_ends[0]) == "POP_BLOCK":
-            our_ends.append(our_ends[0] + 2)
+            our_ends.append(self._get_next_pos(our_ends[0], 2))
         ends = our_ends.copy()
         ends += [x["start"] for x in prev_loops] + [x["end"] for x in prev_loops]
 
@@ -351,10 +399,10 @@ class PyBytecode2Bytecode:
             if i > loop_start:
                 if target in ends:
                     first_jump_is_to_end = True
-                    body_target = i + 2
+                    body_target = self._get_next_pos(i, 2)
                 elif self._peek(target) == "BREAK_LOOP":
                     first_jump_is_to_end = True
-                    body_target = i + 2
+                    body_target = self._get_next_pos(i, 2)
                 break
 
         # Check what kind of loop this is
@@ -543,6 +591,18 @@ class PyBytecode2Bytecode:
 
         self._replace_labels(labels_to_replace)
 
+    def _get_next_pos(self, pos, delta):
+        # Move forward until we are at an actual instruction
+        if pos % 2 == 0:
+            while self._py_bytecode[pos] == EXTENDED_ARG:
+                pos += 2
+        else:
+            while self._py_bytecode[pos - 1] == EXTENDED_ARG:
+                pos += 2
+        if delta:
+            return self._get_next_pos(pos + 1, delta - 1)
+        return pos
+
     def _next(self):
         assert self._pointer % 2 == 0
         # Skip over extended args first, easier to backtrack later
@@ -567,16 +627,10 @@ class PyBytecode2Bytecode:
         self._pointer += 2
         return opname, arg
 
-    def _peek(self, pos=None):
+    def _peek(self, pos=None, delta=0):
         # Get initial position
         pos = self._pointer if pos is None else pos
-        # Move forward until we are at an actual instruction
-        if pos % 2 == 0:
-            while self._py_bytecode[pos] == EXTENDED_ARG:
-                pos += 2
-        else:
-            while self._py_bytecode[pos - 1] == EXTENDED_ARG:
-                pos += 2
+        pos = self._get_next_pos(pos, delta)
         # Now get the result, which is either the instruction, or its value
         if pos % 2 == 0:
             # Resolve name
@@ -897,13 +951,13 @@ class PyBytecode2Bytecode:
         elif func == ".py.range":
             if not (
                 self._peek(self._pointer) == "GET_ITER"
-                and self._peek(self._pointer + 2) == "FOR_ITER"
+                and self._peek(self._pointer, 2) == "FOR_ITER"
             ):
                 raise ShaderError(
                     self.errinfo() + "range() can only be used as a for-loop iter."
                 )
             loop_info = self._loops_to_handle[0]
-            assert loop_info["start"] == self._pointer + 2
+            assert loop_info["start"] == self._pointer + 2  # not _get_next_pos!
             loop_info["range_is_set"] = True
             if nargs == 1:
                 self.emit(op.co_load_constant, 0)
@@ -1089,7 +1143,7 @@ class PyBytecode2Bytecode:
             if self._peek() == "JUMP_ABSOLUTE":
                 # Python sometimes includes a bytecode that is never touched to jump
                 # to the beginning of the loop. Detect and ignore.
-                if self._peek(self._pointer + 1) == self._loop_stack[-1]["start"]:
+                if self._peek(self._pointer, 1) == self._loop_stack[-1]["start"]:
                     self._next()  # skip it
         self.emit(op.co_branch, label)
 
@@ -1153,8 +1207,8 @@ class PyBytecode2Bytecode:
 
             # Consume next codepoint - the storing of the iter value
             assert self._peek(self._pointer) == "FOR_ITER"
-            assert self._peek(self._pointer + 2) == "STORE_FAST"
-            iter_name_index = self._peek(self._pointer + 2 + 1)
+            assert self._peek(self._pointer, 2) == "STORE_FAST"
+            iter_name_index = self._peek(self._pointer, 2 + 1)
             iter_name = self._co.co_varnames[iter_name_index]
             loop_info["iter_name"] = iter_name
 
@@ -1259,9 +1313,9 @@ class PyBytecode2Bytecode:
         # Python sometimes includes a bytecode that is never touched to jump
         # to the beginning of the loop (direct or indirectly). Detect and ignore.
         if self._peek() == "JUMP_ABSOLUTE":
-            target = self._peek(self._pointer + 1)
+            target = self._peek(self._pointer, 1)
             while self._peek(target) == "JUMP_ABSOLUTE":
-                target = self._peek(target + 1)
+                target = self._peek(target, 1)
             if target == self._loop_stack[-1]["start"]:
                 self._next()  # skip it
 
@@ -1291,7 +1345,7 @@ class PyBytecode2Bytecode:
         next_op, next_val = self._next()  # STORE_FAST, iter variable name
         loop_info = self._loop_stack[-1]
 
-        assert here == loop_info["start"]
+        assert here == self._get_next_pos(loop_info["start"], 0)
         assert target in (loop_info["end"], loop_info["end"] - 2)
         assert next_op == "STORE_FAST"
         assert self._co.co_varnames[next_val] == loop_info["iter_name"]
