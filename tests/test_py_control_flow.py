@@ -3,7 +3,7 @@ Tests that run a compute shader and validate the outcome.
 With this we can validate arithmetic, control flow etc.
 """
 
-
+import sys
 import ctypes
 
 import pyshader
@@ -585,7 +585,6 @@ def test_loop9():
     # This is a very specific shader (volumeslice from pygfx) that produces
     # wrong results at some point, which was the notch needed to implement
     # variables using VarAccessId objects. See #56.
-    @python2shader_and_validate
     def compute_shader(
         index_xyz: ("input", "GlobalInvocationId", ivec3),
         data2: ("buffer", 1, Array(f32)),
@@ -616,6 +615,12 @@ def test_loop9():
                 break
         index = index_xyz.x
         data2[index] = f32(vertices[index])
+
+    # On py36 this works, but generates different bytecode ...
+    if sys.version_info > (3, 7):
+        compute_shader = python2shader_and_validate(compute_shader)
+    else:
+        compute_shader = pyshader.python2shader(compute_shader)
 
     skip_if_no_wgpu()
     vertices = generate_list_of_floats_from_shader(6, compute_shader)
