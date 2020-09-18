@@ -1057,11 +1057,26 @@ class Bytecode2SpirVGenerator(OpCodeDefinitions, BaseSpirVGenerator):
                 opcode = cc.OpDot  # special case
                 result_id, type_id = self.obtain_value(type1.subtype)
             elif issubclass(reftype1, _types.Float):
-                opcode = FOPS[op]
+                try:
+                    opcode = FOPS[op]
+                except KeyError:  # pragma: no cover
+                    raise ShaderError(
+                        self.errinfo(val1, val2) + f"Cannot {op.upper()} float values."
+                    )
             elif issubclass(reftype1, _types.Int):
-                opcode = IOPS[op]
+                try:
+                    opcode = IOPS[op]
+                except KeyError:  # pragma: no cover
+                    raise ShaderError(
+                        self.errinfo(val1, val2) + f"Cannot {op.upper()} int values."
+                    )
             elif issubclass(reftype1, _types.boolean):
-                opcode = LOPS[op]
+                try:
+                    opcode = LOPS[op]
+                except KeyError:  # pragma: no cover
+                    raise ShaderError(
+                        self.errinfo(val1, val2) + f"Cannot {op.upper()} bool values."
+                    )
             else:
                 raise ShaderError(
                     self.errinfo(val1, val2)

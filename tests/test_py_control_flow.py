@@ -25,6 +25,43 @@ def generate_list_of_floats_from_shader(n, compute_shader):
     return list(out[1])
 
 
+# %% logic
+
+
+def test_logic1():
+    # Simple
+    @python2shader_and_validate
+    def compute_shader(
+        index_xyz: ("input", "GlobalInvocationId", ivec3),
+        data2: ("buffer", 1, Array(f32)),
+    ):
+        index = index_xyz.x
+        a = 4
+        b = 5
+        if index == 1:
+            data2[index] = f32(a == 4 and b == 5)
+        elif index == 2:
+            data2[index] = f32(a == 1 and b == 5)
+        elif index == 3:
+            data2[index] = f32(a == 4 and b == 1)
+        elif index == 4:
+            data2[index] = f32(a == 4 or b == 1)
+        elif index == 5:
+            data2[index] = f32(a == 1 or b == 5)
+        elif index == 6:
+            data2[index] = f32(a == 1 or b == 1)
+        if index == 7:
+            data2[index] = f32(a == 1 or a == 4 or a == 5)
+        if index == 8:
+            data2[index] = f32(a == 1 and a == 4 and b == 5)
+        if index == 9:
+            data2[index] = f32(a == 1 or a == 4 and b == 5)
+
+    skip_if_no_wgpu()
+    res = generate_list_of_floats_from_shader(10, compute_shader)
+    assert res == [0, 1, 0, 0, 1, 1, 0, 1, 0, 0]
+
+
 # %% if
 
 
@@ -233,7 +270,7 @@ def test_andor1():
         data2[index] = val
 
     with pytest.raises(pyshader.ShaderError):
-        pyshader.python2shader(compute_shader)
+        pyshader.python2shader(compute_shader).to_spirv()
 
 
 def test_andor2():
@@ -870,6 +907,7 @@ def skip_if_no_wgpu():
 
 
 HASHES = {
+    "test_logic1.compute_shader": ("6f2baacab270044c", "b0ff1221b610cd07"),
     "test_if1.compute_shader": ("44cc15f3c229ee9d", "24e742b065891a5f"),
     "test_if2.compute_shader": ("86d2f7c7a4c935c9", "1b8bdd178b440afc"),
     "test_if3.compute_shader": ("1c609db87eca2be8", "a1fd71cfc4368f5a"),
