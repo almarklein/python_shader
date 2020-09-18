@@ -189,7 +189,7 @@ def test_texcomp_2d_rg32i():
 
 
 def test_tuple_unpacking1():
-    @python2shader_and_validate_nobc
+    @python2shader_and_validate_nochecks
     def compute_shader(
         index: ("input", "GlobalInvocationId", ivec3),
         data2: ("buffer", 1, "Array(vec2)"),
@@ -212,7 +212,7 @@ def test_tuple_unpacking2():
     # Python implementations deal with tuple packing/unpacking differently.
     # Python 3.8+ has rot_four, pypy3 resolves by changing the order of the
     # store ops in the bytecode itself, and seems to even ditch unused variables.
-    @python2shader_and_validate_nobc
+    @python2shader_and_validate_nochecks
     def compute_shader(
         index: ("input", "GlobalInvocationId", ivec3),
         data2: ("buffer", 1, "Array(vec2)"),
@@ -408,10 +408,10 @@ def python2shader_and_validate(func):
     return m
 
 
-def python2shader_and_validate_nobc(func):
+def python2shader_and_validate_nochecks(func):
     m = pyshader.python2shader(func)
     assert m.input is func
-    validate_module(m, HASHES, check_bytecode=False)
+    validate_module(m, HASHES, check_bytecode=False, check_spirv=False)
     return m
 
 

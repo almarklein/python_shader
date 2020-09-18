@@ -34,7 +34,7 @@ def iters_close(iter1, iter2):
     return True
 
 
-def validate_module(shader_module, hashes, check_bytecode=True):
+def validate_module(shader_module, hashes, check_bytecode=True, check_spirv=True):
     """Validate the given shader module against the given hashes."""
 
     func = shader_module.input
@@ -86,7 +86,7 @@ def validate_module(shader_module, hashes, check_bytecode=True):
         if check_bytecode and hashes[key][0] != hash_bc:
             code = inspect.getsource(func)
             assert False, f"Bytecode for {key} does not match:\n{code}\n{text_bc}"
-        if hashes[key][1] != hash_sp:
+        if check_spirv and hashes[key][1] != hash_sp:
             code = inspect.getsource(func)
             assert False, f"SpirV for {key} does not match:\n{code}\n{byte_sp}"
         # If the Vulkan SKD is available, validate the module for good measure.

@@ -1088,7 +1088,7 @@ class PyBytecode2Bytecode:
                 self._opcodes.pop(-1)
             if self._peek() == "JUMP_ABSOLUTE":
                 # Python sometimes includes a bytecode that is never touched to jump
-                # to the beginneing of the loop. Detect and ignore.
+                # to the beginning of the loop. Detect and ignore.
                 if self._peek(self._pointer + 1) == self._loop_stack[-1]["start"]:
                     self._next()  # skip it
         self.emit(op.co_branch, label)
@@ -1257,9 +1257,12 @@ class PyBytecode2Bytecode:
         # Python < 3.8
         self.emit(op.co_branch, self._loop_stack[-1]["merge_label"])
         # Python sometimes includes a bytecode that is never touched to jump
-        # to the beginneing of the loop. Detect and ignore.
+        # to the beginning of the loop (direct or indirectly). Detect and ignore.
         if self._peek() == "JUMP_ABSOLUTE":
-            if self._peek(self._pointer + 1) == self._loop_stack[-1]["start"]:
+            target = self._peek(self._pointer + 1)
+            while self._peek(target) == "JUMP_ABSOLUTE":
+                target = self._peek(target + 1)
+            if target == self._loop_stack[-1]["start"]:
                 self._next()  # skip it
 
     def _op_continue_loop(self, target):
